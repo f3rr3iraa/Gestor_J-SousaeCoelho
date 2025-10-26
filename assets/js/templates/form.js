@@ -1,0 +1,112 @@
+// assets/js/templates/form.js
+
+async function initFormSupabase() {
+
+    const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
+
+    if (!window.supabase) {
+        showMessage("❌ Erro: Supabase SDK não carregado!", "danger");
+        console.error("❌ Supabase SDK não foi carregado. Verifica o script no index.html");
+        return;
+    }
+
+    const { createClient } = window.supabase;
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+    const itemForm = document.getElementById("itemForm");
+    if (!itemForm) {
+        console.error("⚠️ Formulário #itemForm não encontrado.");
+        return;
+    }
+
+    itemForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        showMessage("⏳ A enviar dados para o servidor...", "info");
+
+        const formData = new FormData(itemForm);
+        const nome = formData.get("nome");
+        const comprimento = parseFloat(formData.get("comprimento")) || 0;
+        const largura = parseFloat(formData.get("largura")) || 0;
+        const tipo = formData.get("tipo");
+        const observacoes = formData.get("observacoes");
+        const fotoFile = formData.get("foto");
+
+        if (!nome || !tipo) {
+            showMessage("⚠️ Preencha os campos obrigatórios (Nome e Tipo).", "warning");
+            return;
+        }
+
+        let fotoUrl = null;
+
+        if (fotoFile && fotoFile.name) {
+            showMessage("📸 A carregar imagem...", "info");
+
+            const fileName = `${Date.now()}_${fotoFile.name}`;
+            const { data: uploadData, error: uploadError } = await window.supabase
+                .storage
+                .from("imagens")
+                .upload(fileName, fotoFile);
+
+            if (uploadError) {
+                console.error("❌ Erro no upload:", uploadError);
+                showMessage("Erro ao carregar imagem: " + uploadError.message, "danger");
+                return;
+            }
+
+            const { data: publicUrlData } = window.supabase
+                .storage
+                .from("imagens")
+                .getPublicUrl(fileName);
+
+            fotoUrl = publicUrlData.publicUrl;
+        }
+
+        const { data, error } = await window.supabase
+            .from("items")
+            .insert([{ nome, comprimento, largura, tipo, observacoes, foto: fotoUrl }])
+            .select();
+
+        if (error) {
+            console.error("❌ Erro ao inserir:", error);
+            showMessage("Erro ao gravar no banco de dados: " + error.message, "danger");
+            return;
+        }
+
+        showMessage("✅ Item cadastrado com sucesso!", "success");
+        itemForm.reset();
+    });
+}
+
+function showMessage(message, type = "info") {
+    const containerId = "toast-container";
+    let container = document.getElementById(containerId);
+
+    if (!container) {
+        container = document.createElement("div");
+        container.id = containerId;
+        container.className = "toast-container position-fixed bottom-0 end-0 p-3";
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement("div");
+    toast.className = `toast align-items-center text-bg-${type} border-0 show mb-2`;
+    toast.role = "alert";
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    container.appendChild(toast);
+
+    // Remove após 5 segundos
+    setTimeout(() => toast.remove(), 5000);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("itemForm")) {
+        initFormSupabase();
+    }
+});
+
+window.initFormSupabase = initFormSupabase;

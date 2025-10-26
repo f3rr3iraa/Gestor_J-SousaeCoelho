@@ -1,0 +1,114 @@
+body {
+  background: #f0f0f0;
+}
+
+#content-login {
+  min-height: 100vh;
+  background: url("../images/background.svg") no-repeat center center fixed;
+  background-size: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Input index */
+.input-container {
+  position: relative;
+  margin: 30px auto;
+  width: 100%;
+  max-width: 350px;
+}
+
+.input-container input[type="text"],
+.input-container input[type="password"] {
+  font-size: 18px;
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid #ccc;
+  padding: 5px 0;
+  background-color: transparent;
+  outline: none;
+  color: #fff;
+}
+
+.input-container .label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: #ccc;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.input-container input:focus~.label,
+.input-container input:valid~.label {
+  top: -20px;
+  font-size: 14px;
+  color: #0d6efd;
+}
+
+.input-container .underline {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background-color: #0d6efd;
+  transform: scaleX(0);
+  transition: all 0.3s ease;
+}
+
+.input-container input:focus~.underline,
+.input-container input:valid~.underline {
+  transform: scaleX(1);
+}
+
+
+/* sidebar */
+
+
+.sidebar-content {
+  min-width: 230px;
+  max-width: 230px;
+  background-color: #22333B !important;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sidebar-content .nav-link {
+  color: #fff;
+  margin-bottom: 10px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  display: block;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.sidebar-content .nav-link.active {
+  background-color: #f8f9fa;
+  color: #000000 !important;
+  font-weight: bold;
+}
+
+.sidebar-content .nav-link:not(.active):hover {
+  font-weight: bold;
+}
+
+
+
+
+body {
+  min-height: 100vh;
+  display: flex;
+  background: #f8f9fa;
+  overflow-x: hidden;
+}
+
+
+
+.main-content {
+  flex-grow: 1;
+  padding: 20px;
+}

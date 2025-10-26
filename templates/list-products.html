@@ -1,0 +1,89 @@
+<h2>Lista de Itens</h2>
+
+<div class="table-responsive mt-3">
+  <table class="table table-striped table-bordered align-middle text-center">
+    <thead class="table-dark">
+      <tr>
+        <th class="col-3">Nome</th>
+        <th class="col-1">Comprimento</th>
+        <th class="col-1">Largura</th>
+        <th class="col-1">Tipo</th>
+        <th class="col-2">Observações</th>
+        <th class="col-1">Foto</th>
+        <th class="col-2">Data</th>
+        <th class="col-1">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="itemsBody">
+      <tr><td colspan="8">A carregar dados...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal Eliminar -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        Tem a certeza que quer eliminar este item?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Offcanvas Editar -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="editOffcanvas" aria-labelledby="editOffcanvasLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="editOffcanvasLabel">Editar Item</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="editForm">
+      <input type="hidden" id="editId">
+      <input type="hidden" id="editFotoAtual">
+
+      <div class="mb-3">
+        <label for="editNome" class="form-label">Nome</label>
+        <input type="text" class="form-control" id="editNome" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="editComprimento" class="form-label">Comprimento</label>
+        <input type="number" class="form-control" id="editComprimento">
+      </div>
+
+      <div class="mb-3">
+        <label for="editLargura" class="form-label">Largura</label>
+        <input type="number" class="form-control" id="editLargura">
+      </div>
+
+      <div class="mb-3">
+        <label for="editTipo" class="form-label">Tipo</label>
+        <input type="text" class="form-control" id="editTipo">
+      </div>
+
+      <div class="mb-3">
+        <label for="editObservacoes" class="form-label">Observações</label>
+        <textarea class="form-control" id="editObservacoes" rows="3"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label for="editFoto" class="form-label">Foto</label>
+        <div class="mt-2" id="fotoPreviewContainer">
+          <img id="fotoPreview" src="" alt="Pré-visualização" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">
+        </div>
+        <input class="mt-2" type="file" class="form-control" id="editFoto" accept="image/*">
+      </div>
+
+      <button type="submit" class="btn btn-primary">Salvar alterações</button>
+    </form>
+  </div>
+</div>
