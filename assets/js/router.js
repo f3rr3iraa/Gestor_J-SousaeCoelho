@@ -25,7 +25,7 @@ const routes = {
         description: "List Products Page",
     },
 
-}
+}   
 
 const route = (event) => {
     event = event || window.event;
