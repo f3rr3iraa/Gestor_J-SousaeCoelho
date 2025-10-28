@@ -52,7 +52,7 @@ async function initFormSupabase() {
                 showMessage("Erro ao carregar imagem: " + uploadError.message, "danger");
                 return;
             }
-
+            
             const { data: publicUrlData } = window.supabase
                 .storage
                 .from("imagens")

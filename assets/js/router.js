@@ -24,23 +24,22 @@ const routes = {
         title: "list-products",
         description: "List Products Page",
     },
-
-}   
+};
 
 const route = (event) => {
     event = event || window.event;
     event.preventDefault();
 
-    const targeUrl = new URL(event.target.href, window.location.origin);
+    const targetUrl = new URL(event.target.href, window.location.origin);
 
-    if (targeUrl.origin === window.location.origin) {
-        window.history.pushState({}, "", targeUrl.pathname); 
-    } else
-        window.open(targeUrl.href, "_blanck");
+    if (targetUrl.origin === window.location.origin) {
+        window.history.pushState({}, "", targetUrl.pathname);
+    } else {
+        window.open(targetUrl.href, "_blank");
+    }
 };
 
 const locationHandler = async () => {
-    // se não está logado, mostra só o login
     if (!sessionStorage.getItem("logged")) {
         document.getElementById("content-login").classList.remove("d-none");
         document.getElementById("content-dashboard").classList.add("d-none");
@@ -48,10 +47,10 @@ const locationHandler = async () => {
         return;
     }
 
-    // resto do código igual...
     let location = window.location.pathname;
     if (location.length === 0) location = "/";
     let route = routes[location] || routes["404"];
+
     if (route.title === "404") {
         window.history.pushState({}, "", "/");
         location = "/";
@@ -61,18 +60,30 @@ const locationHandler = async () => {
     const html = await fetch(route.template).then((response) => response.text());
     document.getElementById('content').innerHTML = html;
 
+    // Inicializações específicas por página
     if (window.initFormSupabase && location === "/form") {
-    console.log("⚙️ A inicializar formulário Supabase após injeção SPA...");
-    initFormSupabase();
-}
+        initFormSupabase();
+    }
+    if (window.initHomeSupabase && location === "/list-products") {
+        initHomeSupabase('on');
+    }
+    if (window.initHomeSupabase && location === "/list-orders") {
+        initHomeSupabase('off');
+    }
 
     await changeActive(location);
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
 
-
 async function changeActive(location) {
-    console.log("location => ", location);
+    const links = document.querySelectorAll("#menu a");
+    links.forEach(link => {
+        link.classList.remove("active");
+        const onclickAttr = link.getAttribute("onclick");
+        if (onclickAttr && onclickAttr.includes(`goToRoute('${location}')`)) {
+            link.classList.add("active");
+        }
+    });
 }
 
 function goToRoute(route) {
