@@ -24,7 +24,9 @@ async function initFormSupabase() {
         showMessage("⏳ A enviar dados para o servidor...", "info");
 
         const formData = new FormData(itemForm);
-        const nome = formData.get("nome");
+        const marca = formData.get("marca");
+        const nomeOriginal = formData.get("nome");
+        const nome = `${marca} - ${nomeOriginal}`;
         const comprimento = parseFloat(formData.get("comprimento")) || 0;
         const largura = parseFloat(formData.get("largura")) || 0;
         const tipo = formData.get("tipo");
@@ -63,7 +65,7 @@ async function initFormSupabase() {
 
         const { data, error } = await window.supabase
             .from("items")
-            .insert([{ nome, comprimento, largura, tipo, observacoes, foto: fotoUrl }])
+            .insert([{ nome, marca, comprimento, largura, tipo, observacoes, foto: fotoUrl }])
             .select();
 
         if (error) {
