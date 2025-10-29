@@ -10,12 +10,14 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
         tableBody.innerHTML = `<tr><td colspan="8">A carregar dados...</td></tr>`;
 
+        const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
+
         // Buscar dados filtrados por estado
         const { data, error } = await supabaseClient
             .from("items")
             .select("*")
             .eq("estado", filtroEstado)
-            .order("id", { ascending: false });
+            .order(orderField, { ascending: false });
 
         if (error) {
             tableBody.innerHTML = `<tr><td colspan="8">Erro ao carregar dados: ${error.message}</td></tr>`;
@@ -39,7 +41,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
                 <td>${item.tipo}</td>
                 <td>${item.observacoes ?? ""}</td>
                 <td>${item.foto ? `<img src="${item.foto}" alt="foto" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">` : "-"}</td>
-                <td>${new Date(item.created_at).toLocaleString("pt-PT")}</td>
+                <td>${filtroEstado === 'off' ? (item.data_off ? new Date(item.data_off).toLocaleString("pt-PT") : "-") : new Date(item.created_at).toLocaleString("pt-PT")}</td>
                 ${hasActions ? `
                     <td>
                         <button class="btn btn-sm btn-outline-primary me-1" title="Editar">
@@ -49,8 +51,8 @@ async function initHomeSupabase(filtroEstado = 'on') {
                             <i class="bi bi-trash"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-warning btn-move" title="Mover para Ordens">
-            <i class="bi bi-arrow-right-square"></i>
-        </button>
+                            <i class="bi bi-arrow-right-square"></i>
+                        </button>
                     </td>
                 ` : ""}
             </tr>
@@ -114,15 +116,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
             });
         });
 
-        /*
-        Meter em baixo do botao eliminar
-
-        <button class="btn btn-sm btn-outline-warning btn-move" title="Mover para Ordens">
-            <i class="bi bi-arrow-right-square"></i>
-        </button>
-
-        _____________________________________________________________________________________
-        
+        // Botão mover para off
         document.querySelectorAll(".btn-move").forEach(btn => {
             btn.addEventListener("click", async (e) => {
                 const row = e.target.closest("tr");
@@ -130,7 +124,10 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
                 const { error } = await supabaseClient
                     .from("items")
-                    .update({ estado: 'off' })
+                    .update({ 
+                        estado: 'off',
+                        data_off: new Date().toISOString() 
+                    })
                     .eq("id", id);
 
                 if (error) {
@@ -141,26 +138,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
                 }
             });
         });
-        */
 
-         document.querySelectorAll(".btn-move").forEach(btn => {
-            btn.addEventListener("click", async (e) => {
-                const row = e.target.closest("tr");
-                const id = row.getAttribute("data-id");
-
-                const { error } = await supabaseClient
-                    .from("items")
-                    .update({ estado: 'off' })
-                    .eq("id", id);
-
-                if (error) {
-                    showMessage(`Erro ao mover: ${error.message}`, 'danger');
-                } else {
-                    showMessage("Item movido para Ordens!", 'success');
-                    row.remove();
-                }
-            });
-        });
         // Form Edit
         document.getElementById("editForm")?.addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -224,5 +202,4 @@ async function initHomeSupabase(filtroEstado = 'on') {
     }
 }
 
-// Tornar a função acessível globalmente para o router SPA
 window.initHomeSupabase = initHomeSupabase;
