@@ -30,11 +30,12 @@ async function initHomeSupabase(filtroEstado = 'on') {
             return;
         }
 
-        const isProductsPage = filtroEstado === 'on';
-        const hasActions = isProductsPage;
+        const hasActions = true;
+
 
         tableBody.innerHTML = data.map(item => `
             <tr data-id="${item.id}">
+            <td>${item.id}</td>
                 <td>${item.nome}</td>
                 <td>${item.comprimento ?? "-"}</td>
                 <td>${item.largura ?? "-"}</td>
@@ -44,16 +45,23 @@ async function initHomeSupabase(filtroEstado = 'on') {
                 <td>${filtroEstado === 'off' ? (item.data_off ? new Date(item.data_off).toLocaleString("pt-PT") : "-") : new Date(item.created_at).toLocaleString("pt-PT")}</td>
                 ${hasActions ? `
                     <td>
-                        <button class="btn btn-sm btn-outline-primary me-1" title="Editar">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger btn-delete" title="Eliminar">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning btn-move" title="Mover para Ordens">
-                            <i class="bi bi-arrow-right-square"></i>
-                        </button>
+                        ${filtroEstado === 'on' ? `
+                            <button class="btn btn-sm btn-outline-primary me-1" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger btn-delete" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning btn-move" title="Mover para Ordens">
+                                <i class="bi bi-arrow-right-square"></i>
+                            </button>
+                        ` : `
+                            <button class="btn btn-sm btn-outline-danger btn-delete" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        `}
                     </td>
+
                 ` : ""}
             </tr>
         `).join("");
@@ -124,9 +132,9 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
                 const { error } = await supabaseClient
                     .from("items")
-                    .update({ 
+                    .update({
                         estado: 'off',
-                        data_off: new Date().toISOString() 
+                        data_off: new Date().toISOString()
                     })
                     .eq("id", id);
 

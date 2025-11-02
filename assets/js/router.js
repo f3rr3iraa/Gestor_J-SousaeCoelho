@@ -64,12 +64,16 @@ const locationHandler = async () => {
     if (window.initFormSupabase && location === "/form") {
         initFormSupabase();
     }
+    if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) {
+        initHomeSpaceSupabase(); 
+    }
     if (window.initHomeSupabase && location === "/list-products") {
         initHomeSupabase('on');
     }
     if (window.initHomeSupabase && location === "/list-orders") {
         initHomeSupabase('off');
     }
+
 
     await changeActive(location);
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
