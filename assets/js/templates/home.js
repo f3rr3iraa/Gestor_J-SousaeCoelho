@@ -27,20 +27,27 @@ async function initHomeSpaceSupabase() {
 
       pedidosBody.innerHTML = pageItems.length
         ? pageItems
-            .map(
-              (item) => `
-          <tr>
-            <td>${item.id}</td>
-            <td>${item.nome}</td>
-            <td>${item.comprimento ?? "-"}</td>
-            <td>${item.largura ?? "-"}</td>
-            <td>${item.tipo}</td>
-            <td>${item.observacoes ?? ""}</td>
-            <td>${item.foto ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">` : "-"}</td>
-            <td>${item.data_off ? new Date(item.data_off).toLocaleString("pt-PT") : "-"}</td>
-          </tr>`
-            )
-            .join("")
+          .map((item) => {
+            const marcaenome = `${item.marca} - ${item.nome}`;
+            return `
+            <tr>
+              <td>${item.id}</td>
+              <td>${marcaenome}</td>
+              <td>${item.comprimento ?? ""}</td>
+              <td>${item.largura ?? ""}</td>
+              <td>${item.tipo}</td>
+              <td>${item.observacoes ?? ""}</td>
+              <td>${item.foto
+                ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
+                : ""
+              }</td>
+              <td>${item.data_off
+                ? new Date(item.data_off).toLocaleString("pt-PT")
+                : ""
+              }</td>
+            </tr>`;
+          })
+          .join("")
         : `<tr><td colspan="8">Nenhum pedido encontrado.</td></tr>`;
 
       document.getElementById("prevPedidos").disabled = pedidosPage === 0;
@@ -55,21 +62,25 @@ async function initHomeSpaceSupabase() {
 
       produtosBody.innerHTML = pageItems.length
         ? pageItems
-            .map(
-              (item) => `
-          <tr>
-            <td>${item.id}</td>
-            <td>${item.nome}</td>
-            <td>${item.comprimento ?? "-"}</td>
-            <td>${item.largura ?? "-"}</td>
-            <td>${item.tipo}</td>
-            <td>${item.observacoes ?? ""}</td>
-            <td>${item.foto ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">` : "-"}</td>
-            <td>${new Date(item.created_at).toLocaleString("pt-PT")}</td>
-          </tr>`
-            )
-            .join("")
-        : `<tr><td colspan="8">Nenhum produto encontrado.</td></tr>`;
+          .map((item) => {
+            const marcaenome = `${item.marca} - ${item.nome}`;
+            return `
+            <tr>
+              <td>${item.id}</td>
+              <td>${marcaenome}</td>
+              <td>${item.comprimento ?? ""}</td>
+              <td>${item.largura ?? ""}</td>
+              <td>${item.tipo}</td>
+              <td>${item.observacoes ?? ""}</td>
+              <td>${item.foto
+                ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
+                : ""
+              }</td>
+              <td>${new Date(item.created_at).toLocaleString("pt-PT")}</td>
+            </tr>`;
+          })
+          .join("")
+        : `<tr><td colspan="8">Nenhum pedido encontrado.</td></tr>`;
 
       document.getElementById("prevProdutos").disabled = produtosPage === 0;
       document.getElementById("nextProdutos").disabled = end >= produtosData.length;
@@ -102,4 +113,3 @@ async function initHomeSpaceSupabase() {
   }
 }
 
-window.addEventListener("DOMContentLoaded", initHomeSpaceSupabase);

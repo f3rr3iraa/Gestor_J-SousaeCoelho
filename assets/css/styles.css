@@ -183,3 +183,91 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ====== ESTILO BASE DO CONTAINER ====== */
+.home-container {
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+}
+
+
+legend {
+  font-weight: bold;
+}
+
+
+/* ====== ESTILO COOLINPUT ====== */
+/* From Uiverse.io by kamehame-ha */
+.coolinput {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin-top: 15px;
+}
+
+.coolinput label.text {
+  font-size: 0.8rem;
+  color: #2e4752;
+  font-weight: 700;
+  position: relative;
+  top: 0.5rem;
+  margin: 0 0 0 7px;
+  padding: 0 3px;
+  background: #f8f9fa;
+  width: fit-content;
+}
+
+.coolinput .input {
+  padding: 10px;
+  font-size: 0.85rem;
+  border: 2px #2e4752 solid;
+  background: #f8f9fa;
+  outline: none;
+  resize: vertical;
+}
+
+.coolinput .input:focus {
+  border-color: #2e4752;
+}
+
+/* ====== BOTÃO ====== */
+.btn-form {
+  display: block;
+  margin: 20px  0 auto;
+  padding: 10px 25px;
+  border: none;
+  border-radius: 6px;
+  background-color: #22333B;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-form:hover {
+  background-color: #2e4752;
+}
+
+
+
+
+
+
+#filtrosContainer .coolinput {
+  width: 100%;
+  margin-top: 0; /
+}
+
