@@ -26,9 +26,11 @@ async function initFormSupabase() {
         const formData = new FormData(itemForm);
         const marca = formData.get("marca");
         const nome = formData.get("nome");
+        const lote = formData.get("lote");
+        const tipo = formData.get("tipo");
         const comprimento = parseFloat(formData.get("comprimento")) || 0;
         const largura = parseFloat(formData.get("largura")) || 0;
-        const tipo = formData.get("tipo");
+        const espessura = parseFloat(formData.get("espessura")) || 0;
         const observacoes = formData.get("observacoes");
         const fotoFile = formData.get("foto");
 
@@ -87,7 +89,7 @@ async function initFormSupabase() {
 
         const { data, error } = await window.supabase
             .from("items")
-            .insert([{ nome, marca, comprimento, largura, tipo, observacoes, foto: fotoUrl }])
+            .insert([{ nome, marca, lote, tipo, comprimento, largura, espessura, observacoes, foto: fotoUrl }])
             .select();
 
         if (error) {

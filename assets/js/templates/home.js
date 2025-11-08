@@ -8,8 +8,8 @@ async function initHomeSpaceSupabase() {
     const pedidosBody = document.getElementById("pedidosBody");
     const produtosBody = document.getElementById("produtosBody");
 
-    if (pedidos.error) pedidosBody.innerHTML = `<tr><td colspan="8">Erro: ${pedidos.error.message}</td></tr>`;
-    if (produtos.error) produtosBody.innerHTML = `<tr><td colspan="8">Erro: ${produtos.error.message}</td></tr>`;
+    if (pedidos.error) pedidosBody.innerHTML = `<tr><td colspan="9">Erro: ${pedidos.error.message}</td></tr>`;
+    if (produtos.error) produtosBody.innerHTML = `<tr><td colspan="9">Erro: ${produtos.error.message}</td></tr>`;
 
     const pedidosData = pedidos.data || [];
     const produtosData = produtos.data || [];
@@ -28,13 +28,14 @@ async function initHomeSpaceSupabase() {
       pedidosBody.innerHTML = pageItems.length
         ? pageItems
           .map((item) => {
-            const marcaenome = `${item.marca} - ${item.nome}`;
+            const marcaenomeeespessura = `${item.marca ?? ""} - ${item.nome ?? ""} ${item.espessura ?? ""}`;
             return `
             <tr>
               <td>${item.id}</td>
-              <td>${marcaenome}</td>
+              <td>${marcaenomeeespessura}</td>
               <td>${item.comprimento ?? ""}</td>
               <td>${item.largura ?? ""}</td>
+              <td>${item.lote ?? ""}</td>
               <td>${item.tipo}</td>
               <td>${item.observacoes ?? ""}</td>
               <td>${item.foto
@@ -48,7 +49,7 @@ async function initHomeSpaceSupabase() {
             </tr>`;
           })
           .join("")
-        : `<tr><td colspan="8">Nenhum pedido encontrado.</td></tr>`;
+        : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
 
       document.getElementById("prevPedidos").disabled = pedidosPage === 0;
       document.getElementById("nextPedidos").disabled = end >= pedidosData.length;
@@ -63,13 +64,14 @@ async function initHomeSpaceSupabase() {
       produtosBody.innerHTML = pageItems.length
         ? pageItems
           .map((item) => {
-            const marcaenome = `${item.marca} - ${item.nome}`;
+            const marcaenomeeespessura = `${item.marca ?? ""} - ${item.nome ?? ""} ${item.espessura ?? ""}`;
             return `
             <tr>
               <td>${item.id}</td>
-              <td>${marcaenome}</td>
+              <td>${marcaenomeeespessura}</td>
               <td>${item.comprimento ?? ""}</td>
               <td>${item.largura ?? ""}</td>
+              <td>${item.lote ?? ""}</td>
               <td>${item.tipo}</td>
               <td>${item.observacoes ?? ""}</td>
               <td>${item.foto
@@ -80,7 +82,7 @@ async function initHomeSpaceSupabase() {
             </tr>`;
           })
           .join("")
-        : `<tr><td colspan="8">Nenhum pedido encontrado.</td></tr>`;
+        : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
 
       document.getElementById("prevProdutos").disabled = produtosPage === 0;
       document.getElementById("nextProdutos").disabled = end >= produtosData.length;

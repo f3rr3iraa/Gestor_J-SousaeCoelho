@@ -114,6 +114,10 @@ body {
 }
 
 
+.btn-close:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
 
 
 body {
@@ -211,6 +215,8 @@ legend {
 }
 
 
+
+
 /* ====== ESTILO COOLINPUT ====== */
 /* From Uiverse.io by kamehame-ha */
 .coolinput {
@@ -286,3 +292,30 @@ select.input option {
   margin-top: 0; /
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+.table td {
+  max-width: 200px;      
+  white-space: normal;     
+  word-wrap: break-word;   
+  overflow-wrap: anywhere;
+  vertical-align: middle;  
+}
+
+td img {
+  max-width: 100px;        
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+}

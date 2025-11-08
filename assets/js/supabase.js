@@ -107,32 +107,32 @@ function initFiltros() {
     if (!filtroId || !filtroMarca || !filtroNome || !filtroTipo || !btnLimpar) return;
 
     const aplicarFiltros = () => {
-    const refValor = filtroId.value.trim().toLowerCase();
-    const marcaValor = filtroMarca.value.trim().toLowerCase();
-    const nomeValor = filtroNome.value.trim().toLowerCase();
-    const tipoValor = filtroTipo.value.trim().toLowerCase();
+        const refValor = filtroId.value.trim().toLowerCase();
+        const marcaValor = filtroMarca.value.trim().toLowerCase();
+        const nomeValor = filtroNome.value.trim().toLowerCase();
+        const tipoValor = filtroTipo.value.trim().toLowerCase();
 
-    const filtrados = (window.dadosOriginais || []).filter(item => {
-        // === FILTRO DE REFERÊNCIA ===
-        let refOk = true;
-        if (refValor) {
-            const refId = String(item.id || "").toLowerCase();
-            const refCampo = String(item.referencia || "").toLowerCase();
+        const filtrados = (window.dadosOriginais || []).filter(item => {
+            // === FILTRO DE REFERÊNCIA ===
+            let refOk = true;
+            if (refValor) {
+                const refId = String(item.id || "").toLowerCase();
+                const refCampo = String(item.referencia || "").toLowerCase();
 
-            // Só aceita se o ID ou referência COMEÇAR pelo valor digitado (não conter no meio)
-            refOk = refId.startsWith(refValor) || refCampo.startsWith(refValor);
-        }
+                // Só aceita se o ID ou referência COMEÇAR pelo valor digitado (não conter no meio)
+                refOk = refId.startsWith(refValor) || refCampo.startsWith(refValor);
+            }
 
-        // === RESTANTES FILTROS ===
-        const marcaOk = !marcaValor || (item.marca || "").trim().toLowerCase() === marcaValor.trim().toLowerCase();
-        const nomeOk = !nomeValor || (item.nome || "").toLowerCase().includes(nomeValor);
-        const tipoOk = !tipoValor || (item.tipo || "").toLowerCase() === tipoValor;
+            // === RESTANTES FILTROS ===
+            const marcaOk = !marcaValor || (item.marca || "").trim().toLowerCase() === marcaValor.trim().toLowerCase();
+            const nomeOk = !nomeValor || (item.nome || "").toLowerCase().includes(nomeValor);
+            const tipoOk = !tipoValor || (item.tipo || "").toLowerCase() === tipoValor;
 
-        return refOk && marcaOk && nomeOk && tipoOk;
-    });
+            return refOk && marcaOk && nomeOk && tipoOk;
+        });
 
-    renderTabela(filtrados, window.filtroEstadoAtual || 'on');
-};
+        renderTabela(filtrados, window.filtroEstadoAtual || 'on');
+    };
 
 
     // eventos
@@ -164,13 +164,14 @@ function renderTabela(lista, estadoAtual) {
     tableBody.innerHTML = lista.map(item => {
         const fotoHtml = item.foto ? `<img src="${escapeHtml(item.foto)}" alt="foto" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">` : "";
         const dataCol = estadoAtual === 'off' ? (item.data_off ? new Date(item.data_off).toLocaleString("pt-PT") : "") : (item.created_at ? new Date(item.created_at).toLocaleString("pt-PT") : "");
-        const marcaenome = `${item.marca} - ${item.nome} `
+        const marcaenomeeespessura = `${item.marca ?? ""} - ${item.nome ?? ""} ${item.espessura ?? ""}`;
         return `
             <tr data-id="${escapeHtml(String(item.id))}">
                 <td>${escapeHtml(String(item.id))}</td>
-                <td>${escapeHtml(marcaenome ?? "")}</td>
+                <td>${escapeHtml(marcaenomeeespessura ?? "")}</td>
                 <td>${escapeHtml(item.comprimento ?? "")}</td>
                 <td>${escapeHtml(item.largura ?? "")}</td>
+                <td>${escapeHtml(item.lote ?? "")}</td>
                 <td>${escapeHtml(item.tipo ?? "")}</td>
                 <td>${escapeHtml(item.observacoes ?? "")}</td>
                 <td>${fotoHtml}</td>
@@ -180,11 +181,14 @@ function renderTabela(lista, estadoAtual) {
                         <button class="btn btn-sm btn-outline-primary me-1 btn-edit" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        <button class="btn btn-sm btn-outline-success me-1 btn-move-nosso" title="Mover para Produtos">
+                            <i class="bi bi-arrow-right-square"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger btn-delete" title="Eliminar">
                             <i class="bi bi-trash"></i>
                         </button>
                     ` : `
-                        <button class="btn btn-sm btn-outline-success btn-move" title="Mover para Produtos">
+                        <button class="btn btn-sm btn-outline-success btn-move-on" title="Mover para Produtos">
                             <i class="bi bi-arrow-right-square"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-danger btn-delete" title="Eliminar">
@@ -247,7 +251,7 @@ function configurarEventosTabela() {
     const reactivateModalEl = document.getElementById('reactivateModal');
     const reactivateModal = reactivateModalEl ? new bootstrap.Modal(reactivateModalEl) : null;
 
-    document.querySelectorAll(".btn-move").forEach(btn => {
+    document.querySelectorAll(".btn-move-on").forEach(btn => {
         btn.removeEventListener?.("click", onMoveClick);
         btn.addEventListener("click", onMoveClick);
     });
@@ -286,6 +290,50 @@ function configurarEventosTabela() {
         itemToReactivate = null;
     });
 
+
+    // MOVE PARA "NOSSO"
+    let itemToMoveNosso = null;
+    const moveNossoModalEl = document.getElementById('moveNossoModal');
+    const moveNossoModal = moveNossoModalEl ? new bootstrap.Modal(moveNossoModalEl) : null;
+
+    document.querySelectorAll(".btn-move-nosso").forEach(btn => {
+        btn.removeEventListener?.("click", onMoveNossoClick);
+        btn.addEventListener("click", onMoveNossoClick);
+    });
+
+    function onMoveNossoClick(e) {
+        const row = e.currentTarget.closest("tr");
+        const id = row?.getAttribute("data-id");
+        if (!id) return;
+        itemToMoveNosso = { id, row };
+        moveNossoModal?.show();
+    }
+
+    document.getElementById("confirmMoveNossoBtn")?.addEventListener("click", async () => {
+        if (!itemToMoveNosso) return;
+
+        const { error } = await supabaseClient
+            .from("items")
+            .update({
+                estado: 'nosso',
+                data_off: new Date().toISOString()
+            })
+            .eq("id", itemToMoveNosso.id);
+
+        if (error) {
+            showMessage(`Erro ao mover para "nosso": ${error.message}`, 'danger');
+        } else {
+            showMessage("Produto movido para 'Nossas Reservas' com sucesso!", 'success');
+            itemToMoveNosso.row?.remove();
+            window.dadosOriginais = (window.dadosOriginais || []).filter(i => String(i.id) !== String(itemToMoveNosso.id));
+            preencherFiltroMarcas();
+        }
+
+        moveNossoModal?.hide();
+        itemToMoveNosso = null;
+    });
+
+
     // EDIT (Offcanvas)
     document.querySelectorAll(".btn-edit").forEach(btn => {
         btn.removeEventListener?.("click", onEditClick);
@@ -307,9 +355,11 @@ function configurarEventosTabela() {
         document.getElementById("editId").value = item.id;
         document.getElementById("editMarca").value = item.marca ?? "";
         document.getElementById("editNome").value = item.nome ?? "";
+        document.getElementById("editLote").value = item.lote ?? "";
+        document.getElementById("editTipo").value = item.tipo ?? "";
         document.getElementById("editComprimento").value = item.comprimento ?? "";
         document.getElementById("editLargura").value = item.largura ?? "";
-        document.getElementById("editTipo").value = item.tipo ?? "";
+        document.getElementById("editEspessura").value = item.espessura ?? "";
         document.getElementById("editObservacoes").value = item.observacoes ?? "";
         document.getElementById("editFotoAtual").value = item.foto ?? "";
         const fotoPreview = document.getElementById("fotoPreview");
@@ -385,9 +435,11 @@ window.addEventListener("load", () => {
             const updatedItem = {
                 marca: document.getElementById("editMarca")?.value || null,
                 nome: document.getElementById("editNome")?.value || null,
+                lote: document.getElementById("editLote")?.value || null,
+                tipo: document.getElementById("editTipo")?.value || null,
                 comprimento: document.getElementById("editComprimento")?.value || null,
                 largura: document.getElementById("editLargura")?.value || null,
-                tipo: document.getElementById("editTipo")?.value || null,
+                espessura: document.getElementById("editEspessura")?.value || null,
                 observacoes: document.getElementById("editObservacoes")?.value || null,
                 foto: fotoUrl,
             };

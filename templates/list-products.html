@@ -58,15 +58,16 @@
         <th class="col-2 align-middle">Marca/Nome</th>
         <th class="col-1 align-middle">Comprimento</th>
         <th class="col-1 align-middle">Largura</th>
+        <th class="col-1 align-middle">Lote</th>
         <th class="col-1 align-middle">Tipo</th>
         <th class="col-2 align-middle">Observações</th>
         <th class="col-1 align-middle">Foto</th>
-        <th class="col-2 align-middle">Data</th>
+        <th class="col-1 align-middle">Data</th>
         <th class="col-1 align-middle">Ações</th>
       </tr>
     </thead>
     <tbody id="itemsBody">
-      <tr><td colspan="9">A carregar dados...</td></tr>
+      <tr><td colspan="10">A carregar dados...</td></tr>
     </tbody>
   </table>
 </div>
@@ -92,10 +93,30 @@
   </div>
 </div>
 
+<!-- Modal: Mover para Nosso -->
+<div class="modal fade" id="moveNossoModal" tabindex="-1" aria-labelledby="moveNossoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="moveNossoModalLabel">Mover para "Nosso"</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Tem a certeza que deseja mover este item para a lista de <strong>"Nossas Reservas"</strong>?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmMoveNossoBtn">Mover</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <!-- Offcanvas Editar -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="editOffcanvas" aria-labelledby="editOffcanvasLabel">
   <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="editOffcanvasLabel">Editar Item</h5>
+    <h5 class="offcanvas-title" id="editOffcanvasLabel">Editar Produto</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
   </div>
   <div class="offcanvas-body">
@@ -129,21 +150,31 @@
       </div>
 
       <div class="coolinput">
-        <label for="editComprimento" class="text">Comprimento</label>
-        <input type="number" class="input form-control" id="editComprimento" required>
+        <label for="editLote" class="text">Lote</label>
+        <input type="text" class="input form-control" id="editLote">
       </div>
-
-      <div class="coolinput">
-        <label for="editLargura" class="text">Largura</label>
-        <input type="number" class="input form-control" id="editLargura" required>
-      </div>
-
+      
       <div class="coolinput">
         <label for="editTipo" class="text">Tipo</label>
         <select class="input form-control select-dropdown" id="editTipo" required>
           <option value="Peça">Peça</option>
           <option value="Chapa">Chapa</option>
         </select>
+      </div>
+      
+      <div class="coolinput">
+        <label for="editComprimento" class="text">Comprimento</label>
+        <input type="number" class="input form-control" id="editComprimento" required>
+      </div>
+      
+      <div class="coolinput">
+        <label for="editLargura" class="text">Largura</label>
+        <input type="number" class="input form-control" id="editLargura" required>
+      </div>
+
+      <div class="coolinput">
+        <label for="editEspessura" class="text">Espessura</label>
+        <input type="number" class="input form-control" id="editEspessura" required>
       </div>
 
       <div class="coolinput">
@@ -152,13 +183,15 @@
       </div>
 
       <div class="coolinput">
-        <label for="editFoto" class="text">Foto</label>
-        <div class="mt-2" id="fotoPreviewContainer">
-          <img id="fotoPreview" src="" alt="Pré-visualização" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">
+        <label for="editFoto" class="text">Foto:</label>
+        <input type="file" name="editFoto" id="editFoto" class="input" accept="image/*">
+        <div class="mt-3" id="fotoPreviewContainer">
+          <img id="fotoPreview" src="" alt="Pré-visualização" style="max-width:350px;height:180px;object-fit:cover;border-radius:6px;box-shadow:0 0 4px rgba(0,0,0,0.2);">
         </div>
-        <input class="mt-2 input form-control" type="file" id="editFoto" accept="image/*">
       </div>
 
+
+  
       <button type="submit" class="btn-form mt-3">Salvar alterações</button>
     </form>
   </div>

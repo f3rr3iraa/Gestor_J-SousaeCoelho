@@ -78,6 +78,9 @@ const locationHandler = async () => {
     if (window.initHomeSupabase && location === "/list-reservations") {
         initHomeSupabase('off');
     }
+    if (window.initHomeSupabase && location === "/our-reservations") {
+        initHomeSupabase('nosso');
+    }
 
 
     await changeActive(location);
