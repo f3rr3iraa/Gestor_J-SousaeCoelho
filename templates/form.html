@@ -6,23 +6,40 @@
     <fieldset>
       <legend class="mt-3">Informações Gerais</legend>
 
-        <div class="coolinput col-5">
-          <label for="marca" class="text">Marca:</label>
-          <input type="text" name="marca" id="marca" placeholder="Escreve aqui a marca..." class="input" required>
-        </div>
-        
-        <div class="coolinput col-5">
-          <label for="nome" class="text">Nome:</label>
-          <input type="text" name="nome" id="nome" placeholder="Escreve aqui o nome..." class="input" required>
-        </div>
-        
-        <div class="coolinput col-5">
-          <label for="tipo" class="text">Tipo:</label>
-          <select name="tipo" id="tipo" class="input" required>
-            <option value="Peça">Peça</option>
-            <option value="Chapa">Chapa</option>
-          </select>
-        </div>
+      <div class="coolinput col-5">
+        <label for="marca" class="text">Marca:</label>
+        <select name="marca" id="marca" class="input" required>
+          <option value="" disabled selected>Seleciona a marca...</option>
+          <option value="Altas Plan">Altas Plan</option>
+          <option value="Ascale">Ascale</option>
+          <option value="Compac">Compac</option>
+          <option value="Dekton">Dekton</option>
+          <option value="Diamond">Diamond</option>
+          <option value="Fafstone Cerâmica">Fafstone Cerâmica</option>
+          <option value="Fafstone Quartzo">Fafstone Quartzo</option>
+          <option value="Forest Stone">Forest Stone</option>
+          <option value="Laminam">Laminam</option>
+          <option value="Neolith">Neolith</option>
+          <option value="Pedras naturais">Pedras naturais</option>
+          <option value="Sensa">Sensa</option>
+          <option value="Silestone">Silestone</option>
+          <option value="Xtone">Xtone</option>
+        </select>
+      </div>
+
+      <div class="coolinput col-5">
+        <label for="nome" class="text">Nome:</label>
+        <input type="text" name="nome" id="nome" placeholder="Escreve aqui o nome..." class="input" required>
+      </div>
+
+      <div class="coolinput col-5">
+        <label for="tipo" class="text">Tipo:</label>
+        <select name="tipo" id="tipo" class="input" required>
+          <option value="" disabled selected>Seleciona o tipo...</option>
+          <option value="Peça">Peça</option>
+          <option value="Chapa">Chapa</option>
+        </select>
+      </div>
 
     </fieldset>
 
@@ -32,15 +49,17 @@
     <fieldset>
       <legend>Dimensões</legend>
 
-        <div class="coolinput col-3">
-          <label for="comprimento" class="text">Comprimento (cm):</label>
-          <input type="number" name="comprimento" id="comprimento" step="0.01" class="input" placeholder="Escreve aqui o comprimento..." required>
-        </div>
-        
-        <div class="coolinput col-3">
-          <label for="largura" class="text">Largura (cm):</label>
-          <input type="number" name="largura" id="largura" step="0.01" class="input" placeholder="Escreve aqui a largura..." required>
-        </div>
+      <div class="coolinput col-3">
+        <label for="comprimento" class="text">Comprimento (cm):</label>
+        <input type="number" name="comprimento" id="comprimento" step="0.01" class="input"
+          placeholder="Escreve aqui o comprimento..." required>
+      </div>
+
+      <div class="coolinput col-3">
+        <label for="largura" class="text">Largura (cm):</label>
+        <input type="number" name="largura" id="largura" step="0.01" class="input"
+          placeholder="Escreve aqui a largura..." required>
+      </div>
 
     </fieldset>
 
@@ -57,17 +76,16 @@
 
       <div class="coolinput col-5">
         <label for="observacoes" class="text">Observações:</label>
-        <textarea name="observacoes" id="observacoes" class="input" rows="4" style="resize: none; height: 110px;" placeholder="Escreve aqui a observação..."></textarea>
+        <textarea name="observacoes" id="observacoes" class="input" rows="4" style="resize: none; height: 110px;"
+          placeholder="Escreve aqui a observação..."></textarea>
       </div>
     </fieldset>
 
     <br>
 
     <div class="col-12 d-flex justify-content-end">
-  <button type="submit" class="btn-form">Adicionar Produto</button>
-</div>
+      <button type="submit" class="btn-form">Adicionar Produto</button>
+    </div>
 
   </form>
 </div>
-
-

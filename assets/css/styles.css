@@ -187,9 +187,11 @@ body {
 
 
 
+  
 
-
-
+.offcanvas {
+  background-color: #f8f9fa;
+}
 
 
 
@@ -235,13 +237,17 @@ legend {
   font-size: 0.85rem;
   border: 2px #2e4752 solid;
   background: #f8f9fa;
+  border-radius: 0px !important;
   outline: none;
   resize: vertical;
 }
 
 .coolinput .input:focus {
-  border-color: #2e4752;
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: #2e4752 !important;
 }
+
 
 /* ====== BOTÃO ====== */
 .btn-form {
@@ -249,7 +255,6 @@ legend {
   margin: 20px  0 auto;
   padding: 10px 25px;
   border: none;
-  border-radius: 6px;
   background-color: #22333B;
   color: white;
   font-weight: 600;
@@ -262,8 +267,18 @@ legend {
 }
 
 
+select.input option[disabled][selected] {
+  color: #757575; 
+}
 
 
+select.input:invalid {
+  color: #757575;
+}
+
+select.input option {
+  color: #000; 
+}
 
 
 #filtrosContainer .coolinput {

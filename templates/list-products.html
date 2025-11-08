@@ -103,45 +103,63 @@
       <input type="hidden" id="editId">
       <input type="hidden" id="editFotoAtual">
 
-      <div class="mb-3">
-        <label for="editMarca" class="form-label">Marca</label>
-        <input type="text" class="form-control" id="editMarca" required>
+      <div class="coolinput">
+        <label for="editMarca" class="text">Marca</label>
+        <select class="input form-control select-dropdown" id="editMarca" required>
+          <option value="Altas Plan">Altas Plan</option>
+          <option value="Ascale">Ascale</option>
+          <option value="Compac">Compac</option>
+          <option value="Dekton">Dekton</option>
+          <option value="Diamond">Diamond</option>
+          <option value="Fafstone Cerâmica">Fafstone Cerâmica</option>
+          <option value="Fafstone Quartzo">Fafstone Quartzo</option>
+          <option value="Forest Stone">Forest Stone</option>
+          <option value="Laminam">Laminam</option>
+          <option value="Neolith">Neolith</option>
+          <option value="Pedras naturais">Pedras naturais</option>
+          <option value="Sensa">Sensa</option>
+          <option value="Silestone">Silestone</option>
+          <option value="Xtone">Xtone</option>
+        </select>
       </div>
 
-      <div class="mb-3">
-        <label for="editNome" class="form-label">Nome</label>
-        <input type="text" class="form-control" id="editNome" required>
+      <div class="coolinput">
+        <label for="editNome" class="text">Nome</label>
+        <input type="text" class="input form-control" id="editNome" required>
       </div>
 
-      <div class="mb-3">
-        <label for="editComprimento" class="form-label">Comprimento</label>
-        <input type="number" class="form-control" id="editComprimento">
+      <div class="coolinput">
+        <label for="editComprimento" class="text">Comprimento</label>
+        <input type="number" class="input form-control" id="editComprimento" required>
       </div>
 
-      <div class="mb-3">
-        <label for="editLargura" class="form-label">Largura</label>
-        <input type="number" class="form-control" id="editLargura">
+      <div class="coolinput">
+        <label for="editLargura" class="text">Largura</label>
+        <input type="number" class="input form-control" id="editLargura" required>
       </div>
 
-      <div class="mb-3">
-        <label for="editTipo" class="form-label">Tipo</label>
-        <input type="text" class="form-control" id="editTipo">
+      <div class="coolinput">
+        <label for="editTipo" class="text">Tipo</label>
+        <select class="input form-control select-dropdown" id="editTipo" required>
+          <option value="Peça">Peça</option>
+          <option value="Chapa">Chapa</option>
+        </select>
       </div>
 
-      <div class="mb-3">
-        <label for="editObservacoes" class="form-label">Observações</label>
-        <textarea class="form-control" id="editObservacoes" rows="3"></textarea>
+      <div class="coolinput">
+        <label for="editObservacoes" class="text">Observações</label>
+        <textarea class="input form-control" id="editObservacoes" rows="3"></textarea>
       </div>
 
-      <div class="mb-3">
-        <label for="editFoto" class="form-label">Foto</label>
+      <div class="coolinput">
+        <label for="editFoto" class="text">Foto</label>
         <div class="mt-2" id="fotoPreviewContainer">
           <img id="fotoPreview" src="" alt="Pré-visualização" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">
         </div>
-        <input class="mt-2" type="file" class="form-control" id="editFoto" accept="image/*">
+        <input class="mt-2 input form-control" type="file" id="editFoto" accept="image/*">
       </div>
 
-      <button type="submit" class="btn btn-primary">Salvar alterações</button>
+      <button type="submit" class="btn-form mt-3">Salvar alterações</button>
     </form>
   </div>
 </div>

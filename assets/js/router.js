@@ -14,15 +14,20 @@ const routes = {
         title: "form",
         description: "Form Page",
     },
-    "/list-orders": {
-        template: "/templates/list-orders.html",
-        title: "list-orders",
-        description: "List Orders Page",
+    "/list-reservations": {
+        template: "/templates/list-reservations.html",
+        title: "list-reservations",
+        description: "List Reservations Page",
     },
     "/list-products": {
         template: "/templates/list-products.html",
         title: "list-products",
         description: "List Products Page",
+    },
+    "/our-reservations": {
+        template: "/templates/our-reservations.html",
+        title: "our-reservations",
+        description: "List Our Reservations Page",
     },
 };
 
@@ -70,7 +75,7 @@ const locationHandler = async () => {
     if (window.initHomeSupabase && location === "/list-products") {
         initHomeSupabase('on');
     }
-    if (window.initHomeSupabase && location === "/list-orders") {
+    if (window.initHomeSupabase && location === "/list-reservations") {
         initHomeSupabase('off');
     }
 
