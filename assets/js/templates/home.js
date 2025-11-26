@@ -15,7 +15,7 @@ async function initHomeSpaceSupabase() {
     const produtosData = produtos.data || [];
 
     // === PAGINAÇÃO CONFIG ===
-    const pageSize = 3;
+    const pageSize = 4;
     let pedidosPage = 0;
     let produtosPage = 0;
 
@@ -51,8 +51,6 @@ async function initHomeSpaceSupabase() {
           .join("")
         : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
 
-      document.getElementById("prevPedidos").disabled = pedidosPage === 0;
-      document.getElementById("nextPedidos").disabled = end >= pedidosData.length;
     }
 
     // === Função para renderizar Produtos ===
@@ -84,29 +82,9 @@ async function initHomeSpaceSupabase() {
           .join("")
         : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
 
-      document.getElementById("prevProdutos").disabled = produtosPage === 0;
-      document.getElementById("nextProdutos").disabled = end >= produtosData.length;
     }
 
-    // === Eventos dos botões ===
-    document.getElementById("prevPedidos").addEventListener("click", () => {
-      if (pedidosPage > 0) pedidosPage--;
-      renderPedidos();
-    });
-    document.getElementById("nextPedidos").addEventListener("click", () => {
-      if ((pedidosPage + 1) * pageSize < pedidosData.length) pedidosPage++;
-      renderPedidos();
-    });
-
-    document.getElementById("prevProdutos").addEventListener("click", () => {
-      if (produtosPage > 0) produtosPage--;
-      renderProdutos();
-    });
-    document.getElementById("nextProdutos").addEventListener("click", () => {
-      if ((produtosPage + 1) * pageSize < produtosData.length) produtosPage++;
-      renderProdutos();
-    });
-
+  
     // === Render inicial ===
     renderPedidos();
     renderProdutos();

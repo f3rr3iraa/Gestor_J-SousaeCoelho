@@ -44,6 +44,9 @@ const route = (event) => {
     }
 };
 
+// ===========================
+// MAIN LOCATION HANDLER
+// ===========================
 const locationHandler = async () => {
     if (!sessionStorage.getItem("logged")) {
         document.getElementById("content-login").classList.remove("d-none");
@@ -62,6 +65,9 @@ const locationHandler = async () => {
         route = routes[location];
     }
 
+    // Atualiza rota atual global para paginação
+    window.currentRoute = location;
+
     const html = await fetch(route.template).then((response) => response.text());
     document.getElementById('content').innerHTML = html;
 
@@ -74,19 +80,25 @@ const locationHandler = async () => {
     }
     if (window.initHomeSupabase && location === "/list-products") {
         initHomeSupabase('on');
+        ativarPaginacao();
     }
     if (window.initHomeSupabase && location === "/list-reservations") {
         initHomeSupabase('off');
+        ativarPaginacao();
     }
     if (window.initHomeSupabase && location === "/our-reservations") {
         initHomeSupabase('nosso');
+        ativarPaginacao();
     }
-
 
     await changeActive(location);
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
 
+
+// ===========================
+// MENU ACTIVE LINK
+// ===========================
 async function changeActive(location) {
     const links = document.querySelectorAll("#menu a");
     links.forEach(link => {
@@ -98,11 +110,19 @@ async function changeActive(location) {
     });
 }
 
+// ===========================
+// SPA NAVIGATION
+// ===========================
 function goToRoute(route) {
     window.history.pushState({}, "", route);
     locationHandler();
 }
 
+// ===========================
+// BIND POPSTATE & GLOBALS
+// ===========================
 window.onpopstate = locationHandler;
 window.route = route;
+
+// Inicializa página atual
 locationHandler();

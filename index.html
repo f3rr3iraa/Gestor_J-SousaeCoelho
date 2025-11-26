@@ -3,7 +3,7 @@
 
 <head>
     <!-- Required Meta Tags -->
-    <title>Login Page</title>
+    <title>Gestor de Sobras e Chapas</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="https://jsousaecoelho.com/image/global/logo_icon_.png" type="image/x-icon">
@@ -25,6 +25,19 @@
 </head>
 
 <body>
+
+ 
+<!-- Mensagem de erro para mobile em retângulo -->
+<div class="content-error">
+    <div class="unsupported alert alert-danger text-center" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mb-2" style="font-size: 2.5rem;"></i>
+        <h4 class="mb-2">Oops!</h4>
+        <p>Esta aplicação não é compatível com dispositivos móveis. Por favor, aceda através de um computador.</p>
+    </div>
+</div>
+    
+
+
 
     <!-- pagina login -->
     <div class="main-content d-flex align-items-center justify-content-center" id="content-login">
@@ -54,8 +67,8 @@
     <!-- sidebar -->
     <div class="d-none" id="content-dashboard">
         <div class="sidebar-content d-flex flex-column bg-secondary text-white vh-100 p-3">
-            <div class="mb-5">
-                <span class="fs-4 fw-bold">Dashboard</span>
+            <div class="mb-4">
+                    <img class="icon-logo" src="/assets/images/jsousacoelho_logo_white_dashboard.png">
             </div>
 
             <ul class="nav nav-pills flex-column mb-auto mt-3" id="menu">
@@ -76,12 +89,12 @@
                 </li>
                 <li>
                     <a onclick="setActive(this); goToRoute('/list-reservations')" class="nav-link text-white">
-                        <i class="bi bi-file-earmark-medical me-2"></i> Lista de Reservas
+                        <i class="bi bi-journal-text me-2"></i> Lista de Reservas
                     </a>
                 </li>
                 <li>
                     <a onclick="setActive(this); goToRoute('/our-reservations')" class="nav-link text-white">
-                        <i class="bi bi-file-earmark-medical me-2"></i> Nossas Reservas
+                        <i class="bi bi-bookmarks me-2"></i> Nossas Reservas
                     </a>
                 </li>
             </ul>
@@ -95,6 +108,22 @@
         </div>
     </div>
 
+    <!-- Modal para visualizar imagem -->
+<div class="modal fade" id="modalImg" tabindex="-1" aria-labelledby="modalImgLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-0">
+        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"
+          aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img id="modalImgView" src="" class="img-fluid rounded" alt="Imagem do produto">
+      </div>
+    </div>
+  </div>
+</div>
+
+
     <!-- conteudo -->
     <div class="d-none flex-grow-1 p-3" id="content"></div>
 
@@ -104,7 +133,24 @@
     <script type="text/javascript" src="/assets/js/index.js"></script>
     <script type="text/javascript" src="/assets/js/router.js"></script>
     <script type="text/javascript" src="/assets/js/templates/home.js"></script>
+    <script type="text/javascript" src="/assets/js/templates/func-extra.js"></script>
+
 
 </body>
-
+<script>
+    !function (t, e, c, n) {
+        var s = e.createElement(c);
+        s.async = 1, s.src = 'https://scripts.claspo.io/scripts/' + n + '.js';
+        var r = e.scripts[0];
+        r.parentNode.insertBefore(s, r);
+        var f = function () {
+            f.c(arguments);
+        };
+        f.q = [];
+        f.c = function () {
+            f.q.push(arguments);
+        };
+        t['claspo'] = t['claspo'] || f;
+    }(window, document, 'script', 'B5A6533BEDBA4D7D877021D15722CBA9');
+</script><script>claspo('init');</script>
 </html>

@@ -39,17 +39,18 @@ async function initHomeSupabase(filtroEstado = 'on') {
         }
 
         // Guardar cópia para filtros
-        window.dadosOriginais = data;
-        window.filtroEstadoAtual = filtroEstado;
+window.dadosOriginais = data;
+window.filtroEstadoAtual = filtroEstado;
 
-        // Popular select de marcas
-        preencherFiltroMarcas();
+// Popular select de marcas
+preencherFiltroMarcas();
 
-        // Render inicial (sem filtros)
-        renderTabela(data, filtroEstado);
+// --- ATIVAR PAGINAÇÃO AQUI ---
+ativarPaginacao();
 
-        // Inicializar lógica de filtros
-        initFiltros();
+// Inicializar lógica de filtros
+initFiltros();
+
 
     } catch (err) {
         const tableBody = document.getElementById("itemsBody");
@@ -240,6 +241,8 @@ function configurarEventosTabela() {
             // atualizar dados originais localmente
             window.dadosOriginais = (window.dadosOriginais || []).filter(i => String(i.id) !== String(itemToDelete.id));
             preencherFiltroMarcas();
+            const pageKey = window.currentRoute || window.location.pathname;
+renderTabelaComPaginacao(window.dadosOriginais, pageKey);
         }
 
         deleteModal?.hide();
@@ -284,6 +287,8 @@ function configurarEventosTabela() {
             // atualizar dados locais
             window.dadosOriginais = (window.dadosOriginais || []).filter(i => String(i.id) !== String(itemToReactivate.id));
             preencherFiltroMarcas();
+            const pageKey = window.currentRoute || window.location.pathname;
+renderTabelaComPaginacao(window.dadosOriginais, pageKey);
         }
 
         reactivateModal?.hide();
@@ -327,6 +332,8 @@ function configurarEventosTabela() {
             itemToMoveNosso.row?.remove();
             window.dadosOriginais = (window.dadosOriginais || []).filter(i => String(i.id) !== String(itemToMoveNosso.id));
             preencherFiltroMarcas();
+            const pageKey = window.currentRoute || window.location.pathname;
+renderTabelaComPaginacao(window.dadosOriginais, pageKey);
         }
 
         moveNossoModal?.hide();
@@ -543,6 +550,154 @@ function showMessage(message, type = "info") {
 
     setTimeout(() => toast.remove(), 5000);
 }
+
+/* ============================
+   PAGINAÇÃO + ITENS POR PÁGINA
+   ============================ */
+
+const paginacaoPorPagina = {};
+const defaultItensPorPagina = 10; // itens padrão
+
+function ativarPaginacao() {
+    const pageKey = window.currentRoute || window.location.pathname;
+    const storageKey = `itemsPerPage_${pageKey}`; // chave única por página
+
+    /* ==============================
+       LER / DEFINIR ITENS POR PÁGINA
+       ============================== */
+    let itensSalvos = localStorage.getItem(storageKey);
+
+    if (!itensSalvos) {
+        itensSalvos = defaultItensPorPagina;
+        localStorage.setItem(storageKey, defaultItensPorPagina);
+    } else {
+        itensSalvos = parseInt(itensSalvos);
+    }
+
+    // Estado inicial da página
+    paginacaoPorPagina[pageKey] = {
+        paginaAtual: 1,
+        itensPorPagina: itensSalvos
+    };
+
+    /* ==============================
+       REINICIAR LISTENERS
+       ============================== */
+    const itemsPerPageEl = document.getElementById("itemsPerPage");
+    const prevPageEl = document.getElementById("prevPage");
+    const nextPageEl = document.getElementById("nextPage");
+
+    if (itemsPerPageEl) {
+        const clone = itemsPerPageEl.cloneNode(true);
+        itemsPerPageEl.parentNode.replaceChild(clone, itemsPerPageEl);
+    }
+    if (prevPageEl) {
+        const clone = prevPageEl.cloneNode(true);
+        prevPageEl.parentNode.replaceChild(clone, prevPageEl);
+    }
+    if (nextPageEl) {
+        const clone = nextPageEl.cloneNode(true);
+        nextPageEl.parentNode.replaceChild(clone, nextPageEl);
+    }
+
+    // Re-obter elementos depois dos clones
+    const newItemsPerPageEl = document.getElementById("itemsPerPage");
+    const newPrev = document.getElementById("prevPage");
+    const newNext = document.getElementById("nextPage");
+
+    // Colocar valor inicial no select
+    if (newItemsPerPageEl) newItemsPerPageEl.value = itensSalvos;
+
+    /* ==============================
+       ALTERAR ITENS POR PÁGINA
+       ============================== */
+    if (newItemsPerPageEl) {
+        newItemsPerPageEl.addEventListener("change", (e) => {
+            const novoValor = parseInt(e.target.value);
+
+            paginacaoPorPagina[pageKey].itensPorPagina = novoValor;
+            paginacaoPorPagina[pageKey].paginaAtual = 1;
+
+            // SALVAR para esta página específica
+            localStorage.setItem(storageKey, novoValor);
+
+            renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+        });
+    }
+
+    /* ==============================
+       BOTÃO ANTERIOR
+       ============================== */
+    if (newPrev) {
+        newPrev.addEventListener("click", () => {
+            const pag = paginacaoPorPagina[pageKey];
+            if (pag.paginaAtual > 1) {
+                pag.paginaAtual--;
+                renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+            }
+        });
+    }
+
+    /* ==============================
+       BOTÃO SEGUINTE
+       ============================== */
+    if (newNext) {
+        newNext.addEventListener("click", () => {
+            const pag = paginacaoPorPagina[pageKey];
+            const totalPaginas = Math.ceil(
+                (window.dadosOriginais?.length || 0) / pag.itensPorPagina
+            );
+
+            if (pag.paginaAtual < totalPaginas) {
+                pag.paginaAtual++;
+                renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+            }
+        });
+    }
+
+    /* ==============================
+       RENDER INICIAL
+       ============================== */
+    renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+}
+
+
+
+
+function renderTabelaComPaginacao(lista, pageKey) {
+    // Lê estado atual
+    let { paginaAtual, itensPorPagina } = paginacaoPorPagina[pageKey];
+
+    const totalItens = lista.length;
+    const totalPaginas = Math.max(1, Math.ceil(totalItens / itensPorPagina));
+
+    // Ajusta página atual se exceder total de páginas
+    if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+    if (paginaAtual < 1) paginaAtual = 1;
+
+    // Slice da lista para a página atual
+    const inicio = (paginaAtual - 1) * itensPorPagina;
+    const fim = inicio + itensPorPagina;
+    const pagina = lista.slice(inicio, fim);
+
+    // Renderiza os itens da página atual
+    renderTabela(pagina, window.filtroEstadoAtual);
+
+    // Atualiza estado de paginação
+    paginacaoPorPagina[pageKey].paginaAtual = paginaAtual;
+
+    // Atualiza indicadores e botões
+    const indicador = document.getElementById("pageIndicator");
+    const prevBtn = document.getElementById("prevPage");
+    const nextBtn = document.getElementById("nextPage");
+
+    if (indicador) indicador.textContent = `${paginaAtual} / ${totalPaginas}`;
+    if (prevBtn) prevBtn.disabled = paginaAtual <= 1;
+    if (nextBtn) nextBtn.disabled = paginaAtual >= totalPaginas;
+}
+
+
+
 
 /* ============================
    Export / disponibilidade global

@@ -72,6 +72,34 @@
   </table>
 </div>
 
+<!-- Controlo de paginação e filtro -->
+<div class="d-flex justify-content-between align-items-center px-4 py-3 flex-wrap">
+  <!-- Filtro de quantidade -->
+  <div class="mb-2 mb-md-0">
+    <label for="itemsPerPage" class="me-2 fw-bold">Itens por página:</label>
+      <select id="itemsPerPage" class="form-select d-inline-block w-auto">
+    <option value="10" selected>10</option>
+    <option value="2">2</option>
+    <option value="50">50</option>
+    <option value="100">100</option>
+  </select>
+
+  </div>
+
+  <!-- Paginação -->
+  <nav aria-label="Navegação de páginas" class="mb-2 mb-md-0">
+    <ul class="pagination mb-0" id="paginationControls">
+      <li class="page-item"><button class="page-link" id="prevPage"><i class="bi bi-caret-left-fill"></i></button>
+      </li>
+      <li class="page-item disabled"><span class="page-link" id="pageIndicator">1</span></li>
+      <li class="page-item"><button class="page-link" id="nextPage"><i class="bi bi-caret-right-fill"></i></button>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+
+
 
 
 <!-- Modal Eliminar -->
@@ -98,7 +126,7 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="moveNossoModalLabel">Mover para "Nosso"</h5>
+        <h5 class="modal-title" id="moveNossoModalLabel">Mover para "Nossas Reservas"</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">

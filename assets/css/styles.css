@@ -136,7 +136,9 @@ body {
 
 
 
-
+.icon-logo {
+  max-width: 200px;
+}
 
 
 .table-color {
@@ -170,22 +172,25 @@ body {
 }
 
 .pagination button {
-  background-color: #212529;
+  background-color: #22333B;
   color: white;
   border: none;
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: 0px;
   cursor: pointer;
   transition: 0.2s;
 }
 
+
 .pagination button:hover:not(:disabled) {
-  background-color: #343a40;
+  background-color: #2e4752;
+  color: white;
 }
 
 .pagination button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  background-color: #22333b98;
 }
 
 
@@ -319,3 +324,105 @@ td img {
   object-fit: cover;
   border-radius: 4px;
 }
+
+
+
+#modalImg .modal-content {
+  background-color: transparent !important;
+  border: none;
+}
+
+#modalImgView {
+  display: block;
+  margin: 0 auto;
+  width: 50vw;         /* 50% da largura da viewport (não do modal) */
+  height: auto;        /* mantém proporções */
+  max-height: 90vh;    /* não ultrapassa a altura da janela */
+  object-fit: contain; /* garante que não corta */
+  background-color: transparent;
+}
+
+
+#modalImg .btn-close:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+#modalImg .modal-header {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+  
+/* tirar borda*/
+.form-select:hover {
+  background-color: #e9ecef;
+}
+.form-select:focus {
+  box-shadow: none;
+  border-color: inherit;
+}
+
+
+
+/* Por padrão, escondemos a mensagem */
+.unsupported {
+    display: none;
+}
+/* Apenas para mobile (≤ 767px) */
+@media (max-width: 767px) {
+    /* Esconder conteúdo principal */
+    #content-login,
+    #content-dashboard,
+    #content {
+        display: none !important;
+    }
+
+    /* Fundo da tela */
+    .content-error {
+        position: fixed;      /* ocupa toda a tela */
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: url("../images/background_mobile.svg") no-repeat center center;
+        background-size: cover;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9998;       /* atrás do retângulo */
+    }
+
+    /* Retângulo da mensagem */
+    .unsupported {
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 90%;
+        max-width: 500px;
+        padding: 20px 10px;
+        background: #f8d7da; /* fundo semi-transparente */
+        border: 1px solid #f1a8af;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        z-index: 9999;       /* acima do fundo */
+    }
+
+    .unsupported h4 {
+        font-size: 1.8rem;
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: #721c24;
+        text-align: center;
+    }
+
+    .unsupported p {
+        font-size: 1rem;
+        text-align: center;
+        color: #721c24;
+        line-height: 1.4;
+    }
+}
+
+
