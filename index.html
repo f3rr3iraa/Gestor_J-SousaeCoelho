@@ -128,12 +128,23 @@
     <div class="d-none flex-grow-1 p-3" id="content"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="text/javascript" src="/assets/js/templates/form.js"></script>
-    <script type="text/javascript" src="/assets/js/supabase.js"></script>
-    <script type="text/javascript" src="/assets/js/index.js"></script>
-    <script type="text/javascript" src="/assets/js/router.js"></script>
-    <script type="text/javascript" src="/assets/js/templates/home.js"></script>
-    <script type="text/javascript" src="/assets/js/templates/func-extra.js"></script>
+
+    <!-- 1: Configuração Supabase -->
+    <script src="/assets/js/supabase.js"></script>
+
+    <!-- 2: Funções auxiliares (antes do router) -->
+    <script src="/assets/js/templates/func-extra.js"></script>
+
+    <!-- 3: Páginas/templates -->
+    <script src="/assets/js/templates/form.js"></script>
+    <script src="/assets/js/templates/home.js"></script>
+
+    <!-- 4: Router -->
+    <script src="/assets/js/router.js"></script>
+
+    <!-- 5: Index.js (SEMPRE no fim) -->
+    <script src="/assets/js/index.js"></script>
+
 
 
 </body>

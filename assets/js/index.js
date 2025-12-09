@@ -5,17 +5,7 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const STORED_USER_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"; // admin
-const STORED_PASS_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
-
-async function sha256(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
+// Atualiza a interface conforme o estado de login
 function updateUI() {
   const logged = sessionStorage.getItem("logged") === "true";
 
@@ -30,7 +20,7 @@ function updateUI() {
   }
 }
 
-// --- Função para mostrar Toast de erro ---
+// --- Toast de Erro ---
 function showErrorToast(messageText, duration = 60000) {
   const toastEl = document.createElement("div");
   toastEl.className = `toast align-items-center text-bg-danger border-0 position-fixed bottom-0 end-0 m-3 toast-error`;
@@ -55,61 +45,72 @@ function showErrorToast(messageText, duration = 60000) {
   });
 }
 
-// --- Função para fechar todos os toasts de erro ---
+// Fecha todos os toasts
 function closeAllErrorToasts() {
-  const errorToasts = document.querySelectorAll(".toast-error");
-  errorToasts.forEach(el => {
+  document.querySelectorAll(".toast-error").forEach(el => {
     const toastInstance = bootstrap.Toast.getInstance(el);
     if (toastInstance) toastInstance.hide();
     else el.remove();
   });
 }
 
-// --- Submit login ---
+// --- LOGIN SUPABASE ---
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const user = document.getElementById("username").value.trim();
-  const pass = document.getElementById("password").value;
+  const email = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
 
-  const userHash = await sha256(user);
-  const passHash = await sha256(pass);
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
 
-  if (userHash === STORED_USER_HASH && passHash === STORED_PASS_HASH) {
-
-    closeAllErrorToasts();
-
-    sessionStorage.setItem("logged", "true");
-    updateUI(); 
-    window.history.pushState({}, "", "/home");
-
-    if (typeof locationHandler === "function") locationHandler();
-  } else {
+  if (error) {
     showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+    return;
   }
-});
 
-logoutBtn.addEventListener("click", () => {
-  sessionStorage.removeItem("logged");
+  closeAllErrorToasts();
+
+  sessionStorage.setItem("logged", "true");
   updateUI();
-  window.history.pushState({}, "", "/");
+  window.history.pushState({}, "", "/home");
+
   if (typeof locationHandler === "function") locationHandler();
 });
 
-// trocar o retangulo branco da sidebar
+// --- LOGOUT SUPABASE ---
+logoutBtn.addEventListener("click", async () => {
+  await supabaseClient.auth.signOut();
+  sessionStorage.removeItem("logged");
+  updateUI();
+  window.history.pushState({}, "", "/");
+
+  if (typeof locationHandler === "function") locationHandler();
+});
+
+// Sidebar active highlight
 function setActive(element) {
-    document.querySelectorAll('#menu .nav-link').forEach(link => {
-        link.classList.remove('active');
-        link.classList.add('text-white'); 
-    });
-    
-    element.classList.add('active');
-    element.classList.remove('text-white'); 
+  document.querySelectorAll('#menu .nav-link').forEach(link => {
+    link.classList.remove('active');
+    link.classList.add('text-white');
+  });
+
+  element.classList.add('active');
+  element.classList.remove('text-white');
 }
 
+// --- LISTENER DE SESSÃO DO SUPABASE ---
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    sessionStorage.setItem("logged", "true");
+  } else {
+    sessionStorage.removeItem("logged");
+  }
 
+  updateUI();
+});
 
+// Atualiza a UI no arranque
 updateUI();
-
-
-

@@ -4,6 +4,11 @@ const routes = {
         title: "404",
         description: "Page not Found"
     },
+    "/": {
+        template: "/templates/home.html",
+        title: "home",
+        description: "Home Page",
+    },
     "/home": {
         template: "/templates/home.html",
         title: "home",
@@ -48,6 +53,8 @@ const route = (event) => {
 // MAIN LOCATION HANDLER
 // ===========================
 const locationHandler = async () => {
+
+    // Verifica login
     if (!sessionStorage.getItem("logged")) {
         document.getElementById("content-login").classList.remove("d-none");
         document.getElementById("content-dashboard").classList.add("d-none");
@@ -56,7 +63,8 @@ const locationHandler = async () => {
     }
 
     let location = window.location.pathname;
-    if (location.length === 0) location = "/";
+    if (!location || location === "") location = "/";
+
     let route = routes[location] || routes["404"];
 
     if (route.title === "404") {
@@ -65,18 +73,17 @@ const locationHandler = async () => {
         route = routes[location];
     }
 
-    // Atualiza rota atual global para paginação
     window.currentRoute = location;
 
     const html = await fetch(route.template).then((response) => response.text());
     document.getElementById('content').innerHTML = html;
 
-    // Inicializações específicas por página
+    // Inicializações (AJUSTA AQUI conforme tu realmente tens)
     if (window.initFormSupabase && location === "/form") {
         initFormSupabase();
     }
-    if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) {
-        initHomeSpaceSupabase(); 
+    if (window.initHomeSupabase && (location === "/" || location === "/home")) {
+        initHomeSupabase();
     }
     if (window.initHomeSupabase && location === "/list-products") {
         initHomeSupabase('on');
@@ -92,8 +99,10 @@ const locationHandler = async () => {
     }
 
     await changeActive(location);
+
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
+
 
 
 // ===========================

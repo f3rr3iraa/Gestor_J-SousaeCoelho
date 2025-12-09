@@ -80,7 +80,7 @@ async function initHomeSpaceSupabase() {
             </tr>`;
           })
           .join("")
-        : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
+        : `<tr><td colspan="9">Nenhum produto encontrado.</td></tr>`;
 
     }
 

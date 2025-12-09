@@ -13,7 +13,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
         const tableBody = document.getElementById("itemsBody");
         if (!tableBody) return;
 
-        tableBody.innerHTML = `<tr><td colspan="9">A carregar dados...</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
 
         const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
 
@@ -25,13 +25,13 @@ async function initHomeSupabase(filtroEstado = 'on') {
             .order(orderField, { ascending: false });
 
         if (error) {
-            tableBody.innerHTML = `<tr><td colspan="9">Erro ao carregar dados: ${error.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
             showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
 
         if (!data || data.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="9">Nenhum produto encontrado.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
             // limpar filtros de UI
             window.dadosOriginais = [];
             preencherFiltroMarcas(); // vai resetar select
@@ -54,7 +54,7 @@ initFiltros();
 
     } catch (err) {
         const tableBody = document.getElementById("itemsBody");
-        if (tableBody) tableBody.innerHTML = `<tr><td colspan="9">Erro inesperado ao carregar dados.</td></tr>`;
+        if (tableBody) tableBody.innerHTML = `<tr><td colspan="10">Erro inesperado ao carregar dados.</td></tr>`;
         showMessage("Erro inesperado ao carregar dados.", "danger");
         console.error(err);
     }
@@ -158,7 +158,7 @@ function renderTabela(lista, estadoAtual) {
     if (!tableBody) return;
 
     if (!lista || lista.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="9">Nenhum produto encontrado.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
         return;
     }
 
