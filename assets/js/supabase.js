@@ -19,7 +19,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
         // ===== Buscar dados do Supabase =====
         const { data, error } = await supabaseClient
-            .from("items")
+            .from("items_view")
             .select("*")
             .eq("estado", filtroEstado)
             .order(orderField, { ascending: false });
@@ -110,7 +110,12 @@ function initFiltros() {
     const aplicarFiltros = () => {
         const refValor = filtroId.value.trim().toLowerCase();
         const marcaValor = filtroMarca.value.trim().toLowerCase();
-        const nomeValor = filtroNome.value.trim().toLowerCase();
+        const nomeValor = (filtroNome.value || "")
+    .toLowerCase()           // minusculas
+    .replace(/-/g, '')       // remove hífen
+    .replace(/\s+/g, '')     // remove espaços
+    .trim();
+
         const tipoValor = filtroTipo.value.trim().toLowerCase();
 
         const filtrados = (window.dadosOriginais || []).filter(item => {
@@ -126,7 +131,7 @@ function initFiltros() {
 
             // === RESTANTES FILTROS ===
             const marcaOk = !marcaValor || (item.marca || "").trim().toLowerCase() === marcaValor.trim().toLowerCase();
-            const nomeOk = !nomeValor || (item.nome || "").toLowerCase().includes(nomeValor);
+            const nomeOk = !nomeValor || (item.marca_nome_espessura_clean || "").includes(nomeValor);
             const tipoOk = !tipoValor || (item.tipo || "").toLowerCase() === tipoValor;
 
             return refOk && marcaOk && nomeOk && tipoOk;

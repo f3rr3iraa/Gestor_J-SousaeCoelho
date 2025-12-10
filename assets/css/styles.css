@@ -30,18 +30,18 @@ body {
   font-size: 18px;
   width: 100%;
   border: none;
-  border-bottom: 2px solid #ccc;
+  border-bottom: 2px solid #9a9a9a;
   padding: 5px 0;
   background-color: transparent;
   outline: none;
-  color: #fff;
+  color: #f0f0f0;
 }
 
 .input-container .label {
   position: absolute;
   top: 0;
   left: 0;
-  color: #ccc;
+  color: #9a9a9a;
   transition: all 0.3s ease;
   pointer-events: none;
 }
@@ -50,7 +50,7 @@ body {
 .input-container input:valid~.label {
   top: -20px;
   font-size: 14px;
-  color: #0d6efd;
+  color: #f0f0f0;
 }
 
 .input-container .underline {
@@ -59,7 +59,7 @@ body {
   left: 0;
   height: 2px;
   width: 100%;
-  background-color: #0d6efd;
+  background-color: #f0f0f0;
   transform: scaleX(0);
   transition: all 0.3s ease;
 }
@@ -69,6 +69,39 @@ body {
   transform: scaleX(1);
 }
 
+.btn-entrar {
+  background-color: #f0f0f0;
+  border: none;
+  color: #000;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+/* Hover: um pouco mais escuro */
+.btn-entrar:hover {
+  background-color: #e0e0e0; /* ajustado para ficar mais escuro que #f0f0f0 */
+}
+
+/* Active: ao clicar volta para o normal */
+.btn-entrar:active {
+  background-color: #f0f0f0;
+}
+
+/* Para inputs preenchidos automaticamente pelo navegador */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;   /* mantém fundo transparente */
+  -webkit-text-fill-color: #f0f0f0 !important;
+  transition: background-color 5000s ease-in-out 0s !important; /* evita o flash do fundo */
+}
+
+/* Esconder o login até o JS terminar de verificar o token */
+#content-login.preload-hidden {
+    display: none !important;
+}
 
 /* sidebar */
 
@@ -158,6 +191,29 @@ body {
   flex-direction: column;
   max-height: 100vh;
 }
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* usa altura do pai, evita exceder 100vh */
+  box-sizing: border-box; /* inclui padding na altura */
+}
+
+#itemForm {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.form-actions {
+  margin-top: auto; /* empurra para baixo */
+  display: flex;
+  justify-content: flex-end;
+  margin-right: 2vh;
+  margin-bottom: 2vh;
+}
+
+
 
 .pedidos-section,
 .produtos-section {
@@ -261,6 +317,26 @@ legend {
   border-color: #2e4752 !important;
 }
 
+.coolinput input.input {
+  padding: 10px;
+  font-size: 0.85rem;
+  border: 2px #2e4752 solid;
+  background: #f8f9fa;
+  border-radius: 0px !important;
+  outline: none;
+  resize: vertical;
+}
+
+.coolinput select.input {
+  padding: 10px;
+  font-size: 0.85rem;
+  border: 2px #2e4752 solid;
+  background: #f8f9fa;
+  border-radius: 0px !important;
+  outline: none;
+  appearance: auto; 
+}
+
 
 /* ====== BOTÃO ====== */
 .btn-form {
@@ -281,12 +357,12 @@ legend {
 
 
 select.input option[disabled][selected] {
-  color: #757575; 
+  color: #22333B; 
 }
 
 
 select.input:invalid {
-  color: #757575;
+  color: #22333B;
 }
 
 select.input option {

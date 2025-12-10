@@ -4,11 +4,6 @@ const routes = {
         title: "404",
         description: "Page not Found"
     },
-    "/": {
-        template: "/templates/home.html",
-        title: "home",
-        description: "Home Page",
-    },
     "/home": {
         template: "/templates/home.html",
         title: "home",
@@ -53,9 +48,8 @@ const route = (event) => {
 // MAIN LOCATION HANDLER
 // ===========================
 const locationHandler = async () => {
-
-    // Verifica login
-    if (!sessionStorage.getItem("logged")) {
+    // Se não estiver logado, força login
+    if (!isLogged()) {
         document.getElementById("content-login").classList.remove("d-none");
         document.getElementById("content-dashboard").classList.add("d-none");
         document.getElementById("content").classList.add("d-none");
@@ -63,46 +57,33 @@ const locationHandler = async () => {
     }
 
     let location = window.location.pathname;
-    if (!location || location === "") location = "/";
+    if (location === "/") {
+        // Redireciona para /home se estiver logado
+        window.history.replaceState({}, "", "/home");
+        location = "/home";
+    }
 
     let route = routes[location] || routes["404"];
-
     if (route.title === "404") {
-        window.history.pushState({}, "", "/");
-        location = "/";
+        window.history.pushState({}, "", "/home");
+        location = "/home";
         route = routes[location];
     }
 
     window.currentRoute = location;
-
-    const html = await fetch(route.template).then((response) => response.text());
+    const html = await fetch(route.template).then(res => res.text());
     document.getElementById('content').innerHTML = html;
 
-    // Inicializações (AJUSTA AQUI conforme tu realmente tens)
-    if (window.initFormSupabase && location === "/form") {
-        initFormSupabase();
-    }
-    if (window.initHomeSupabase && (location === "/" || location === "/home")) {
-        initHomeSupabase();
-    }
-    if (window.initHomeSupabase && location === "/list-products") {
-        initHomeSupabase('on');
-        ativarPaginacao();
-    }
-    if (window.initHomeSupabase && location === "/list-reservations") {
-        initHomeSupabase('off');
-        ativarPaginacao();
-    }
-    if (window.initHomeSupabase && location === "/our-reservations") {
-        initHomeSupabase('nosso');
-        ativarPaginacao();
-    }
+    // Inicializações específicas por página
+    if (window.initFormSupabase && location === "/form") initFormSupabase();
+    if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) initHomeSpaceSupabase(); 
+    if (window.initHomeSupabase && location === "/list-products") { initHomeSupabase('on'); ativarPaginacao(); }
+    if (window.initHomeSupabase && location === "/list-reservations") { initHomeSupabase('off'); ativarPaginacao(); }
+    if (window.initHomeSupabase && location === "/our-reservations") { initHomeSupabase('nosso'); ativarPaginacao(); }
 
     await changeActive(location);
-
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
-
 
 
 // ===========================
