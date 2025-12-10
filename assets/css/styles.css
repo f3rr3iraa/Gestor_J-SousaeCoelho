@@ -37,6 +37,28 @@ body {
   color: #f0f0f0;
 }
 
+/* Garante que no modo texto aparece texto normal */
+.input-container input[type="text"] {
+  -webkit-text-security: none;
+  text-security: none;
+}
+
+/* Garante que o password aparece como bolinhas */
+.input-container input[type="password"] {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
+.icon-password {
+    color: #9a9a9a; /* cor default */
+    transition: color .2s ease;
+}
+
+.icon-password.active {
+    color: #f0f0f0; /* quando está ativo */
+}
+
+
 .input-container .label {
   position: absolute;
   top: 0;
@@ -76,6 +98,13 @@ body {
   padding: 10px 20px;
   cursor: pointer;
   transition: background-color 0.2s;
+
+}
+
+@media (max-width: 1868px) {
+    .btn-entrar {
+        width: 50% !important;
+    }
 }
 
 /* Hover: um pouco mais escuro */

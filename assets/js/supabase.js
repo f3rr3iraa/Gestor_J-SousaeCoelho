@@ -230,29 +230,73 @@ function configurarEventosTabela() {
     }
 
     document.getElementById("confirmDeleteBtn")?.addEventListener("click", async () => {
-        if (!itemToDelete) return;
+    if (!itemToDelete) return;
 
-        const { error: deleteError } = await supabaseClient
-            .from("items")
-            .delete()
-            .eq("id", itemToDelete.id);
+    const itemId = itemToDelete.id;
 
-        if (deleteError) {
-            showMessage(`Erro ao eliminar: ${deleteError.message}`, 'danger');
+    // 1. Ir buscar foto atual
+    const { data: itemData } = await supabaseClient
+        .from("items")
+        .select("foto")
+        .eq("id", itemId)
+        .maybeSingle();
+
+    let novaFoto = null;
+
+    if (itemData?.foto) {
+        const url = itemData.foto;
+        const fileName = url.split("/").pop();
+
+        // caminho novo no "arquivo"
+        const newPath = `arquivadas/${fileName}`;
+
+        // 2. Copiar ficheiro
+        const { error: copyError } = await supabaseClient
+            .storage
+            .from("imagens")
+            .copy(fileName, newPath);
+
+        if (copyError) {
+            console.error(copyError);
+            showMessage("Erro ao mover imagem para arquivo", "danger");
         } else {
-            showMessage("Produto eliminado com sucesso!", 'success');
-            // remover linha da tabela
-            itemToDelete.row?.remove();
-            // atualizar dados originais localmente
-            window.dadosOriginais = (window.dadosOriginais || []).filter(i => String(i.id) !== String(itemToDelete.id));
-            preencherFiltroMarcas();
-            const pageKey = window.currentRoute || window.location.pathname;
-renderTabelaComPaginacao(window.dadosOriginais, pageKey);
-        }
+            // 3. Atualiza URL no item para apontar para a nova imagem
+            const { data: urlData } = supabaseClient
+                .storage
+                .from("imagens")
+                .getPublicUrl(newPath);
 
-        deleteModal?.hide();
-        itemToDelete = null;
-    });
+            novaFoto = urlData.publicUrl;
+
+            await supabaseClient
+                .from("items")
+                .update({ foto: novaFoto })
+                .eq("id", itemId);
+
+            // 4. Remover ficheiro original
+            await supabaseClient
+                .storage
+                .from("imagens")
+                .remove([fileName]);
+        }
+    }
+
+    // 5. Agora sim, eliminar o item
+    const { error: delError } = await supabaseClient
+        .from("items")
+        .delete()
+        .eq("id", itemId);
+
+    if (delError) {
+        showMessage("Erro ao eliminar item", "danger");
+        return;
+    }
+
+    showMessage("Item eliminado (imagem movida para arquivo)", "success");
+    itemToDelete.row?.remove();
+    deleteModal?.hide();
+});
+
 
     // MOVE / REACTIVATE (para estado 'off' -> 'on')
     let itemToReactivate = null;
@@ -393,108 +437,119 @@ window.addEventListener("load", () => {
 
     // === Captura o evento de SUBMIT do form dinamicamente ===
     document.addEventListener("submit", async (e) => {
-        const form = e.target;
-        if (form.id !== "editForm") return; // ignora outros forms
+    const form = e.target;
+    if (form.id !== "editForm") return;
 
-        e.preventDefault();
+    e.preventDefault();
 
-        const id = document.getElementById("editId")?.value;
-        const fileInput = document.getElementById("editFoto");
-        const fotoAtual = document.getElementById("editFotoAtual")?.value || "";
+    const id = document.getElementById("editId")?.value;
+    const fileInput = document.getElementById("editFoto");
+    const fotoAtual = document.getElementById("editFotoAtual")?.value || "";
 
-        if (!id) {
-            showMessage("Erro: ID do produto não encontrado.", "danger");
+    if (!id) {
+        showMessage("Erro: ID do produto não encontrado.", "danger");
+        return;
+    }
+
+    let fotoUrl = fotoAtual;
+
+    try {
+        // === SE EXISTE NOVA FOTO ===
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const newFile = fileInput.files[0];
+
+            // 1) APAGAR A IMAGEM ANTIGA
+            if (fotoAtual) {
+                try {
+                    const oldName = fotoAtual.split("/").pop();
+                    if (oldName) {
+                        const { error: deleteErr } = await supabaseClient
+                            .storage
+                            .from("imagens")
+                            .remove([oldName]); // 🔥 DELETE DEFINITIVO
+
+                        if (deleteErr) {
+                            console.error(deleteErr);
+                            showMessage("Aviso: Não foi possível apagar a imagem antiga.", "warning");
+                        }
+                    }
+                } catch (err) {
+                    console.error("Erro ao eliminar imagem antiga:", err);
+                }
+            }
+
+            // 2) UPLOAD DA NOVA
+            const cleanName = newFile.name
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-zA-Z0-9._-]/g, "_");
+
+            const fileName = `${Date.now()}_${cleanName}`;
+
+            const { error: uploadError } = await supabaseClient
+                .storage
+                .from("imagens")
+                .upload(fileName, newFile, { upsert: true });
+
+            if (uploadError) {
+                console.error(uploadError);
+                showMessage("Erro ao enviar nova imagem.", "danger");
+                return;
+            }
+
+            // 3) GET PUBLIC URL
+            const { data: publicData } = supabaseClient
+                .storage
+                .from("imagens")
+                .getPublicUrl(fileName);
+
+            fotoUrl = publicData.publicUrl;
+        }
+
+        // ==== PREPARAR DADOS PARA UPDATE ====
+        const updatedItem = {
+            marca: document.getElementById("editMarca").value || null,
+            nome: document.getElementById("editNome").value || null,
+            lote: document.getElementById("editLote").value || null,
+            tipo: document.getElementById("editTipo").value || null,
+            comprimento: document.getElementById("editComprimento").value || null,
+            largura: document.getElementById("editLargura").value || null,
+            espessura: document.getElementById("editEspessura").value || null,
+            observacoes: document.getElementById("editObservacoes").value || null,
+            foto: fotoUrl
+        };
+
+        // === ID numérico ===
+        const idValue = /^[0-9]+$/.test(id) ? Number(id) : id;
+
+        // === UPDATE FINAL ===
+        const { data, error } = await supabaseClient
+            .from("items")
+            .update(updatedItem)
+            .eq("id", idValue)
+            .select();
+
+        if (error) {
+            showMessage(`Erro ao atualizar: ${error.message}`, "danger");
             return;
         }
 
-        let fotoUrl = fotoAtual;
+        showMessage("Produto atualizado com sucesso!", "success");
 
-        try {
-            // === Upload da imagem (se houver nova) ===
-            if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                const file = fileInput.files[0];
+        // Fechar offcanvas
+        const editOffcanvasEl = document.getElementById("editOffcanvas");
+        const offcanvas = bootstrap.Offcanvas.getInstance(editOffcanvasEl);
+        offcanvas.hide();
 
-                // 🔧 Sanitiza o nome do ficheiro (remove acentos e espaços)
-                const cleanName = file.name
-                    .normalize("NFD") // separa acentos
-                    .replace(/[\u0300-\u036f]/g, "") // remove acentos
-                    .replace(/[^a-zA-Z0-9._-]/g, "_"); // substitui espaços e caracteres inválidos
+        // Atualizar lista
+        await initHomeSupabase(window.filtroEstadoAtual || "on");
 
-                const fileName = `${Date.now()}_${cleanName}`;
+    } catch (err) {
+        console.error(err);
+        showMessage("Erro inesperado ao atualizar item.", "danger");
+    }
+});
 
-                // === Faz o upload seguro ===
-                const { error: uploadError } = await supabaseClient
-                    .storage
-                    .from("imagens")
-                    .upload(fileName, file, { upsert: true });
-
-                if (uploadError) {
-                    console.error("❌ Erro upload:", uploadError);
-                    showMessage(`Erro ao enviar imagem: ${uploadError.message}`, "danger");
-                    return;
-                }
-
-                // === Obtém URL público da imagem ===
-                const { data: publicUrlData } = supabaseClient
-                    .storage
-                    .from("imagens")
-                    .getPublicUrl(fileName);
-
-                fotoUrl = publicUrlData?.publicUrl ?? fotoUrl;
-            }
-
-            // === Dados atualizados ===
-            const updatedItem = {
-                marca: document.getElementById("editMarca")?.value || null,
-                nome: document.getElementById("editNome")?.value || null,
-                lote: document.getElementById("editLote")?.value || null,
-                tipo: document.getElementById("editTipo")?.value || null,
-                comprimento: document.getElementById("editComprimento")?.value || null,
-                largura: document.getElementById("editLargura")?.value || null,
-                espessura: document.getElementById("editEspessura")?.value || null,
-                observacoes: document.getElementById("editObservacoes")?.value || null,
-                foto: fotoUrl,
-            };
-
-            // === Detetar se o ID é número ou UUID ===
-            const isNumericId = /^[0-9]+$/.test(id);
-            const idValue = isNumericId ? Number(id) : id;
-
-            // === Atualizar no Supabase ===
-            const { data, error } = await supabaseClient
-                .from("items")
-                .update(updatedItem)
-                .eq("id", idValue)
-                .select();
-
-            if (error) {
-                console.error("❌ Erro ao atualizar:", error);
-                showMessage(`Erro ao atualizar: ${error.message}`, "danger");
-                return;
-            }
-
-            if (!data || data.length === 0) {
-                showMessage("⚠️ Nenhum registo encontrado para atualizar.", "warning");
-                return;
-            }
-
-            showMessage("Produto atualizado com sucesso!", "success");
-
-            // === Fechar o offcanvas ===
-            const editOffcanvasEl = document.getElementById("editOffcanvas");
-            const offcanvasInstance = bootstrap.Offcanvas.getInstance(editOffcanvasEl)
-                || new bootstrap.Offcanvas(editOffcanvasEl);
-            offcanvasInstance.hide();
-
-            // === Recarregar lista mantendo filtro ===
-            if (typeof initHomeSupabase === "function") {
-                await initHomeSupabase(window.filtroEstadoAtual || "on");
-            }
-        } catch (err) {
-            console.error("❌ Erro inesperado:", err);
-            showMessage("Erro inesperado ao atualizar item.", "danger");
-        }
-    });
 
     // === Preview da Imagem ===
     document.addEventListener("change", (e) => {

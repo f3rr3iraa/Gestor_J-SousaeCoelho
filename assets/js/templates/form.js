@@ -21,7 +21,7 @@ async function initFormSupabase() {
 
     itemForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        showMessage("⏳ A enviar dados para o servidor...", "info");
+        showMessage("⏳ A guardar o produto...", "info");
 
         const formData = new FormData(itemForm);
         const marca = formData.get("marca");

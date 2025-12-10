@@ -126,6 +126,38 @@ function setActive(element) {
     element.classList.remove('text-white'); 
 }
 
+const passwordInput = document.getElementById("password");
+const togglePassword = document.getElementById("togglePassword");
+
+// Toggle do mostrar/ocultar password
+togglePassword.addEventListener("click", function () {
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        togglePassword.classList.replace("bi-eye-slash", "bi-eye");
+    } else {
+        passwordInput.type = "password";
+        togglePassword.classList.replace("bi-eye", "bi-eye-slash");
+    }
+});
+
+// Muda a cor do ícone consoante o foco e se há texto
+function updateIconColor() {
+    if (passwordInput === document.activeElement || passwordInput.value !== "") {
+        togglePassword.classList.add("active");
+    } else {
+        togglePassword.classList.remove("active");
+    }
+}
+
+passwordInput.addEventListener("focus", updateIconColor);
+passwordInput.addEventListener("blur", updateIconColor);
+passwordInput.addEventListener("input", updateIconColor);
+
+// Inicializar estado ao carregar
+updateIconColor();
+
+
+
 // --- Inicializa ---
 updateUI();
 
