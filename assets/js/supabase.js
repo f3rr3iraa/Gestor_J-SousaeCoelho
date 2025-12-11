@@ -1,8 +1,7 @@
 // supabase.js
 const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
-const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-
+window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /**
  * initHomeSupabase

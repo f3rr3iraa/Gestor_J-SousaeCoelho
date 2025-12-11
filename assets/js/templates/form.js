@@ -5,14 +5,14 @@ async function initFormSupabase() {
     const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
 
-    if (!window.supabase) {
+    if (!window.supabaseClient) {
         showMessage("❌ Erro: Supabase SDK não carregado!", "danger");
         console.error("❌ Supabase SDK não foi carregado. Verifica o script no index.html");
         return;
     }
 
-    const { createClient } = window.supabase;
-    window.supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseClient = window.supabaseClient;
+
     const itemForm = document.getElementById("itemForm");
     if (!itemForm) {
         console.error("⚠️ Formulário #itemForm não encontrado.");
@@ -55,7 +55,7 @@ async function initFormSupabase() {
 
             try {
                 // Faz upload do ficheiro
-                const { data, error: uploadError } = await window.supabase
+                const { data, error: uploadError } = await window.supabaseClient
                     .storage
                     .from("imagens")
                     .upload(fileName, fotoFile, {
@@ -70,7 +70,7 @@ async function initFormSupabase() {
                 }
 
                 // Obtém a URL pública correta
-                const { data: publicData, error: publicError } = await window.supabase
+                const { data: publicData, error: publicError } = await window.supabaseClient
                     .storage
                     .from("imagens")
                     .getPublicUrl(fileName);
@@ -93,7 +93,7 @@ async function initFormSupabase() {
 
 
 
-        const { data, error } = await window.supabase
+        const { data, error } = await window.supabaseClient
             .from("items")
             .insert([{ nome, marca, lote, tipo, comprimento, largura, espessura, observacoes, foto: fotoUrl }])
             .select();
