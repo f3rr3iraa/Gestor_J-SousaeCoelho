@@ -1,58 +1,9 @@
 // --- Login Form ---
-
-const content = document.getElementById("content");
-const logoutBtn = document.getElementById("logoutBtn");
-
 const loginForm = document.getElementById("loginForm");
 const contentLogin = document.getElementById("content-login");
 const contentDashboard = document.getElementById("content-dashboard");
-
-function updateUI() {
-    const token = sessionStorage.getItem("token");
-    if (token) {
-        contentLogin.classList.add("d-none");
-        contentDashboard.classList.remove("d-none");
-    } else {
-        contentLogin.classList.remove("d-none");
-        contentDashboard.classList.add("d-none");
-    }
-}
-
-loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
-
-    try {
-        const res = await fetch("/.netlify/functions/login", {
-            method: "POST",
-            body: JSON.stringify({ username, password }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            showMessage(data.error || "Erro no login", "danger");
-            return;
-        }
-
-        sessionStorage.setItem("token", data.token);
-        updateUI();
-        showMessage("Login efetuado!", "success");
-
-        // Recarrega dados da tabela
-        carregarDadosIniciais();
-    } catch (err) {
-        console.error(err);
-        showMessage("Erro ao processar login", "danger");
-    }
-});
-
-document.getElementById("logoutBtn")?.addEventListener("click", () => {
-    sessionStorage.removeItem("token");
-    updateUI();
-});
+const content = document.getElementById("content");
+const logoutBtn = document.getElementById("logoutBtn");
 
 
 
@@ -74,7 +25,18 @@ function isLogged() {
     return getTokenData() !== null;
 }
 
-
+// --- Atualizar UI ---
+function updateUI() {
+    if (isLogged()) {
+        contentLogin.classList.add("d-none");
+        contentDashboard.classList.remove("d-none");
+        content.classList.remove("d-none");
+    } else {
+        contentLogin.classList.remove("d-none");
+        contentDashboard.classList.add("d-none");
+        content.classList.add("d-none");
+    }
+}
 
 // --- Toast de erro ---
 function showErrorToast(messageText, duration = 60000) {
@@ -108,6 +70,33 @@ function closeAllErrorToasts() {
     });
 }
 
+// --- Submit login ---
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const user = document.getElementById("username").value.trim();
+  const pass = document.getElementById("password").value;
+
+  try {
+    const res = await fetch("/.netlify/functions/login", {
+      method: "POST",
+      body: JSON.stringify({ username: user, password: pass }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error);
+
+    closeAllErrorToasts();
+    sessionStorage.setItem("token", result.token);
+    document.getElementById("username").value = "";
+    document.getElementById("password").value = "";
+    updateUI();
+    window.history.pushState({}, "", "/home");
+    if (typeof locationHandler === "function") locationHandler();
+  } catch (err) {
+    showErrorToast("❌ " + err.message, 60000);
+  }
+});
 
 
 // --- Logout ---
