@@ -1,3 +1,7 @@
+// supabase.js
+const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
+window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /**
  * initHomeSupabase
@@ -10,26 +14,42 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
         tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
 
-        // Chamada à Netlify Function
-        const res = await fetch(`/.netlify/functions/getItems?estado=${filtroEstado}`);
-        const data = await res.json();
+        const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
 
-        if (!data || data.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
-            window.dadosOriginais = [];
-            preencherFiltroMarcas(); // resetar select
+        // ===== Buscar dados do Supabase =====
+        const { data, error } = await supabaseClient
+            .from("items_view")
+            .select("*")
+            .eq("estado", filtroEstado)
+            .order(orderField, { ascending: false });
+
+        if (error) {
+            tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
+            showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
 
-        window.dadosOriginais = data;
-        window.filtroEstadoAtual = filtroEstado;
+        if (!data || data.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
+            // limpar filtros de UI
+            window.dadosOriginais = [];
+            preencherFiltroMarcas(); // vai resetar select
+            return;
+        }
 
-        // Popular select de marcas
-        preencherFiltroMarcas();
+        // Guardar cópia para filtros
+window.dadosOriginais = data;
+window.filtroEstadoAtual = filtroEstado;
 
-        // Paginação e filtros
-        ativarPaginacao();
-        initFiltros();
+// Popular select de marcas
+preencherFiltroMarcas();
+
+// --- ATIVAR PAGINAÇÃO AQUI ---
+ativarPaginacao();
+
+// Inicializar lógica de filtros
+initFiltros();
+
 
     } catch (err) {
         const tableBody = document.getElementById("itemsBody");
