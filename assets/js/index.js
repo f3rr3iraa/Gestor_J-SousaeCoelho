@@ -6,8 +6,6 @@ const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
 
-
-
 // --- Gerar Token Simples ---
 function generateToken(username) {
     return btoa(`${username}:no-exp`);
@@ -25,7 +23,6 @@ function getTokenData() {
     return null;
 }
 
-
 function isLogged() {
     return getTokenData() !== null;
 }
@@ -33,10 +30,12 @@ function isLogged() {
 // --- Atualizar UI ---
 function updateUI() {
     if (isLogged()) {
+        // Se o usuário está logado, mostrar o dashboard e esconder o login
         contentLogin.classList.add("d-none");
         contentDashboard.classList.remove("d-none");
         content.classList.remove("d-none");
     } else {
+        // Se o usuário não está logado, mostrar o login e esconder o dashboard
         contentLogin.classList.remove("d-none");
         contentDashboard.classList.add("d-none");
         content.classList.add("d-none");
@@ -113,7 +112,6 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 
-
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
     sessionStorage.removeItem("token");
@@ -161,8 +159,6 @@ passwordInput.addEventListener("input", updateIconColor);
 
 // Inicializar estado ao carregar
 updateIconColor();
-
-
 
 // --- Inicializa ---
 updateUI();
