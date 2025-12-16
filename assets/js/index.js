@@ -5,10 +5,6 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const LOGIN_USER = "admin";
-const LOGIN_PASS = "1234";
-
-
 
 // --- Gerar Token Simples ---
 function generateToken(username) {
@@ -74,16 +70,38 @@ function closeAllErrorToasts() {
 }
 
 // --- Submit login ---
-loginForm.addEventListener("submit", (event) => {
+async function login(username, password) {
+    try {
+        const res = await fetch("/.netlify/functions/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            return { token: data.token };
+        } else {
+            return { error: data.error || "Erro ao autenticar" };
+        }
+    } catch (err) {
+        return { error: "Erro de conexão" };
+    }
+}
+
+// --- Submit login ---
+loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const user = document.getElementById("username").value.trim();
     const pass = document.getElementById("password").value;
 
-    if (user === LOGIN_USER && pass === LOGIN_PASS) {
+    const result = await login(user, pass);
+
+    if (result.token) {
         closeAllErrorToasts();
-        const token = generateToken(user);
-        sessionStorage.setItem("token", token);
+        sessionStorage.setItem("token", result.token);
 
         // ✅ Limpar os inputs após login bem-sucedido
         document.getElementById("username").value = "";
@@ -93,7 +111,7 @@ loginForm.addEventListener("submit", (event) => {
         window.history.pushState({}, "", "/home");
         if (typeof locationHandler === "function") locationHandler();
     } else {
-        showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+        showErrorToast(`❌ ${result.error}`, 60000);
     }
 });
 
