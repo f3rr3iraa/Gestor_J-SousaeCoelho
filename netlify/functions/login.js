@@ -1,8 +1,8 @@
 // Função de login para verificar as credenciais
 exports.handler = async (event, context) => {
     // Pegando as variáveis de ambiente do Netlify
-    const LOGIN_USER = process.env.LOGIN_USER;
-    const LOGIN_PASS = process.env.LOGIN_PASS;
+    const LOGIN_WEB_USER = process.env.LOGIN_WEB_USER;
+    const LOGIN_WEB_PASS = process.env.LOGIN_WEB_PASS;
 
     // Verifique se a requisição é do tipo POST
     if (event.httpMethod !== 'POST') {
@@ -16,7 +16,7 @@ exports.handler = async (event, context) => {
     const { username, password } = JSON.parse(event.body);
 
     // Verifica as credenciais
-    if (username === LOGIN_USER && password === LOGIN_PASS) {
+    if (username === LOGIN_WEB_USER && password === LOGIN_WEB_PASS) {
         // Gerar um token fictício
         const token = Buffer.from(`${username}:no-exp`).toString('base64');
 

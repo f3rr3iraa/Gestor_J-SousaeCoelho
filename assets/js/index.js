@@ -5,8 +5,6 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const LOGIN_USER = "admin";
-const LOGIN_PASS = "1234";
 
 
 
