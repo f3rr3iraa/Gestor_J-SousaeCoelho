@@ -19,7 +19,7 @@ exports.handler = async (event, context) => {
     // Se as credenciais não forem válidas
     return {
       statusCode: 401,
-      body: JSON.stringify({ error: 'Usuário ou Palavra Passe inválidos!' }),
+      body: JSON.stringify({ error: '❌ Usuário ou Palavra Passe inválidos!' }),
     };
   }
 };

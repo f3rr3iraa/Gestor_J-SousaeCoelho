@@ -164,5 +164,5 @@ updateIconColor();
 updateUI();
 
 window.onload = () => {
-    document.getElementById("content-login").classList.remove("preload-hidden");
+    locationHandler();
 };
