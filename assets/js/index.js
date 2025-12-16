@@ -5,6 +5,10 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
+const LOGIN_USER = "admin";
+const LOGIN_PASS = "1234";
+
+
 
 // --- Gerar Token Simples ---
 function generateToken(username) {
@@ -15,13 +19,10 @@ function getTokenData() {
     const token = sessionStorage.getItem("token");
     if (!token) return null;
     const decoded = atob(token);
-    
-    // Alteração: agora validamos o token gerado no backend (usando HMAC e TOKEN_SECRET)
-    if (decoded && decoded.length === 64) {  // Verifica se é um token gerado com HMAC SHA-256
-        return { username: decoded, exp: Infinity };
-    }
+    if (decoded.endsWith(":no-exp")) return { username: decoded.split(":")[0], exp: Infinity };
     return null;
 }
+
 
 function isLogged() {
     return getTokenData() !== null;
@@ -30,12 +31,10 @@ function isLogged() {
 // --- Atualizar UI ---
 function updateUI() {
     if (isLogged()) {
-        // Se o usuário está logado, mostrar o dashboard e esconder o login
         contentLogin.classList.add("d-none");
         contentDashboard.classList.remove("d-none");
         content.classList.remove("d-none");
     } else {
-        // Se o usuário não está logado, mostrar o login e esconder o dashboard
         contentLogin.classList.remove("d-none");
         contentDashboard.classList.add("d-none");
         content.classList.add("d-none");
@@ -75,42 +74,28 @@ function closeAllErrorToasts() {
 }
 
 // --- Submit login ---
-loginForm.addEventListener("submit", async (event) => {
+loginForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
     const user = document.getElementById("username").value.trim();
     const pass = document.getElementById("password").value;
 
-    try {
-        const response = await fetch('/.netlify/functions/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ username: user, password: pass })
-        });
+    if (user === LOGIN_USER && pass === LOGIN_PASS) {
+        closeAllErrorToasts();
+        const token = generateToken(user);
+        sessionStorage.setItem("token", token);
 
-        const data = await response.json();
+        // ✅ Limpar os inputs após login bem-sucedido
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
 
-        if (response.ok) {
-            // Sucesso: Salvar o token no sessionStorage
-            sessionStorage.setItem("token", data.token);
-            console.log("Token armazenado:", data.token); // Log para verificar o token
-            updateUI();
-            window.history.pushState({}, "", "/home");
-        } else {
-            // Erro: Exibir mensagem
-            showErrorToast(data.error, 60000);
-        }
-    } catch (error) {
-        showErrorToast("❌ Algo deu errado ao tentar fazer login!", 60000);
+        updateUI(); 
+        window.history.pushState({}, "", "/home");
+        if (typeof locationHandler === "function") locationHandler();
+    } else {
+        showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
     }
-
-    // Limpar os campos de login
-    document.getElementById("username").value = "";
-    document.getElementById("password").value = "";
 });
-
 
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
@@ -159,6 +144,8 @@ passwordInput.addEventListener("input", updateIconColor);
 
 // Inicializar estado ao carregar
 updateIconColor();
+
+
 
 // --- Inicializa ---
 updateUI();
