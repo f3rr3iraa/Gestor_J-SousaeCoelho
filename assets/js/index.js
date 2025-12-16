@@ -5,6 +5,10 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "1234";
+
+
 
 // --- Gerar Token Simples ---
 function generateToken(username) {
@@ -76,36 +80,26 @@ loginForm.addEventListener("submit", async (event) => {
     const user = document.getElementById("username").value.trim();
     const pass = document.getElementById("password").value;
 
-    try {
-        const res = await fetch("/.netlify/functions/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: user, password: pass })
-        });
+    const userHash = await sha256(user);
+    const passHash = await sha256(pass);
 
-        const data = await res.json();
+    if (userHash === STORED_USER_HASH && passHash === STORED_PASS_HASH) {
+    closeAllErrorToasts();
+    const token = generateToken(user);
+    sessionStorage.setItem("token", token);
+    
+    // ✅ Limpar os inputs após login bem-sucedido
+    document.getElementById("username").value = "";
+    document.getElementById("password").value = "";
 
-        if (!res.ok) {
-            showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
-            return;
-        }
+    updateUI(); 
+    window.history.pushState({}, "", "/home");
+    if (typeof locationHandler === "function") locationHandler();
+} else {
+    showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+}
 
-        closeAllErrorToasts();
-        sessionStorage.setItem("token", data.token);
-
-        document.getElementById("username").value = "";
-        document.getElementById("password").value = "";
-
-        updateUI();
-        window.history.pushState({}, "", "/home");
-        if (typeof locationHandler === "function") locationHandler();
-
-    } catch (err) {
-        showErrorToast("Erro de ligação ao servidor", 60000);
-        console.error(err);
-    }
 });
-
 
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
