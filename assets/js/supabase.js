@@ -28,6 +28,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
             showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
+        
 
         if (!data || data.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
