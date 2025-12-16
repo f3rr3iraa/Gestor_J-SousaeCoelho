@@ -33,7 +33,7 @@ exports.handler = async function(event, context) {
         } else {
             return {
                 statusCode: 401,
-                body: JSON.stringify({ error: "Invalid credentials" }),
+                body: JSON.stringify({ error: "Utilizador ou Palavra passe inválidos!" }),
             };
         }
 

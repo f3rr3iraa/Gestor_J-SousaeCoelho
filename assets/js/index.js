@@ -5,6 +5,8 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
+const passwordInput = document.getElementById("password");
+const togglePassword = document.getElementById("togglePassword");
 
 // --- Gerar Token Simples ---
 function generateToken(username) {
@@ -69,7 +71,7 @@ function closeAllErrorToasts() {
     });
 }
 
-// --- Submit login ---
+/// --- Login via Netlify Function ---
 async function login(username, password) {
     try {
         const res = await fetch("/.netlify/functions/login", {
@@ -79,7 +81,6 @@ async function login(username, password) {
         });
 
         const data = await res.json();
-
         if (res.ok) {
             return { token: data.token };
         } else {
@@ -90,7 +91,7 @@ async function login(username, password) {
     }
 }
 
-// --- Submit login ---
+// --- Event Listener do form ---
 loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -103,11 +104,10 @@ loginForm.addEventListener("submit", async (event) => {
         closeAllErrorToasts();
         sessionStorage.setItem("token", result.token);
 
-        // ✅ Limpar os inputs após login bem-sucedido
         document.getElementById("username").value = "";
         document.getElementById("password").value = "";
 
-        updateUI(); 
+        updateUI();
         window.history.pushState({}, "", "/home");
         if (typeof locationHandler === "function") locationHandler();
     } else {
@@ -133,8 +133,6 @@ function setActive(element) {
     element.classList.remove('text-white'); 
 }
 
-const passwordInput = document.getElementById("password");
-const togglePassword = document.getElementById("togglePassword");
 
 // Toggle do mostrar/ocultar password
 togglePassword.addEventListener("click", function () {
