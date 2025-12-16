@@ -1,6 +1,8 @@
 // supabase.js
-const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
+const res = await fetch('/.netlify/functions/getSupabase');
+const { supabaseUrl, supabaseKey } = await res.json();
+console.log("URL:", supabaseUrl);
+console.log("Key:", supabaseKey);
 window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /**
@@ -28,7 +30,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
             showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
-        
+
 
         if (!data || data.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
