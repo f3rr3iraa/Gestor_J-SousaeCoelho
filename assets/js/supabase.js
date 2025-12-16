@@ -1,3 +1,7 @@
+// supabase.js
+const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
+window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /**
  * initHomeSupabase
@@ -10,16 +14,20 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
         tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
 
-        // ===== Buscar dados via Netlify Function =====
-        const res = await fetch(`/.netlify/functions/supabase?estado=${filtroEstado}`);
-        if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${errData.error || res.statusText}</td></tr>`;
-            showMessage(`Erro ao carregar dados: ${errData.error || res.statusText}`, 'danger');
+        const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
+
+        // ===== Buscar dados do Supabase =====
+        const { data, error } = await supabaseClient
+            .from("items_view")
+            .select("*")
+            .eq("estado", filtroEstado)
+            .order(orderField, { ascending: false });
+
+        if (error) {
+            tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
+            showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
-
-        const data = await res.json();
 
         if (!data || data.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
@@ -30,17 +38,18 @@ async function initHomeSupabase(filtroEstado = 'on') {
         }
 
         // Guardar cópia para filtros
-        window.dadosOriginais = data;
-        window.filtroEstadoAtual = filtroEstado;
+window.dadosOriginais = data;
+window.filtroEstadoAtual = filtroEstado;
 
-        // Popular select de marcas
-        preencherFiltroMarcas();
+// Popular select de marcas
+preencherFiltroMarcas();
 
-        // --- ATIVAR PAGINAÇÃO AQUI ---
-        ativarPaginacao();
+// --- ATIVAR PAGINAÇÃO AQUI ---
+ativarPaginacao();
 
-        // Inicializar lógica de filtros
-        initFiltros();
+// Inicializar lógica de filtros
+initFiltros();
+
 
     } catch (err) {
         const tableBody = document.getElementById("itemsBody");
@@ -49,7 +58,6 @@ async function initHomeSupabase(filtroEstado = 'on') {
         console.error(err);
     }
 }
-
 
 /* ============================
    Funções de Filtros & UI
