@@ -48,8 +48,9 @@ const route = (event) => {
 // MAIN LOCATION HANDLER
 // ===========================
 const locationHandler = async () => {
-    // Se não estiver logado, força login
+    console.log("Verificando login...", isLogged());
     if (!isLogged()) {
+        console.log("Não está logado, redirecionando para login...");
         document.getElementById("content-login").classList.remove("d-none");
         document.getElementById("content-dashboard").classList.add("d-none");
         document.getElementById("content").classList.add("d-none");
@@ -57,10 +58,11 @@ const locationHandler = async () => {
     }
 
      // Inicializações específicas por página
-    if (!window.supabaseClient) {
-    await initSupabaseClient();
-}
+        if (!window.supabaseClient) {
+        await initSupabaseClient();
+    }
 
+    console.log("Usuário logado, carregando conteúdo da página...");
     let location = window.location.pathname;
     if (location === "/") {
         // Redireciona para /home se estiver logado
@@ -80,6 +82,8 @@ const locationHandler = async () => {
     document.getElementById('content').innerHTML = html;
 
    
+    console.log(`Carregando conteúdo de ${route.template}`);
+
 
     if (window.initFormSupabase && location === "/form") initFormSupabase();
     if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) initHomeSpaceSupabase(); 
