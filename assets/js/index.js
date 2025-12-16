@@ -6,7 +6,6 @@ const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
 
-
 // --- Gerar Token Simples ---
 function generateToken(username) {
     return btoa(`${username}:no-exp`);
@@ -72,30 +71,39 @@ function closeAllErrorToasts() {
 
 // --- Submit login ---
 loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+    event.preventDefault();
 
-  const user = document.getElementById("username").value.trim();
-  const pass = document.getElementById("password").value;
+    const user = document.getElementById("username").value.trim();
+    const pass = document.getElementById("password").value;
 
-  try {
-    const res = await fetch("/.netlify/functions/login", {
-      method: "POST",
-      body: JSON.stringify({ username: user, password: pass }),
-    });
+    try {
+        const res = await fetch("/.netlify/functions/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: user, password: pass })
+        });
 
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error);
+        const data = await res.json();
 
-    closeAllErrorToasts();
-    sessionStorage.setItem("token", result.token);
-    document.getElementById("username").value = "";
-    document.getElementById("password").value = "";
-    updateUI();
-    window.history.pushState({}, "", "/home");
-    if (typeof locationHandler === "function") locationHandler();
-  } catch (err) {
-    showErrorToast("❌ " + err.message, 60000);
-  }
+        if (!res.ok) {
+            showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+            return;
+        }
+
+        closeAllErrorToasts();
+        sessionStorage.setItem("token", data.token);
+
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+
+        updateUI();
+        window.history.pushState({}, "", "/home");
+        if (typeof locationHandler === "function") locationHandler();
+
+    } catch (err) {
+        showErrorToast("Erro de ligação ao servidor", 60000);
+        console.error(err);
+    }
 });
 
 

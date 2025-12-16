@@ -1,43 +1,64 @@
+// supabase.js
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+
+window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /**
  * initHomeSupabase
  * @param {string} filtroEstado - 'on' (ativos) ou 'off' (arquivados)
  */
 async function initHomeSupabase(filtroEstado = 'on') {
-    const tableBody = document.getElementById("itemsBody");
-    if (!tableBody) return;
-
-    tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
-
     try {
-        const res = await fetch(`/.netlify/functions/getItems?estado=${filtroEstado}`);
-        const result = await res.json();
+        const tableBody = document.getElementById("itemsBody");
+        if (!tableBody) return;
 
-        if (!res.ok) throw new Error(result.error || 'Erro ao carregar dados');
+        tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
 
-        const data = result.data;
+        const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
 
-        if (!data || data.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
-            window.dadosOriginais = [];
-            preencherFiltroMarcas();
+        // ===== Buscar dados do Supabase =====
+        const { data, error } = await supabaseClient
+            .from("items_view")
+            .select("*")
+            .eq("estado", filtroEstado)
+            .order(orderField, { ascending: false });
+
+        if (error) {
+            tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
+            showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
 
-        window.dadosOriginais = data;
-        window.filtroEstadoAtual = filtroEstado;
+        if (!data || data.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
+            // limpar filtros de UI
+            window.dadosOriginais = [];
+            preencherFiltroMarcas(); // vai resetar select
+            return;
+        }
 
-        preencherFiltroMarcas();
-        ativarPaginacao();
-        initFiltros();
+        // Guardar cópia para filtros
+window.dadosOriginais = data;
+window.filtroEstadoAtual = filtroEstado;
+
+// Popular select de marcas
+preencherFiltroMarcas();
+
+// --- ATIVAR PAGINAÇÃO AQUI ---
+ativarPaginacao();
+
+// Inicializar lógica de filtros
+initFiltros();
+
 
     } catch (err) {
-        tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${err.message}</td></tr>`;
-        showMessage(`Erro ao carregar dados: ${err.message}`, 'danger');
+        const tableBody = document.getElementById("itemsBody");
+        if (tableBody) tableBody.innerHTML = `<tr><td colspan="10">Erro inesperado ao carregar dados.</td></tr>`;
+        showMessage("Erro inesperado ao carregar dados.", "danger");
         console.error(err);
     }
 }
-
 
 /* ============================
    Funções de Filtros & UI
