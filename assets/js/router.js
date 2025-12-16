@@ -56,6 +56,11 @@ const locationHandler = async () => {
         return;
     }
 
+     // Inicializações específicas por página
+    if (!window.supabaseClient) {
+    await initSupabaseClient();
+}
+
     let location = window.location.pathname;
     if (location === "/") {
         // Redireciona para /home se estiver logado
@@ -74,7 +79,8 @@ const locationHandler = async () => {
     const html = await fetch(route.template).then(res => res.text());
     document.getElementById('content').innerHTML = html;
 
-    // Inicializações específicas por página
+   
+
     if (window.initFormSupabase && location === "/form") initFormSupabase();
     if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) initHomeSpaceSupabase(); 
     if (window.initHomeSupabase && location === "/list-products") { initHomeSupabase('on'); ativarPaginacao(); }
