@@ -1,8 +1,3 @@
-// supabase.js
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /**
  * initHomeSupabase
@@ -15,42 +10,26 @@ async function initHomeSupabase(filtroEstado = 'on') {
 
         tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
 
-        const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
-
-        // ===== Buscar dados do Supabase =====
-        const { data, error } = await supabaseClient
-            .from("items_view")
-            .select("*")
-            .eq("estado", filtroEstado)
-            .order(orderField, { ascending: false });
-
-        if (error) {
-            tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
-            showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
-            return;
-        }
+        // Chamada à Netlify Function
+        const res = await fetch(`/.netlify/functions/getItems?estado=${filtroEstado}`);
+        const data = await res.json();
 
         if (!data || data.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
-            // limpar filtros de UI
             window.dadosOriginais = [];
-            preencherFiltroMarcas(); // vai resetar select
+            preencherFiltroMarcas(); // resetar select
             return;
         }
 
-        // Guardar cópia para filtros
-window.dadosOriginais = data;
-window.filtroEstadoAtual = filtroEstado;
+        window.dadosOriginais = data;
+        window.filtroEstadoAtual = filtroEstado;
 
-// Popular select de marcas
-preencherFiltroMarcas();
+        // Popular select de marcas
+        preencherFiltroMarcas();
 
-// --- ATIVAR PAGINAÇÃO AQUI ---
-ativarPaginacao();
-
-// Inicializar lógica de filtros
-initFiltros();
-
+        // Paginação e filtros
+        ativarPaginacao();
+        initFiltros();
 
     } catch (err) {
         const tableBody = document.getElementById("itemsBody");
