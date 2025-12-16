@@ -1,30 +1,26 @@
-import crypto from "crypto";
-
 export async function handler(event) {
-  try {
-    const { user, pass } = JSON.parse(event.body);
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, body: "Method Not Allowed" };
+  }
 
-    const hash = v => crypto.createHash("sha256").update(v).digest("hex");
+  const { username, password } = JSON.parse(event.body);
 
-    // Comparar com hashes guardados nas variáveis de ambiente
-    if (
-      hash(user) === process.env.ADMIN_USER_HASH &&
-      hash(pass) === process.env.ADMIN_PASS_HASH
-    ) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ ok: true })
-      };
-    }
+  const ADMIN_USER = process.env.ADMIN_USER;
+  const ADMIN_PASS = process.env.ADMIN_PASS;
+
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+    const token = Buffer
+      .from(`${username}:no-exp`)
+      .toString("base64");
 
     return {
-      statusCode: 401,
-      body: JSON.stringify({ ok: false })
-    };
-  } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ ok: false, error: err.message })
+      statusCode: 200,
+      body: JSON.stringify({ token })
     };
   }
+
+  return {
+    statusCode: 401,
+    body: JSON.stringify({ error: "Credenciais inválidas" })
+  };
 }

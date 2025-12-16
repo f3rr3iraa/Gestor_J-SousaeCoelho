@@ -1,17 +1,27 @@
-let supabaseClient = null;
-window.supabaseClient = null;
+async function carregarDadosIniciais() {
+    try {
+        const res = await fetch("/.netlify/functions/supabase");
+        const data = await res.json();
 
-async function initSupabase() {
-    const res = await fetch("/.netlify/functions/config");
-    const cfg = await res.json();
+        // Guardar globalmente (opcional)
+        window.dadosIniciais = data;
 
-    supabaseClient = supabase.createClient(
-        cfg.supabaseUrl,
-        cfg.supabaseKey
-    );
+        // Preencher filtros com dados iniciais, se necessário
+        preencherFiltroMarcas();
 
-    window.supabaseClient = supabaseClient;
+        // Inicializar a tabela usando Supabase normal
+        await initHomeSupabase("on");
+
+    } catch (err) {
+        console.error("Erro ao carregar dados iniciais:", err);
+        showMessage("Erro ao carregar dados iniciais.", "danger");
+    }
 }
+
+// Chamar no load da página
+window.addEventListener("load", () => {
+    carregarDadosIniciais();
+});
 
 
 /**
@@ -19,9 +29,6 @@ async function initSupabase() {
  * @param {string} filtroEstado - 'on' (ativos) ou 'off' (arquivados)
  */
 async function initHomeSupabase(filtroEstado = 'on') {
-    if (!supabaseClient) {
-        await initSupabase();
-    }
     try {
         const tableBody = document.getElementById("itemsBody");
         if (!tableBody) return;
