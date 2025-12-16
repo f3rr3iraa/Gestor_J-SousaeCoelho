@@ -6,23 +6,13 @@ const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
 
-// --- Gerar Token Simples ---
-function generateToken(username) {
-    return btoa(`${username}:no-exp`);
-}
 
-function getTokenData() {
-    const token = sessionStorage.getItem("token");
-    if (!token) return null;
-    const decoded = atob(token);
-    if (decoded.endsWith(":no-exp")) return { username: decoded.split(":")[0], exp: Infinity };
-    return null;
-}
 
 
 function isLogged() {
-    return getTokenData() !== null;
+    return sessionStorage.getItem("token") === "logged";
 }
+
 
 // --- Atualizar UI ---
 function updateUI() {
