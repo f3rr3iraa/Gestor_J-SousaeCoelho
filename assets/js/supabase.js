@@ -5,7 +5,6 @@ async function initSupabaseClient() {
     const res = await fetch('/.netlify/functions/getSupabase');
     const { supabaseUrl, supabaseKey } = await res.json();
     window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-    console.log("Supabase client initialized:", window.supabaseClient);
     return window.supabaseClient;
 }
 

@@ -5,17 +5,10 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const STORED_USER_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"; // admin
-const STORED_PASS_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
+const LOGIN_USER = "admin";
+const LOGIN_PASS = "1234";
 
-// --- Função SHA256 ---
-async function sha256(str) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
+
 
 // --- Gerar Token Simples ---
 function generateToken(username) {
@@ -81,31 +74,27 @@ function closeAllErrorToasts() {
 }
 
 // --- Submit login ---
-loginForm.addEventListener("submit", async (event) => {
+loginForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
     const user = document.getElementById("username").value.trim();
     const pass = document.getElementById("password").value;
 
-    const userHash = await sha256(user);
-    const passHash = await sha256(pass);
+    if (user === LOGIN_USER && pass === LOGIN_PASS) {
+        closeAllErrorToasts();
+        const token = generateToken(user);
+        sessionStorage.setItem("token", token);
 
-    if (userHash === STORED_USER_HASH && passHash === STORED_PASS_HASH) {
-    closeAllErrorToasts();
-    const token = generateToken(user);
-    sessionStorage.setItem("token", token);
-    
-    // ✅ Limpar os inputs após login bem-sucedido
-    document.getElementById("username").value = "";
-    document.getElementById("password").value = "";
+        // ✅ Limpar os inputs após login bem-sucedido
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
 
-    updateUI(); 
-    window.history.pushState({}, "", "/home");
-    if (typeof locationHandler === "function") locationHandler();
-} else {
-    showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
-}
-
+        updateUI(); 
+        window.history.pushState({}, "", "/home");
+        if (typeof locationHandler === "function") locationHandler();
+    } else {
+        showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+    }
 });
 
 // --- Logout ---
