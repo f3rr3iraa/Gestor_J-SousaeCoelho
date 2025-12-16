@@ -5,8 +5,10 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const passwordInput = document.getElementById("password");
-const togglePassword = document.getElementById("togglePassword");
+const LOGIN_USER = "admin";
+const LOGIN_PASS = "1234";
+
+
 
 // --- Gerar Token Simples ---
 function generateToken(username) {
@@ -71,49 +73,30 @@ function closeAllErrorToasts() {
     });
 }
 
-/// --- Login via Netlify Function ---
-async function login(username, password) {
-    try {
-        const res = await fetch("/.netlify/functions/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-            return { token: data.token };
-        } else {
-            return { error: data.error || "Erro ao autenticar" };
-        }
-    } catch (err) {
-        return { error: "Erro de conexão" };
-    }
-}
-
-// --- Event Listener do form ---
-loginForm.addEventListener("submit", async (event) => {
+// --- Submit login ---
+loginForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
     const user = document.getElementById("username").value.trim();
     const pass = document.getElementById("password").value;
 
-    const result = await login(user, pass);
-
-    if (result.token) {
+    if (user === LOGIN_USER && pass === LOGIN_PASS) {
         closeAllErrorToasts();
-        sessionStorage.setItem("token", result.token);
+        const token = generateToken(user);
+        sessionStorage.setItem("token", token);
 
+        // ✅ Limpar os inputs após login bem-sucedido
         document.getElementById("username").value = "";
         document.getElementById("password").value = "";
 
-        updateUI();
+        updateUI(); 
         window.history.pushState({}, "", "/home");
         if (typeof locationHandler === "function") locationHandler();
     } else {
-        showErrorToast(`❌ ${result.error}`, 60000);
+        showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
     }
 });
+
 
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
@@ -133,6 +116,8 @@ function setActive(element) {
     element.classList.remove('text-white'); 
 }
 
+const passwordInput = document.getElementById("password");
+const togglePassword = document.getElementById("togglePassword");
 
 // Toggle do mostrar/ocultar password
 togglePassword.addEventListener("click", function () {
