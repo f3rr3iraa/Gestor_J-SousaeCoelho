@@ -65,12 +65,14 @@ const locationHandler = async () => {
 
     let location = window.location.pathname;
     if (location === "/") {
+        console.log("Redirecionando para /home");
         window.history.replaceState({}, "", "/home");
         location = "/home";
     }
 
     let route = routes[location] || routes["404"];
     if (route.title === "404") {
+        console.log("Página não encontrada, redirecionando para /home");
         window.history.pushState({}, "", "/home");
         location = "/home";
         route = routes[location];
@@ -81,7 +83,8 @@ const locationHandler = async () => {
     document.getElementById('content').innerHTML = html;
 
     console.log(`Carregando conteúdo de ${route.template}`);
-    
+
+    // Inicializações específicas por página
     if (window.initFormSupabase && location === "/form") initFormSupabase();
     if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) initHomeSpaceSupabase(); 
     if (window.initHomeSupabase && location === "/list-products") { initHomeSupabase('on'); ativarPaginacao(); }
@@ -91,6 +94,7 @@ const locationHandler = async () => {
     await changeActive(location);
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
+
 
 
 
