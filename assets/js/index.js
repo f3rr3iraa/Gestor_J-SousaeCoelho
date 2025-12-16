@@ -9,8 +9,9 @@ const logoutBtn = document.getElementById("logoutBtn");
 
 
 function isLogged() {
-    return sessionStorage.getItem("token") === "logged";
+    return sessionStorage.getItem("token") === "__LOGGED_IN__";
 }
+
 
 
 // --- Atualizar UI ---
@@ -78,7 +79,7 @@ loginForm.addEventListener("submit", async (event) => {
         }
 
         closeAllErrorToasts();
-        sessionStorage.setItem("token", "admin-session");
+        sessionStorage.setItem("token", "__LOGGED_IN__");
 
         document.getElementById("username").value = "";
         document.getElementById("password").value = "";
