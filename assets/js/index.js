@@ -5,8 +5,6 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const LOGIN_WEB_USER = "admin";
-const LOGIN_WEB_PASS = "1234";
 
 
 
@@ -17,23 +15,15 @@ function generateToken(username) {
 
 function getTokenData() {
     const token = sessionStorage.getItem("token");
-    console.log("Token no sessionStorage:", token); // Log para verificar o token
     if (!token) return null;
-
     const decoded = atob(token);
-    console.log("Token decodificado:", decoded); // Log para verificar a decodificação do token
-
-    if (decoded.endsWith(":no-exp")) {
-        return { username: decoded.split(":")[0], exp: Infinity };
+    
+    // Alteração: agora validamos o token gerado no backend (usando HMAC e TOKEN_SECRET)
+    if (decoded && decoded.length === 64) {  // Verifica se é um token gerado com HMAC SHA-256
+        return { username: decoded, exp: Infinity };
     }
-
     return null;
 }
-
-function isLogged() {
-    return getTokenData() !== null;
-}
-
 
 
 function isLogged() {

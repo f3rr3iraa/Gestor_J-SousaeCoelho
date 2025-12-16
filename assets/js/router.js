@@ -48,11 +48,6 @@ const route = (event) => {
 // MAIN LOCATION HANDLER
 // ===========================
 const locationHandler = async () => {
-    console.log("locationHandler chamado!");
-
-    // Verificar o login
-    console.log("Verificando login...", isLogged());
-
     if (!isLogged()) {
         console.log("Não está logado, redirecionando para login...");
         document.getElementById("content-login").classList.remove("d-none");
@@ -61,18 +56,20 @@ const locationHandler = async () => {
         return;
     }
 
-    console.log("Usuário logado, carregando conteúdo da página...");
+     // Inicializações específicas por página
+    if (!window.supabaseClient) {
+    await initSupabaseClient();
+}
 
     let location = window.location.pathname;
     if (location === "/") {
-        console.log("Redirecionando para /home");
+        // Redireciona para /home se estiver logado
         window.history.replaceState({}, "", "/home");
         location = "/home";
     }
 
     let route = routes[location] || routes["404"];
     if (route.title === "404") {
-        console.log("Página não encontrada, redirecionando para /home");
         window.history.pushState({}, "", "/home");
         location = "/home";
         route = routes[location];
@@ -82,9 +79,8 @@ const locationHandler = async () => {
     const html = await fetch(route.template).then(res => res.text());
     document.getElementById('content').innerHTML = html;
 
-    console.log(`Carregando conteúdo de ${route.template}`);
+   
 
-    // Inicializações específicas por página
     if (window.initFormSupabase && location === "/form") initFormSupabase();
     if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) initHomeSpaceSupabase(); 
     if (window.initHomeSupabase && location === "/list-products") { initHomeSupabase('on'); ativarPaginacao(); }
@@ -94,8 +90,6 @@ const locationHandler = async () => {
     await changeActive(location);
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
-
-
 
 
 // ===========================
