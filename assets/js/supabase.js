@@ -1,13 +1,27 @@
-// supabase.js
-const supabaseUrl = 'https://jipdtttjsmyllnaqggwy.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppcGR0dHRqc215bGxuYXFnZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUzOTIsImV4cCI6MjA3Njc0MTM5Mn0.twAKANHX3L6NlKIli4amXKG-_GGD04BCQSbjm_uNCwE';
-window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+let supabaseClient = null;
+window.supabaseClient = null;
+
+async function initSupabase() {
+    const res = await fetch("/.netlify/functions/config");
+    const cfg = await res.json();
+
+    supabaseClient = supabase.createClient(
+        cfg.supabaseUrl,
+        cfg.supabaseKey
+    );
+
+    window.supabaseClient = supabaseClient;
+}
+
 
 /**
  * initHomeSupabase
  * @param {string} filtroEstado - 'on' (ativos) ou 'off' (arquivados)
  */
 async function initHomeSupabase(filtroEstado = 'on') {
+    if (!supabaseClient) {
+        await initSupabase();
+    }
     try {
         const tableBody = document.getElementById("itemsBody");
         if (!tableBody) return;
