@@ -2,8 +2,4 @@
   functions = "netlify/functions"
 
 [build.environment]
-  LOGIN_WEB_USER = ""
-  LOGIN_WEB_PASS = ""
-  SUPABASE_ANON_KEY = ""
-  SUPABASE_URL = ""
   SECRETS_SCAN_OMIT_KEYS = "LOGIN_WEB_USER,LOGIN_WEB_PASS"
