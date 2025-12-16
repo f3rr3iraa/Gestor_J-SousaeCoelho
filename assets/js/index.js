@@ -1,10 +1,58 @@
 // --- Login Form ---
-const loginForm = document.getElementById("loginForm");
-const contentLogin = document.getElementById("content-login");
-const contentDashboard = document.getElementById("content-dashboard");
+
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
+const loginForm = document.getElementById("loginForm");
+const contentLogin = document.getElementById("content-login");
+const contentDashboard = document.getElementById("content-dashboard");
+
+function updateUI() {
+    const token = sessionStorage.getItem("token");
+    if (token) {
+        contentLogin.classList.add("d-none");
+        contentDashboard.classList.remove("d-none");
+    } else {
+        contentLogin.classList.remove("d-none");
+        contentDashboard.classList.add("d-none");
+    }
+}
+
+loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    try {
+        const res = await fetch("/.netlify/functions/login", {
+            method: "POST",
+            body: JSON.stringify({ username, password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            showMessage(data.error || "Erro no login", "danger");
+            return;
+        }
+
+        sessionStorage.setItem("token", data.token);
+        updateUI();
+        showMessage("Login efetuado!", "success");
+
+        // Recarrega dados da tabela
+        carregarDadosIniciais();
+    } catch (err) {
+        console.error(err);
+        showMessage("Erro ao processar login", "danger");
+    }
+});
+
+document.getElementById("logoutBtn")?.addEventListener("click", () => {
+    sessionStorage.removeItem("token");
+    updateUI();
+});
 
 
 
@@ -26,18 +74,7 @@ function isLogged() {
     return getTokenData() !== null;
 }
 
-// --- Atualizar UI ---
-function updateUI() {
-    if (isLogged()) {
-        contentLogin.classList.add("d-none");
-        contentDashboard.classList.remove("d-none");
-        content.classList.remove("d-none");
-    } else {
-        contentLogin.classList.remove("d-none");
-        contentDashboard.classList.add("d-none");
-        content.classList.add("d-none");
-    }
-}
+
 
 // --- Toast de erro ---
 function showErrorToast(messageText, duration = 60000) {
@@ -71,31 +108,6 @@ function closeAllErrorToasts() {
     });
 }
 
-// --- Submit login ---
-loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const user = document.getElementById("username").value.trim();
-  const pass = document.getElementById("password").value;
-
-  const res = await fetch("/.netlify/functions/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: user, password: pass })
-  });
-
-  if (!res.ok) {
-    showErrorToast("❌ Utilizador ou senha inválidos!");
-    return;
-  }
-
-  const { token } = await res.json();
-  sessionStorage.setItem("token", token);
-
-  updateUI();
-  window.history.pushState({}, "", "/home");
-  locationHandler?.();
-});
 
 
 // --- Logout ---

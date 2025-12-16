@@ -1,27 +1,22 @@
+// supabase.js (frontend)
 async function carregarDadosIniciais() {
     try {
         const res = await fetch("/.netlify/functions/supabase");
+        if (!res.ok) throw new Error("Falha ao carregar dados");
         const data = await res.json();
 
-        // Guardar globalmente (opcional)
-        window.dadosIniciais = data;
+        window.dadosIniciais = data; // dados globais
+        window.dadosOriginais = data;
 
-        // Preencher filtros com dados iniciais, se necessário
         preencherFiltroMarcas();
-
-        // Inicializar a tabela usando Supabase normal
-        await initHomeSupabase("on");
-
+        initHomeSupabase("on"); // inicializa tabela
     } catch (err) {
-        console.error("Erro ao carregar dados iniciais:", err);
+        console.error("Erro ao carregar dados:", err);
         showMessage("Erro ao carregar dados iniciais.", "danger");
     }
 }
 
-// Chamar no load da página
-window.addEventListener("load", () => {
-    carregarDadosIniciais();
-});
+window.addEventListener("load", carregarDadosIniciais);
 
 
 /**
