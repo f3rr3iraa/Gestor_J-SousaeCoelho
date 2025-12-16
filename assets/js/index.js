@@ -74,28 +74,47 @@ function closeAllErrorToasts() {
 }
 
 // --- Submit login ---
-loginForm.addEventListener("submit", (event) => {
-    event.preventDefault();
+// --- Submit login ---
+loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault(); // Evita o comportamento padrão do formulário (recarregar a página)
 
-    const user = document.getElementById("username").value.trim();
-    const pass = document.getElementById("password").value;
+    const user = document.getElementById("username").value.trim(); // Pega o nome de usuário
+    const pass = document.getElementById("password").value; // Pega a senha
 
-    if (user === LOGIN_USER && pass === LOGIN_PASS) {
-        closeAllErrorToasts();
-        const token = generateToken(user);
-        sessionStorage.setItem("token", token);
+    // Faz a requisição POST para o endpoint do Netlify Functions
+    try {
+        const response = await fetch('/.netlify/functions/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username: user, password: pass }) // Envia o corpo com as credenciais
+        });
 
-        // ✅ Limpar os inputs após login bem-sucedido
-        document.getElementById("username").value = "";
-        document.getElementById("password").value = "";
+        const data = await response.json(); // Converte a resposta para JSON
 
-        updateUI(); 
-        window.history.pushState({}, "", "/home");
-        if (typeof locationHandler === "function") locationHandler();
-    } else {
-        showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+        if (response.ok) {
+            // ✅ Login bem-sucedido
+            closeAllErrorToasts(); // Fecha qualquer mensagem de erro
+            sessionStorage.setItem("token", data.token); // Armazena o token no sessionStorage
+
+            // Limpar os inputs após login bem-sucedido
+            document.getElementById("username").value = "";
+            document.getElementById("password").value = "";
+
+            updateUI(); // Atualiza a UI com o novo estado (usuário logado)
+            window.history.pushState({}, "", "/home"); // Muda a URL para /home
+            if (typeof locationHandler === "function") locationHandler(); // Chama a função de localização, se existir
+        } else {
+            // ❌ Credenciais inválidas
+            showErrorToast(data.message || "❌ Ocorreu um erro no servidor", 60000);
+        }
+    } catch (error) {
+        console.error('Erro no login:', error); // Exibe erros no console
+        showErrorToast("❌ Ocorreu um erro inesperado!", 60000); // Exibe mensagem de erro
     }
 });
+
 
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
