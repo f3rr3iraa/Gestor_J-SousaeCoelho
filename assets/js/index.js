@@ -5,8 +5,8 @@ const contentDashboard = document.getElementById("content-dashboard");
 const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-const LOGIN_USER = "admin";
-const LOGIN_PASS = "1234";
+const LOGIN_WEB_USER = "admin";
+const LOGIN_WEB_PASS = "1234";
 
 
 
@@ -74,27 +74,39 @@ function closeAllErrorToasts() {
 }
 
 // --- Submit login ---
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const user = document.getElementById("username").value.trim();
     const pass = document.getElementById("password").value;
 
-    if (user === LOGIN_USER && pass === LOGIN_PASS) {
-        closeAllErrorToasts();
-        const token = generateToken(user);
-        sessionStorage.setItem("token", token);
+    try {
+        const response = await fetch('/.netlify/functions/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username: user, password: pass })
+        });
 
-        // ✅ Limpar os inputs após login bem-sucedido
-        document.getElementById("username").value = "";
-        document.getElementById("password").value = "";
+        const data = await response.json();
 
-        updateUI(); 
-        window.history.pushState({}, "", "/home");
-        if (typeof locationHandler === "function") locationHandler();
-    } else {
-        showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
+        if (response.ok) {
+            // Sucesso: Salvar o token no sessionStorage
+            sessionStorage.setItem("token", data.token);
+            updateUI(); 
+            window.history.pushState({}, "", "/home");
+        } else {
+            // Erro: Exibir mensagem
+            showErrorToast(data.error, 60000);
+        }
+    } catch (error) {
+        showErrorToast("❌ Algo deu errado ao tentar fazer login!", 60000);
     }
+
+    // Limpar os campos de login
+    document.getElementById("username").value = "";
+    document.getElementById("password").value = "";
 });
 
 
