@@ -48,7 +48,11 @@ const route = (event) => {
 // MAIN LOCATION HANDLER
 // ===========================
 const locationHandler = async () => {
+    console.log("locationHandler chamado!");
+
+    // Verificar o login
     console.log("Verificando login...", isLogged());
+
     if (!isLogged()) {
         console.log("Não está logado, redirecionando para login...");
         document.getElementById("content-login").classList.remove("d-none");
@@ -57,15 +61,10 @@ const locationHandler = async () => {
         return;
     }
 
-     // Inicializações específicas por página
-        if (!window.supabaseClient) {
-        await initSupabaseClient();
-    }
-
     console.log("Usuário logado, carregando conteúdo da página...");
+
     let location = window.location.pathname;
     if (location === "/") {
-        // Redireciona para /home se estiver logado
         window.history.replaceState({}, "", "/home");
         location = "/home";
     }
@@ -81,10 +80,8 @@ const locationHandler = async () => {
     const html = await fetch(route.template).then(res => res.text());
     document.getElementById('content').innerHTML = html;
 
-   
     console.log(`Carregando conteúdo de ${route.template}`);
-
-
+    
     if (window.initFormSupabase && location === "/form") initFormSupabase();
     if (window.initHomeSpaceSupabase && (location === "/" || location === "/home")) initHomeSpaceSupabase(); 
     if (window.initHomeSupabase && location === "/list-products") { initHomeSupabase('on'); ativarPaginacao(); }
@@ -94,6 +91,7 @@ const locationHandler = async () => {
     await changeActive(location);
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
 };
+
 
 
 // ===========================
