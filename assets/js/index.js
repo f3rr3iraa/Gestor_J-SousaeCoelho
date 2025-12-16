@@ -1,107 +1,77 @@
-// --- Login Form ---
 const loginForm = document.getElementById("loginForm");
 const contentLogin = document.getElementById("content-login");
 const contentDashboard = document.getElementById("content-dashboard");
-const content = document.getElementById("content");
 const logoutBtn = document.getElementById("logoutBtn");
 
-
-
-
+// --- Check login ---
 function isLogged() {
-    return sessionStorage.getItem("token") === "__LOGGED_IN__";
+  return sessionStorage.getItem("token") === "logged";
 }
-
-
 
 // --- Atualizar UI ---
 function updateUI() {
-    if (isLogged()) {
-        contentLogin.classList.add("d-none");
-        contentDashboard.classList.remove("d-none");
-        content.classList.remove("d-none");
-    } else {
-        contentLogin.classList.remove("d-none");
-        contentDashboard.classList.add("d-none");
-        content.classList.add("d-none");
-    }
+  if (isLogged()) {
+    contentLogin.classList.add("d-none");
+    contentDashboard.classList.remove("d-none");
+  } else {
+    contentLogin.classList.remove("d-none");
+    contentDashboard.classList.add("d-none");
+  }
 }
 
-// --- Toast de erro ---
-function showErrorToast(messageText, duration = 60000) {
-    const toastEl = document.createElement("div");
-    toastEl.className = `toast align-items-center text-bg-danger border-0 position-fixed bottom-0 end-0 m-3 toast-error`;
-    toastEl.setAttribute("role", "alert");
-    toastEl.setAttribute("aria-live", "assertive");
-    toastEl.setAttribute("aria-atomic", "true");
-
-    toastEl.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${messageText}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    `;
-
-    document.body.appendChild(toastEl);
-    const toast = new bootstrap.Toast(toastEl, { delay: duration });
-    toast.show();
-
-    toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+// --- Toast ---
+function showErrorToast(msg, duration = 6000) {
+  const toastEl = document.createElement("div");
+  toastEl.className = "toast align-items-center text-bg-danger border-0 position-fixed bottom-0 end-0 m-3";
+  toastEl.setAttribute("role", "alert");
+  toastEl.setAttribute("aria-live", "assertive");
+  toastEl.setAttribute("aria-atomic", "true");
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${msg}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+  document.body.appendChild(toastEl);
+  const toast = new bootstrap.Toast(toastEl, { delay: duration });
+  toast.show();
+  toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
 }
 
-// --- Fechar todos os toasts ---
-function closeAllErrorToasts() {
-    const errorToasts = document.querySelectorAll(".toast-error");
-    errorToasts.forEach(el => {
-        const toastInstance = bootstrap.Toast.getInstance(el);
-        if (toastInstance) toastInstance.hide();
-        else el.remove();
+// --- Login submit ---
+loginForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const user = document.getElementById("username").value.trim();
+  const pass = document.getElementById("password").value;
+
+  try {
+    const res = await fetch("/.netlify/functions/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user, pass })
     });
-}
 
-// --- Submit login ---
-loginForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const user = document.getElementById("username").value.trim();
-    const pass = document.getElementById("password").value;
-
-    try {
-        const res = await fetch("/.netlify/functions/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user, pass })
-        });
-
-        if (!res.ok) {
-            showErrorToast("❌ Utilizador ou senha inválidos!", 60000);
-            return;
-        }
-
-        closeAllErrorToasts();
-        sessionStorage.setItem("token", "__LOGGED_IN__");
-
-        document.getElementById("username").value = "";
-        document.getElementById("password").value = "";
-
-        updateUI();
-        window.history.pushState({}, "", "/home");
-        locationHandler?.();
-
-    } catch (err) {
-        console.error(err);
-        showErrorToast("Erro de ligação ao servidor", 60000);
+    if (!res.ok) {
+      showErrorToast("❌ Utilizador ou senha inválidos!");
+      return;
     }
-});
 
+    sessionStorage.setItem("token", "logged");
+    updateUI();
+    document.getElementById("username").value = "";
+    document.getElementById("password").value = "";
+  } catch (err) {
+    showErrorToast("Erro ao ligar ao servidor");
+    console.error(err);
+  }
+});
 
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
-    sessionStorage.removeItem("token");
-    updateUI();
-    window.history.pushState({}, "", "/");
-    if (typeof locationHandler === "function") locationHandler();
+  sessionStorage.removeItem("token");
+  updateUI();
 });
+
 
 // --- Ativar menu ---
 function setActive(element) {
