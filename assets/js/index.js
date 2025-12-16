@@ -8,7 +8,6 @@ const logoutBtn = document.getElementById("logoutBtn");
 
 
 
-
 function isLogged() {
     return sessionStorage.getItem("token") === "logged";
 }
