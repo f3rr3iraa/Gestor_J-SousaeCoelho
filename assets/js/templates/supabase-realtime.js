@@ -5,37 +5,50 @@
 let realtimeTimer = null;
 
 window.ativarRealtimeItems = async function () {
-    const client = await initSupabaseClient();
-    if (window.itemsRealtimeChannel) return;
+  const client = await initSupabaseClient();
+  if (window.itemsRealtimeChannel) return;
 
-    window.itemsRealtimeChannel = client
-        .channel("items-realtime")
-        .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "items" },
-            () => {
+  window.itemsRealtimeChannel = client
+    .channel("items-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "items" },
+      (payload) => {
+        clearTimeout(realtimeTimer);
+        realtimeTimer = setTimeout(() => {
+          const route = window.currentRoute;
+          const estadoNovo = payload.new?.estado;
+          const estadoAntigo = payload.old?.estado;
 
-                // === debounce para evitar múltiplos reloads ===
-                clearTimeout(realtimeTimer);
-                realtimeTimer = setTimeout(() => {
+          // === LISTA PRODUTOS ===
+          if (
+            route === "/list-products" &&
+            (estadoNovo === "on" || estadoAntigo === "on")
+          ) {
+            window.isRealtimeUpdate = true;
+            initHomeSupabase("on");
+          }
 
-                    // === sinaliza que é update realtime (sem loading) ===
-                    window.isRealtimeUpdate = true;
+          // === LISTA RESERVAS ===
+          else if (
+            route === "/list-reservations" &&
+            (estadoNovo === "off" || estadoAntigo === "off")
+          ) {
+            window.isRealtimeUpdate = true;
+            initHomeSupabase("off");
+          }
 
-                    const r = window.currentRoute;
+          // === NOSSAS RESERVAS ===
+          else if (
+            route === "/our-reservations" &&
+            (estadoNovo === "nosso" || estadoAntigo === "nosso")
+          ) {
+            window.isRealtimeUpdate = true;
+            initHomeSupabase("nosso");
+          }
+        }, 250);
+      }
+    )
 
-                    if (r === "/list-products") {
-                        initHomeSupabase("on");
-                    }
-                    else if (r === "/list-reservations") {
-                        initHomeSupabase("off");
-                    }
-                    else if (r === "/our-reservations") {
-                        initHomeSupabase("nosso");
-                    }
-
-                }, 250);
-            }
-        )
-        .subscribe();
+    .subscribe();
 };
