@@ -30,9 +30,7 @@ async function initHomeSupabase(filtroEstado = 'on') {
         // ============================
         if (!window.isRealtimeUpdate) {
             tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
-        } else {
-            tableBody.innerHTML = "";
-        }
+        } 
 
         // ============================
         // ORDENAR POR ESTADO
