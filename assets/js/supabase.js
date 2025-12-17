@@ -1,4 +1,7 @@
 // supabase.js
+window.isRealtimeUpdate = false;
+
+
 async function initSupabaseClient() {
     if (window.supabaseClient) return window.supabaseClient; 
 
@@ -19,7 +22,9 @@ async function initHomeSupabase(filtroEstado = 'on') {
         const tableBody = document.getElementById("itemsBody");
         if (!tableBody) return;
 
-        tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
+        if (!window.isRealtimeUpdate) {
+         tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
+        }
 
         const orderField = filtroEstado === 'off' ? 'data_off' : 'id';
 
@@ -31,14 +36,18 @@ async function initHomeSupabase(filtroEstado = 'on') {
             .order(orderField, { ascending: false });
 
         if (error) {
+            if (!window.isRealtimeUpdate) {
             tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
+            }
             showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
             return;
         }
 
 
         if (!data || data.length === 0) {
+            if (!window.isRealtimeUpdate) {
             tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
+            }
             // limpar filtros de UI
             window.dadosOriginais = [];
             preencherFiltroMarcas(); // vai resetar select
@@ -58,10 +67,14 @@ ativarPaginacao();
 // Inicializar lógica de filtros
 initFiltros();
 
+window.isRealtimeUpdate = false;
+
 
     } catch (err) {
         const tableBody = document.getElementById("itemsBody");
+        if (!window.isRealtimeUpdate) {
         if (tableBody) tableBody.innerHTML = `<tr><td colspan="10">Erro inesperado ao carregar dados.</td></tr>`;
+        }
         showMessage("Erro inesperado ao carregar dados.", "danger");
         console.error(err);
     }
