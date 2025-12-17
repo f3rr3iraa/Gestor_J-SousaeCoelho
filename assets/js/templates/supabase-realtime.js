@@ -2,6 +2,8 @@
 // SUPABASE REALTIME - ITEMS
 // ============================
 
+let realtimeTimer = null;
+
 window.ativarRealtimeItems = async function () {
   const client = await initSupabaseClient();
   if (window.itemsRealtimeChannel) return;
@@ -12,20 +14,28 @@ window.ativarRealtimeItems = async function () {
       "postgres_changes",
       { event: "*", schema: "public", table: "items" },
       (payload) => {
+        clearTimeout(realtimeTimer);
+        realtimeTimer = setTimeout(() => {
+          const route = window.currentRoute;
 
-        if (!payload.new && !payload.old) return;
+          // === LISTA PRODUTOS ===
+          if (route === "/list-products") {
+  window.isRealtimeUpdate = true;
+  initHomeSupabase("on");
+}
 
-        const route = window.currentRoute;
-        const estadoAtual =
-          route === "/list-products" ? "on" :
-          route === "/list-reservations" ? "off" :
-          route === "/our-reservations" ? "nosso" :
-          null;
+else if (route === "/list-reservations") {
+  window.isRealtimeUpdate = true;
+  initHomeSupabase("off");
+}
 
-        if (!estadoAtual) return;
-
-        handleRealtimeItem(payload, estadoAtual);
+else if (route === "/our-reservations") {
+  window.isRealtimeUpdate = true;
+  initHomeSupabase("nosso");
+}
+        }, 250);
       }
     )
+
     .subscribe();
 };
