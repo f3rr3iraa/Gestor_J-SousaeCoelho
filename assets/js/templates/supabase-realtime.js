@@ -1,42 +1,54 @@
 // ============================
-// SUPABASE REALTIME - ITEMS (com BroadcastChannel)
+// SUPABASE REALTIME - ITEMS
 // ============================
+
+let realtimeTimer = null;
 
 window.ativarRealtimeItems = async function () {
   const client = await initSupabaseClient();
-
-  // Evita criar múltiplos canais
   if (window.itemsRealtimeChannel) return;
 
-  // BroadcastChannel para comunicar entre abas
-  const bc = new BroadcastChannel('items_channel');
-  window.itemsBroadcast = bc;
-
-  // Receber mensagens de outras abas
-  bc.onmessage = (event) => {
-    const { estado } = event.data;
-    if (!estado) return;
-    window.isRealtimeUpdate = true;
-    initHomeSupabase(estado);
-  };
-
-  // Canal Supabase
   window.itemsRealtimeChannel = client
     .channel("items-realtime")
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "items" },
       (payload) => {
-        const estado = payload.new?.estado || payload.old?.estado;
-        if (!estado) return;
+        clearTimeout(realtimeTimer);
+        realtimeTimer = setTimeout(() => {
+          const route = window.currentRoute;
+          const estadoNovo = payload.new?.estado;
+          const estadoAntigo = payload.old?.estado;
 
-        // Atualiza a própria aba
-        window.isRealtimeUpdate = true;
-        initHomeSupabase(estado);
+          // === LISTA PRODUTOS ===
+          if (
+            route === "/list-products" &&
+            (estadoNovo === "on" || estadoAntigo === "on")
+          ) {
+            window.isRealtimeUpdate = true;
+            initHomeSupabase("on");
+          }
 
-        // Notifica outras abas
-        bc.postMessage({ estado });
+          // === LISTA RESERVAS ===
+          else if (
+            route === "/list-reservations" &&
+            (estadoNovo === "off" || estadoAntigo === "off")
+          ) {
+            window.isRealtimeUpdate = true;
+            initHomeSupabase("off");
+          }
+
+          // === NOSSAS RESERVAS ===
+          else if (
+            route === "/our-reservations" &&
+            (estadoNovo === "nosso" || estadoAntigo === "nosso")
+          ) {
+            window.isRealtimeUpdate = true;
+            initHomeSupabase("nosso");
+          }
+        }, 250);
       }
     )
+
     .subscribe();
 };
