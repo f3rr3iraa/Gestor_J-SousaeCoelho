@@ -851,6 +851,103 @@ function renderTabelaComPaginacao(lista, pageKey) {
   }, 120);
 }
 
+function handleRealtimeItem(payload, estadoAtual) {
+  const { eventType, new: novo, old: antigo } = payload;
+
+  // === DELETE ===
+  if (eventType === "DELETE") {
+    removerItemRealtime(antigo.id);
+    return;
+  }
+
+  // === INSERT ===
+  if (eventType === "INSERT") {
+    if (novo.estado === estadoAtual) {
+      adicionarItemRealtime(novo.id);
+    }
+    return;
+  }
+
+  // === UPDATE ===
+  if (eventType === "UPDATE") {
+
+    // Saiu da página atual
+    if (antigo.estado === estadoAtual && novo.estado !== estadoAtual) {
+      removerItemRealtime(antigo.id);
+      return;
+    }
+
+    // Entrou nesta página
+    if (antigo.estado !== estadoAtual && novo.estado === estadoAtual) {
+      adicionarItemRealtime(novo.id);
+      return;
+    }
+
+    // Continua na mesma página → atualizar linha
+    if (novo.estado === estadoAtual) {
+      atualizarItemRealtime(novo.id);
+    }
+  }
+}
+
+function removerItemRealtime(id) {
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+  if (!row) return;
+
+  row.style.transition = "opacity 0.3s";
+  row.style.opacity = 0;
+  setTimeout(() => row.remove(), 300);
+
+  window.dadosOriginais = (window.dadosOriginais || []).filter(
+    i => String(i.id) !== String(id)
+  );
+}
+
+async function adicionarItemRealtime(id) {
+  const { data, error } = await supabaseClient
+    .from("items_view")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return;
+
+  window.dadosOriginais.unshift(data);
+  preencherFiltroMarcas();
+  renderTabelaComPaginacao(window.dadosOriginais, window.currentRoute);
+}
+
+async function atualizarItemRealtime(id) {
+  const { data, error } = await supabaseClient
+    .from("items_view")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return;
+
+  const index = (window.dadosOriginais || []).findIndex(
+    i => String(i.id) === String(id)
+  );
+
+  if (index === -1) return;
+
+  window.dadosOriginais[index] = data;
+
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+  if (row) {
+    row.outerHTML = gerarLinhaTabela(data, window.filtroEstadoAtual);
+    configurarEventosTabela(); // reanexar eventos
+  }
+}
+
+function gerarLinhaTabela(item, estadoAtual) {
+  // usa exatamente o HTML que já tens no map()
+  return ` <tr data-id="${escapeHtml(String(item.id))}"> ... </tr> `;
+}
+
+
+
 /* ============================
    Export / disponibilidade global
    ============================ */
