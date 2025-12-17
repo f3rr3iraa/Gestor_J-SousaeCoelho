@@ -770,4 +770,6 @@ function renderTabelaComPaginacao(lista, pageKey) {
    Export / disponibilidade global
    ============================ */
 
+
+   
 window.initHomeSupabase = initHomeSupabase;
