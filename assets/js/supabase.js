@@ -732,36 +732,44 @@ function ativarPaginacao() {
 
 
 function renderTabelaComPaginacao(lista, pageKey) {
-    // Lê estado atual
-    let { paginaAtual, itensPorPagina } = paginacaoPorPagina[pageKey];
+    const tableBody = document.getElementById("itemsBody");
+    const table = tableBody?.closest("table");
 
-    const totalItens = lista.length;
-    const totalPaginas = Math.max(1, Math.ceil(totalItens / itensPorPagina));
+    if (table) table.classList.add("table-fade");
 
-    // Ajusta página atual se exceder total de páginas
-    if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
-    if (paginaAtual < 1) paginaAtual = 1;
+    setTimeout(() => {
+        // === código original ===
+        let { paginaAtual, itensPorPagina } = paginacaoPorPagina[pageKey];
 
-    // Slice da lista para a página atual
-    const inicio = (paginaAtual - 1) * itensPorPagina;
-    const fim = inicio + itensPorPagina;
-    const pagina = lista.slice(inicio, fim);
+        const totalItens = lista.length;
+        const totalPaginas = Math.max(1, Math.ceil(totalItens / itensPorPagina));
 
-    // Renderiza os itens da página atual
-    renderTabela(pagina, window.filtroEstadoAtual);
+        if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+        if (paginaAtual < 1) paginaAtual = 1;
 
-    // Atualiza estado de paginação
-    paginacaoPorPagina[pageKey].paginaAtual = paginaAtual;
+        const inicio = (paginaAtual - 1) * itensPorPagina;
+        const fim = inicio + itensPorPagina;
+        const pagina = lista.slice(inicio, fim);
 
-    // Atualiza indicadores e botões
-    const indicador = document.getElementById("pageIndicator");
-    const prevBtn = document.getElementById("prevPage");
-    const nextBtn = document.getElementById("nextPage");
+        renderTabela(pagina, window.filtroEstadoAtual);
 
-    if (indicador) indicador.textContent = `${paginaAtual} / ${totalPaginas}`;
-    if (prevBtn) prevBtn.disabled = paginaAtual <= 1;
-    if (nextBtn) nextBtn.disabled = paginaAtual >= totalPaginas;
+        paginacaoPorPagina[pageKey].paginaAtual = paginaAtual;
+
+        const indicador = document.getElementById("pageIndicator");
+        const prevBtn = document.getElementById("prevPage");
+        const nextBtn = document.getElementById("nextPage");
+
+        if (indicador) indicador.textContent = `${paginaAtual} / ${totalPaginas}`;
+        if (prevBtn) prevBtn.disabled = paginaAtual <= 1;
+        if (nextBtn) nextBtn.disabled = paginaAtual >= totalPaginas;
+
+        if (table) {
+            table.classList.remove("table-fade");
+            table.classList.add("table-show");
+        }
+    }, 120);
 }
+
 
 
 

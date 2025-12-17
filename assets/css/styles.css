@@ -533,3 +533,22 @@ td img {
 }
 
 
+/* fade suave da tabela */
+.table-fade {
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.table-show {
+    opacity: 1;
+}
+
+/* destaque subtil de linhas atualizadas */
+.row-updated {
+    animation: rowFlash 1.2s ease;
+}
+
+@keyframes rowFlash {
+    0%   { background-color: rgba(25, 135, 84, 0.25); }
+    100% { background-color: transparent; }
+}
