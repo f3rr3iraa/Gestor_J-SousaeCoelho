@@ -21,31 +21,20 @@ window.ativarRealtimeItems = async function () {
           const estadoAntigo = payload.old?.estado;
 
           // === LISTA PRODUTOS ===
-          if (
-            route === "/list-products" &&
-            (estadoNovo === "on" || estadoAntigo === "on")
-          ) {
-            window.isRealtimeUpdate = true;
-            initHomeSupabase("on");
-          }
+          if (route === "/list-products") {
+  window.isRealtimeUpdate = true;
+  initHomeSupabase("on");
+}
 
-          // === LISTA RESERVAS ===
-          else if (
-            route === "/list-reservations" &&
-            (estadoNovo === "off" || estadoAntigo === "off")
-          ) {
-            window.isRealtimeUpdate = true;
-            initHomeSupabase("off");
-          }
+else if (route === "/list-reservations") {
+  window.isRealtimeUpdate = true;
+  initHomeSupabase("off");
+}
 
-          // === NOSSAS RESERVAS ===
-          else if (
-            route === "/our-reservations" &&
-            (estadoNovo === "nosso" || estadoAntigo === "nosso")
-          ) {
-            window.isRealtimeUpdate = true;
-            initHomeSupabase("nosso");
-          }
+else if (route === "/our-reservations") {
+  window.isRealtimeUpdate = true;
+  initHomeSupabase("nosso");
+}
         }, 250);
       }
     )
