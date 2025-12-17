@@ -289,13 +289,30 @@ function renderTabela(lista, estadoAtual) {
 }
 
 function configurarEventosTabela() {
-  // DELETE
+  // ======== UTILITÁRIOS DE ANIMAÇÃO ========
+  const fadeOutRow = (row, callback) => {
+    row.style.transition = "opacity 0.5s, transform 0.5s";
+    row.style.opacity = 0;
+    row.style.transform = "translateX(-20px)";
+    setTimeout(() => {
+      row.remove();
+      if (callback) callback();
+    }, 500);
+  };
+
+  const highlightRow = (row) => {
+    row.style.transition = "background-color 0.5s";
+    row.style.backgroundColor = "#d4edda"; // verde claro temporário
+    setTimeout(() => row.style.backgroundColor = "", 800);
+  };
+
+  // ======== DELETE ========
   let itemToDelete = null;
   const deleteModalEl = document.getElementById("deleteModal");
   const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 
-  document.querySelectorAll(".btn-delete").forEach((btn) => {
-    btn.removeEventListener?.("click", onDeleteClick); // tentativa de limpeza (se suportado)
+  document.querySelectorAll(".btn-delete").forEach(btn => {
+    btn.removeEventListener?.("click", onDeleteClick);
     btn.addEventListener("click", onDeleteClick);
   });
 
@@ -307,14 +324,13 @@ function configurarEventosTabela() {
     deleteModal?.show();
   }
 
-  document
-    .getElementById("confirmDeleteBtn")
-    ?.addEventListener("click", async () => {
-      if (!itemToDelete) return;
+  document.getElementById("confirmDeleteBtn")?.addEventListener("click", async () => {
+    if (!itemToDelete) return;
+    const itemId = itemToDelete.id;
+    const row = itemToDelete.row;
 
-      const itemId = itemToDelete.id;
-
-      // 1. Ir buscar foto atual
+    try {
+      // 1. Buscar foto atual
       const { data: itemData } = await supabaseClient
         .from("items")
         .select("foto")
@@ -322,64 +338,54 @@ function configurarEventosTabela() {
         .maybeSingle();
 
       let novaFoto = null;
-
       if (itemData?.foto) {
-        const url = itemData.foto;
-        const fileName = url.split("/").pop();
-
-        // caminho novo no "arquivo"
+        const fileName = itemData.foto.split("/").pop();
         const newPath = `arquivadas/${fileName}`;
 
-        // 2. Copiar ficheiro
         const { error: copyError } = await supabaseClient.storage
           .from("imagens")
           .copy(fileName, newPath);
 
-        if (copyError) {
-          console.error(copyError);
-          showMessage("Erro ao mover imagem para arquivo", "danger");
-        } else {
-          // 3. Atualiza URL no item para apontar para a nova imagem
+        if (!copyError) {
           const { data: urlData } = supabaseClient.storage
             .from("imagens")
             .getPublicUrl(newPath);
-
           novaFoto = urlData.publicUrl;
-
-          await supabaseClient
-            .from("items")
-            .update({ foto: novaFoto })
-            .eq("id", itemId);
-
-          // 4. Remover ficheiro original
+          await supabaseClient.from("items").update({ foto: novaFoto }).eq("id", itemId);
           await supabaseClient.storage.from("imagens").remove([fileName]);
         }
       }
 
-      // 5. Agora sim, eliminar o item
+      // 2. Delete do item
       const { error: delError } = await supabaseClient
         .from("items")
         .delete()
         .eq("id", itemId);
 
-      if (delError) {
-        showMessage("Erro ao eliminar item", "danger");
-        return;
-      }
+      if (delError) throw delError;
 
       showMessage("Item eliminado (imagem movida para arquivo)", "success");
-      itemToDelete.row?.remove();
-      deleteModal?.hide();
-    });
+      fadeOutRow(row);
 
-  // MOVE / REACTIVATE (para estado 'off' -> 'on')
+      // atualizar dados locais
+      window.dadosOriginais = window.dadosOriginais.filter(i => String(i.id) !== String(itemId));
+      preencherFiltroMarcas();
+      renderTabelaComPaginacao(window.dadosOriginais, window.currentRoute);
+    } catch (err) {
+      console.error(err);
+      showMessage("Erro ao eliminar item", "danger");
+    }
+
+    deleteModal?.hide();
+    itemToDelete = null;
+  });
+
+  // ======== MOVE PARA ON ========
   let itemToReactivate = null;
   const reactivateModalEl = document.getElementById("reactivateModal");
-  const reactivateModal = reactivateModalEl
-    ? new bootstrap.Modal(reactivateModalEl)
-    : null;
+  const reactivateModal = reactivateModalEl ? new bootstrap.Modal(reactivateModalEl) : null;
 
-  document.querySelectorAll(".btn-move-on").forEach((btn) => {
+  document.querySelectorAll(".btn-move-on").forEach(btn => {
     btn.removeEventListener?.("click", onMoveClick);
     btn.addEventListener("click", onMoveClick);
   });
@@ -392,46 +398,39 @@ function configurarEventosTabela() {
     reactivateModal?.show();
   }
 
-  document
-    .getElementById("confirmReactivateBtn")
-    ?.addEventListener("click", async () => {
-      if (!itemToReactivate) return;
+  document.getElementById("confirmReactivateBtn")?.addEventListener("click", async () => {
+    if (!itemToReactivate) return;
+    const { id, row } = itemToReactivate;
 
+    try {
       const { error } = await supabaseClient
         .from("items")
-        .update({
-          estado: "on",
-          data_off: null,
-        })
-        .eq("id", itemToReactivate.id);
+        .update({ estado: "on", data_off: null })
+        .eq("id", id);
 
-      if (error) {
-        showMessage(`Erro ao reativar: ${error.message}`, "danger");
-      } else {
-        showMessage("Produto reativado com sucesso!", "success");
-        // remover linha da vista atual (assumindo que era 'off')
-        itemToReactivate.row?.remove();
-        // atualizar dados locais
-        window.dadosOriginais = (window.dadosOriginais || []).filter(
-          (i) => String(i.id) !== String(itemToReactivate.id)
-        );
-        preencherFiltroMarcas();
-        const pageKey = window.currentRoute || window.location.pathname;
-        renderTabelaComPaginacao(window.dadosOriginais, pageKey);
-      }
+      if (error) throw error;
 
-      reactivateModal?.hide();
-      itemToReactivate = null;
-    });
+      showMessage("Produto reativado com sucesso!", "success");
+      fadeOutRow(row);
 
-  // MOVE PARA "NOSSO"
+      window.dadosOriginais = window.dadosOriginais.filter(i => String(i.id) !== String(id));
+      preencherFiltroMarcas();
+      renderTabelaComPaginacao(window.dadosOriginais, window.currentRoute);
+    } catch (err) {
+      console.error(err);
+      showMessage(`Erro ao reativar: ${err.message}`, "danger");
+    }
+
+    reactivateModal?.hide();
+    itemToReactivate = null;
+  });
+
+  // ======== MOVE PARA "NOSSO" ========
   let itemToMoveNosso = null;
   const moveNossoModalEl = document.getElementById("moveNossoModal");
-  const moveNossoModal = moveNossoModalEl
-    ? new bootstrap.Modal(moveNossoModalEl)
-    : null;
+  const moveNossoModal = moveNossoModalEl ? new bootstrap.Modal(moveNossoModalEl) : null;
 
-  document.querySelectorAll(".btn-move-nosso").forEach((btn) => {
+  document.querySelectorAll(".btn-move-nosso").forEach(btn => {
     btn.removeEventListener?.("click", onMoveNossoClick);
     btn.addEventListener("click", onMoveNossoClick);
   });
@@ -444,46 +443,35 @@ function configurarEventosTabela() {
     moveNossoModal?.show();
   }
 
-  document
-    .getElementById("confirmMoveNossoBtn")
-    ?.addEventListener("click", async () => {
-      if (!itemToMoveNosso) return;
+  document.getElementById("confirmMoveNossoBtn")?.addEventListener("click", async () => {
+    if (!itemToMoveNosso) return;
+    const { id, row } = itemToMoveNosso;
 
+    try {
       const { error } = await supabaseClient
         .from("items")
-        .update({
-          estado: "nosso",
-          data_off: new Date().toISOString(),
-        })
-        .eq("id", itemToMoveNosso.id);
+        .update({ estado: "nosso", data_off: new Date().toISOString() })
+        .eq("id", id);
 
-      if (error) {
-        showMessage(`Erro ao mover para "nosso": ${error.message}`, "danger");
-      } else {
-        showMessage(
-          "Produto movido para 'Nossas Reservas' com sucesso!",
-          "success"
-        );
-        const row = itemToMoveNosso.row;
-        if (row) {
-            row.style.transition = "opacity 0.5s";
-            row.style.opacity = 0;
-            setTimeout(() => row.remove(), 500);
-        }
-        window.dadosOriginais = (window.dadosOriginais || []).filter(
-          (i) => String(i.id) !== String(itemToMoveNosso.id)
-        );
-        preencherFiltroMarcas();
-        const pageKey = window.currentRoute || window.location.pathname;
-        renderTabelaComPaginacao(window.dadosOriginais, pageKey);
-      }
+      if (error) throw error;
 
-      moveNossoModal?.hide();
-      itemToMoveNosso = null;
-    });
+      showMessage("Produto movido para 'Nossas Reservas' com sucesso!", "success");
+      fadeOutRow(row);
 
-  // EDIT (Offcanvas)
-  document.querySelectorAll(".btn-edit").forEach((btn) => {
+      window.dadosOriginais = window.dadosOriginais.filter(i => String(i.id) !== String(id));
+      preencherFiltroMarcas();
+      renderTabelaComPaginacao(window.dadosOriginais, window.currentRoute);
+    } catch (err) {
+      console.error(err);
+      showMessage(`Erro ao mover para 'nosso': ${err.message}`, "danger");
+    }
+
+    moveNossoModal?.hide();
+    itemToMoveNosso = null;
+  });
+
+  // ======== EDIT ========
+  document.querySelectorAll(".btn-edit").forEach(btn => {
     btn.removeEventListener?.("click", onEditClick);
     btn.addEventListener("click", onEditClick);
   });
@@ -493,16 +481,12 @@ function configurarEventosTabela() {
     const itemId = row?.getAttribute("data-id");
     if (!itemId) return;
 
-    const item = (window.dadosOriginais || []).find(
-      (i) => String(i.id) === String(itemId)
-    );
+    const item = window.dadosOriginais.find(i => String(i.id) === String(itemId));
     if (!item) return;
 
     // Preencher offcanvas inputs
     const editOffcanvasEl = document.getElementById("editOffcanvas");
-    const editOffcanvas = editOffcanvasEl
-      ? new bootstrap.Offcanvas(editOffcanvasEl)
-      : null;
+    const editOffcanvas = editOffcanvasEl ? new bootstrap.Offcanvas(editOffcanvasEl) : null;
 
     document.getElementById("editId").value = item.id;
     document.getElementById("editMarca").value = item.marca ?? "";
@@ -521,6 +505,79 @@ function configurarEventosTabela() {
 
     editOffcanvas?.show();
   }
+
+  // ======== SUBMIT EDIT ========
+  document.addEventListener("submit", async (e) => {
+    const form = e.target;
+    if (form.id !== "editForm") return;
+
+    e.preventDefault();
+
+    const id = document.getElementById("editId")?.value;
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!id || !row) return;
+
+    const fileInput = document.getElementById("editFoto");
+    const fotoAtual = document.getElementById("editFotoAtual")?.value || "";
+
+    let fotoUrl = fotoAtual;
+
+    try {
+      // Upload nova foto se houver
+      if (fileInput?.files?.length > 0) {
+        const newFile = fileInput.files[0];
+
+        if (fotoAtual) {
+          const oldName = fotoAtual.split("/").pop();
+          if (oldName) {
+            await supabaseClient.storage.from("imagens").remove([oldName]);
+          }
+        }
+
+        const cleanName = newFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+        const fileName = `${Date.now()}_${cleanName}`;
+        await supabaseClient.storage.from("imagens").upload(fileName, newFile, { upsert: true });
+        const { data: publicData } = supabaseClient.storage.from("imagens").getPublicUrl(fileName);
+        fotoUrl = publicData.publicUrl;
+      }
+
+      const updatedItem = {
+        marca: document.getElementById("editMarca").value || null,
+        nome: document.getElementById("editNome").value || null,
+        lote: document.getElementById("editLote").value || null,
+        tipo: document.getElementById("editTipo").value || null,
+        comprimento: document.getElementById("editComprimento").value || null,
+        largura: document.getElementById("editLargura").value || null,
+        espessura: document.getElementById("editEspessura").value || null,
+        observacoes: document.getElementById("editObservacoes").value || null,
+        foto: fotoUrl,
+      };
+
+      await supabaseClient.from("items").update(updatedItem).eq("id", Number(id));
+
+      // Atualizar DOM
+      window.dadosOriginais = window.dadosOriginais.map(i => i.id === Number(id) ? { ...i, ...updatedItem } : i);
+
+      row.children[1].textContent = `${updatedItem.marca ?? ""} - ${updatedItem.nome ?? ""} ${updatedItem.espessura ?? ""}`;
+      row.children[2].textContent = updatedItem.comprimento ?? "";
+      row.children[3].textContent = updatedItem.largura ?? "";
+      row.children[4].textContent = updatedItem.lote ?? "";
+      row.children[5].textContent = updatedItem.tipo ?? "";
+      row.children[6].textContent = updatedItem.observacoes ?? "";
+      if (updatedItem.foto) {
+        row.children[7].innerHTML = `<img src="${updatedItem.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`;
+      }
+
+      highlightRow(row);
+      showMessage("Produto atualizado com sucesso!", "success");
+
+      const editOffcanvasEl = document.getElementById("editOffcanvas");
+      bootstrap.Offcanvas.getInstance(editOffcanvasEl)?.hide();
+    } catch (err) {
+      console.error(err);
+      showMessage("Erro inesperado ao atualizar item.", "danger");
+    }
+  });
 }
 
 /* ============================
