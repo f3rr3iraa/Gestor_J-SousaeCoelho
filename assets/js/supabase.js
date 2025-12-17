@@ -277,13 +277,6 @@ function renderTabela(lista, estadoAtual) {
     })
     .join("");
 
-    const rows = tableBody.querySelectorAll("tr");
-    rows.forEach(row => {
-        row.style.opacity = 0;
-        row.style.transition = "opacity 0.5s";
-        setTimeout(() => row.style.opacity = 1, 50);
-    });
-
   // Depois de renderizar, configurar eventos nas linhas (editar, eliminar, mover)
   configurarEventosTabela();
 }
@@ -464,12 +457,7 @@ function configurarEventosTabela() {
           "Produto movido para 'Nossas Reservas' com sucesso!",
           "success"
         );
-        const row = itemToMoveNosso.row;
-        if (row) {
-            row.style.transition = "opacity 0.5s";
-            row.style.opacity = 0;
-            setTimeout(() => row.remove(), 500);
-        }
+        itemToMoveNosso.row?.remove();
         window.dadosOriginais = (window.dadosOriginais || []).filter(
           (i) => String(i.id) !== String(itemToMoveNosso.id)
         );
