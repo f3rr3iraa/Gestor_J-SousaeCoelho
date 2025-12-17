@@ -277,13 +277,11 @@ function renderTabela(lista, estadoAtual) {
     })
     .join("");
 
-    const rows = tableBody.querySelectorAll("tr");
-    rows.forEach(row => {
-        row.style.opacity = 0;
-        row.style.transition = "opacity 0.5s";
-        setTimeout(() => row.style.opacity = 1, 50);
-    });
-
+     // Remover a transição de opacidade para evitar "piscar"
+  const rows = tableBody.querySelectorAll("tr");
+  rows.forEach(row => {
+    row.style.opacity = 1;  // Remover a transição de opacidade
+  });
   // Depois de renderizar, configurar eventos nas linhas (editar, eliminar, mover)
   configurarEventosTabela();
 }
