@@ -255,7 +255,7 @@ function renderTabela(lista, estadoAtual) {
                         <button class="btn btn-sm btn-outline-primary me-1 btn-edit" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-success me-1 btn-move-nosso" title="Mover para Produtos">
+                        <button class="btn btn-sm btn-outline-success me-1 btn-move-nosso" title="Mover para Nossas Reservas">
                             <i class="bi bi-arrow-right-square"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-danger btn-delete" title="Eliminar">
