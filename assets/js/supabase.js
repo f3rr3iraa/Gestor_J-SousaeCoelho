@@ -306,69 +306,55 @@ function configurarEventosTabela() {
   }
 
   document
-    .getElementById("confirmDeleteBtn")
-    ?.addEventListener("click", async () => {
-      if (!itemToDelete) return;
+  .getElementById("confirmDeleteBtn")
+  ?.addEventListener("click", async () => {
+    if (!itemToDelete) return;
 
-      const itemId = itemToDelete.id;
+    const itemId = itemToDelete.id;
 
-      // 1. Ir buscar foto atual
-      const { data: itemData } = await supabaseClient
-        .from("items")
-        .select("foto")
-        .eq("id", itemId)
-        .maybeSingle();
+    // 1. Buscar foto atual
+    const { data: itemData, error: fetchError } = await supabaseClient
+      .from("items")
+      .select("foto")
+      .eq("id", itemId)
+      .maybeSingle();
 
-      let novaFoto = null;
+    if (fetchError) {
+      showMessage("Erro ao buscar item: " + fetchError.message, "danger");
+      return;
+    }
 
-      if (itemData?.foto) {
-        const url = itemData.foto;
-        const fileName = url.split("/").pop();
-
-        // caminho novo no "arquivo"
-        const newPath = `arquivadas/${fileName}`;
-
-        // 2. Copiar ficheiro
-        const { error: copyError } = await supabaseClient.storage
+    if (itemData?.foto) {
+      const fileName = itemData.foto.split("/").pop();
+      if (fileName) {
+        // 🔥 Apaga diretamente do storage
+        const { error: deleteErr } = await supabaseClient.storage
           .from("imagens")
-          .copy(fileName, newPath);
-
-        if (copyError) {
-          console.error(copyError);
-          showMessage("Erro ao mover imagem para arquivo", "danger");
-        } else {
-          // 3. Atualiza URL no item para apontar para a nova imagem
-          const { data: urlData } = supabaseClient.storage
-            .from("imagens")
-            .getPublicUrl(newPath);
-
-          novaFoto = urlData.publicUrl;
-
-          await supabaseClient
-            .from("items")
-            .update({ foto: novaFoto })
-            .eq("id", itemId);
-
-          // 4. Remover ficheiro original
-          await supabaseClient.storage.from("imagens").remove([fileName]);
+          .remove([fileName]);
+        if (deleteErr) {
+          console.error(deleteErr);
+          showMessage("Erro ao apagar a imagem do storage", "danger");
+          return;
         }
       }
+    }
 
-      // 5. Agora sim, eliminar o item
-      const { error: delError } = await supabaseClient
-        .from("items")
-        .delete()
-        .eq("id", itemId);
+    // 2. Apagar item do banco
+    const { error: delError } = await supabaseClient
+      .from("items")
+      .delete()
+      .eq("id", itemId);
 
-      if (delError) {
-        showMessage("Erro ao eliminar item", "danger");
-        return;
-      }
+    if (delError) {
+      showMessage("Erro ao eliminar item", "danger");
+      return;
+    }
 
-      showMessage("Item eliminado (imagem movida para arquivo)", "success");
-      itemToDelete.row?.remove();
-      deleteModal?.hide();
-    });
+    showMessage("Item eliminado com sucesso!", "success");
+    itemToDelete.row?.remove();
+    deleteModal?.hide();
+  });
+
 
   // MOVE / REACTIVATE (para estado 'off' -> 'on')
   let itemToReactivate = null;
