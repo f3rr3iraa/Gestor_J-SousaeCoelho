@@ -28,8 +28,8 @@ async function initFormSupabase() {
         const comprimento = parseFloat(formData.get("comprimento")) || 0;
         const largura = parseFloat(formData.get("largura")) || 0;
         const espessura = parseFloat(formData.get("espessura")) || 0;
-        const observacoes = formData.get("observacoes");
         const fotoFile = formData.get("foto");
+        const observacoes = formData.get("observacoes");
 
 
         let fotoUrl = null;

@@ -37,11 +37,11 @@ async function initHomeSpaceSupabase() {
               <td>${item.largura ?? ""}</td>
               <td>${item.lote ?? ""}</td>
               <td>${item.tipo}</td>
-              <td>${item.observacoes ?? ""}</td>
               <td>${item.foto
                 ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
                 : ""
               }</td>
+              <td>${item.observacoes ?? ""}</td>
               <td>${item.data_off
                 ? new Date(item.data_off).toLocaleString("pt-PT")
                 : ""
@@ -71,11 +71,11 @@ async function initHomeSpaceSupabase() {
               <td>${item.largura ?? ""}</td>
               <td>${item.lote ?? ""}</td>
               <td>${item.tipo}</td>
-              <td>${item.observacoes ?? ""}</td>
               <td>${item.foto
                 ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
                 : ""
               }</td>
+              <td>${item.observacoes ?? ""}</td>
               <td>${new Date(item.created_at).toLocaleString("pt-PT")}</td>
             </tr>`;
           })

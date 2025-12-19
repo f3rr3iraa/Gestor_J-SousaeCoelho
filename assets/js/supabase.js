@@ -245,8 +245,8 @@ function renderTabela(lista, estadoAtual) {
                 <td>${escapeHtml(item.largura ?? "")}</td>
                 <td>${escapeHtml(item.lote ?? "")}</td>
                 <td>${escapeHtml(item.tipo ?? "")}</td>
-                <td>${escapeHtml(item.observacoes ?? "")}</td>
                 <td>${fotoHtml}</td>
+                <td>${escapeHtml(item.observacoes ?? "")}</td>
                 <td>${escapeHtml(dataCol)}</td>
                 <td>
                     ${
