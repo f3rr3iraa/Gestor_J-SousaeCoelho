@@ -138,4 +138,27 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+// Preview da imagem
+const fotoInput = document.getElementById("foto");
+const fotoPreview = document.getElementById("fotoPreview");
+
+if (fotoInput && fotoPreview) {
+    fotoInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                fotoPreview.src = event.target.result;
+                fotoPreview.style.display = "block"; // mostra a imagem
+            }
+            reader.readAsDataURL(file);
+        } else {
+            fotoPreview.src = "";
+            fotoPreview.style.display = "none"; // esconde se não houver ficheiro
+        }
+    });
+}
+
+
+
 window.initFormSupabase = initFormSupabase;

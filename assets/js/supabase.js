@@ -224,7 +224,7 @@ function renderTabela(lista, estadoAtual) {
       const fotoHtml = item.foto
         ? `<img src="${escapeHtml(
             item.foto
-          )}" alt="foto" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
+          )}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
         : "";
       const dataCol =
         estadoAtual === "off"
