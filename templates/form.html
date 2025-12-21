@@ -99,10 +99,15 @@
           placeholder="Escreve aqui a observação..."></textarea>
       </div>
       
-      <div class="coolinput col-3" style="display: flex; align-items: center; gap: 10px;">
-        <label for="foto" class="text" style="margin:0;">Foto:</label>
-        <input type="file" name="foto" id="foto" class="input" accept="image/*" style="flex:1;">
-        <img id="fotoPreview" src="" style="width:100px; height:100px; object-fit:cover; border-radius:6px; box-shadow:0 0 4px rgba(0,0,0,0.2); display:none;">
+      <div class="coolinput col-3" style="display: flex;">
+        <div>
+          <label for="foto" class="text">Foto:</label>
+          <input type="file" name="foto" id="foto" class="input" accept="image/*">
+        </div>
+        <div>
+          <img id="fotoPreview" src="" 
+              style="max-width:350px;height:180px;object-fit:cover;border-radius:6px;box-shadow:0 0 4px rgba(0,0,0,0.2); display:none;">
+        </div>
       </div>
 
 
