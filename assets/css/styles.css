@@ -32,25 +32,22 @@ body {
   border: none;
   border-bottom: 2px solid #9a9a9a;
   padding: 5px 0;
-  background-color: transparent;
+  background-color: transparent !important;
   outline: none;
   color: #f0f0f0;
 }
+
 
 /* Garante que no modo texto aparece texto normal */
 .input-container input[type="text"] {
   -webkit-text-security: none;
   text-security: none;
-  transition: background-color 5000s ease-in-out 0s !important;
-  background-color: transparent !important;
 }
 
 /* Garante que o password aparece como bolinhas */
 .input-container input[type="password"] {
   -webkit-text-security: disc;
   text-security: disc;
-  transition: background-color 5000s ease-in-out 0s !important;
-  background-color: transparent !important;
 }
 
 .icon-password {
