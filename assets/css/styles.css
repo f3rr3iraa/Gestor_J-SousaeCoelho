@@ -120,7 +120,7 @@ body {
 
 /* Para inputs preenchidos automaticamente pelo navegador */
 input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px #000000 inset !important; /* ou a cor real do input */
+  -webkit-box-shadow: 0 0 0 1000px #22333b inset !important; /* ou a cor real do input */
   -webkit-text-fill-color: #f0f0f0 !important; /* cor do texto */
   transition: background-color 5000s ease-in-out 0s !important;
 }
