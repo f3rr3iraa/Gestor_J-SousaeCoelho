@@ -4,7 +4,7 @@
   <form id="itemForm" method="POST" autocomplete="off">
     <!-- Secção 1: Informações Gerais -->
     <fieldset>
-      <legend class="mt-3 title-color">Informações Gerais</legend>
+      <legend class="mt-3">Informações Gerais</legend>
 
       <div class="d-flex gap-2">
 
@@ -60,7 +60,7 @@
 
     <!-- Secção 2: Dimensões -->
     <fieldset>
-      <legend class="title-color">Dimensões</legend>
+      <legend>Dimensões</legend>
 
       <div class="d-flex gap-2">
       
@@ -93,25 +93,16 @@
     <fieldset>
       <legend>Outros Detalhes</legend>
 
+      <div class="coolinput col-3">
+        <label for="foto" class="text">Foto:</label>
+        <input type="file" name="foto" id="foto" class="input" accept="image/*">
+      </div>
+
       <div class="coolinput col-5">
         <label for="observacoes" class="text">Observações:</label>
         <textarea name="observacoes" id="observacoes" class="input" rows="4" style="resize: none; height: 110px;"
           placeholder="Escreve aqui a observação..."></textarea>
       </div>
-      
-      <div class="d-flex">
-        <div class="coolinput col-3">
-          <label for="foto" class="text">Foto:</label>
-          <input type="file" name="foto" id="foto" class="input" accept="image/*">
-        </div>
-        
-        <div class="coolinput col-4">
-          <div class="mt-3 ml-3">
-            <img id="fotoPreview" src="" style="max-width:350px;height:180px;object-fit:cover;border-radius:6px;box-shadow:0 0 4px rgba(0,0,0,0.2); display:none;">
-          </div>
-        </div>
-      </div>
-
     </fieldset>
 
     <br>
