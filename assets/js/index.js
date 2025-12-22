@@ -14,7 +14,7 @@ function generateToken(username) {
 }
 
 function getTokenData() {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) return null;
     const decoded = atob(token);
     if (decoded.endsWith(":no-exp")) return { username: decoded.split(":")[0], exp: Infinity };
@@ -94,7 +94,7 @@ loginForm.addEventListener("submit", async (event) => {
         if (response.ok) {
             // ✅ Login bem-sucedido
             closeAllErrorToasts(); // Fecha qualquer mensagem de erro
-            sessionStorage.setItem("token", data.token); // Armazena o token no sessionStorage
+            localStorage.setItem("token", data.token); // Armazena o token no sessionStorage
 
             // Limpar os inputs após login bem-sucedido
             document.getElementById("username").value = "";
@@ -116,7 +116,7 @@ loginForm.addEventListener("submit", async (event) => {
 
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
-    sessionStorage.removeItem("token");
+    localStorage.removeItem("token");
     updateUI();
     window.history.pushState({}, "", "/");
     if (typeof locationHandler === "function") locationHandler();
