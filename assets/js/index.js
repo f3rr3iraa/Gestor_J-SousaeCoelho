@@ -114,6 +114,7 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 
+
 // --- Logout ---
 logoutBtn.addEventListener("click", () => {
     localStorage.removeItem("token");
