@@ -139,7 +139,7 @@ window.initWebsiteList = async function () {
   // ================================
   function renderTable(items) {
     if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="7">Nenhum encontrado</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7">Nenhum produto encontrado</td></tr>`;
       return;
     }
 
