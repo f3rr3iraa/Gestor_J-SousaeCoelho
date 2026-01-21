@@ -2,3 +2,5 @@
 .netlify
 # Node modules
 /node_modules/
+
+.env

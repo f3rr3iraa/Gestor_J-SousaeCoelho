@@ -21,7 +21,6 @@
     <!-- JS -->
 
 
-
 </head>
 
 <body>
@@ -76,13 +75,18 @@
             </div>
 
             <ul class="nav nav-pills flex-column mb-auto mt-3" id="menu">
+                <a>Geral</a>
+                <hr class="w-100">
                 <li>
                     <a onclick="setActive(this); goToRoute('/home')" class="nav-link text-white">
                         <i class="bi bi-house-door me-2"></i> Início
                     </a>
                 </li>
+
+                <a>Chapas e Sobras</a>
+                <hr class="w-100">
                 <li>
-                    <a onclick="setActive(this); goToRoute('/form')" class="nav-link text-white">
+                    <a onclick="setActive(this); goToRoute('/form-chapas-e-sobras')" class="nav-link text-white">
                         <i class="bi bi-file-earmark-plus me-2"></i> Adicionar novos
                     </a>
                 </li>
@@ -101,6 +105,20 @@
                         <i class="bi bi-bookmarks me-2"></i> Nossas Reservas
                     </a>
                 </li>
+
+                <a>Catálogo Site</a>
+                <hr class="w-100">
+                <li>
+                    <a onclick="setActive(this); goToRoute('/form-website')" class="nav-link text-white">
+                        <i class="bi bi-file-earmark-plus me-2"></i> Adicionar novos
+                    </a>
+                </li>
+                <li>
+                    <a onclick="setActive(this); goToRoute('/list-website')" class="nav-link text-white">
+                        <i class="bi bi-journal-text me-2"></i> Lista do Catálogo
+                    </a>
+                </li>
+                
             </ul>
 
 
@@ -131,16 +149,26 @@
     <!-- conteudo -->
     <div class="d-none flex-grow-1 p-3" id="content"></div>
 
+    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="text/javascript" src="/assets/js/templates/form.js"></script>
     <script type="text/javascript" src="/assets/js/supabase.js"></script>
+
+    <!-- Realtime (antes do router) -->
+    <script type="text/javascript" src="/assets/js/templates/chapas-e-sobras/supabase-realtime.js"></script>
+    <script type="text/javascript" src="/assets/js/templates/web-site/website-realtime.js"></script>
+    
+
+    <!-- Funções das páginas (antes do router) -->
+    <script type="text/javascript" src="/assets/js/templates/chapas-e-sobras/form.js"></script>
+    <script type="text/javascript" src="/assets/js/templates/chapas-e-sobras/home.js"></script>
+    <script type="text/javascript" src="/assets/js/templates/chapas-e-sobras/func-extra.js"></script>
+    <script type="text/javascript" src="/assets/js/templates/web-site/form-website.js"></script>
+    <script type="text/javascript" src="/assets/js/templates/web-site/list-website.js"></script>
+
+
+    <!-- Index e Router (por último) -->
     <script type="text/javascript" src="/assets/js/index.js"></script>
-    <script type="text/javascript" src="/assets/js/templates/supabase-realtime.js"></script>
     <script type="text/javascript" src="/assets/js/router.js"></script>
-    <script type="text/javascript" src="/assets/js/templates/home.js"></script>
-    <script type="text/javascript" src="/assets/js/templates/func-extra.js"></script>
-
-
 </body>
 
 </html>

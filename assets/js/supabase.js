@@ -14,93 +14,86 @@ async function initSupabaseClient() {
  * initHomeSupabase
  * @param {string} filtroEstado - 'on' | 'off' | 'nosso'
  */
-async function initHomeSupabase(filtroEstado = 'on') {
-    try {
-        // ============================
-        // LIMPAR ESTADO AO ENTRAR
-        // ============================
-        window.dadosOriginais = [];
-        window.filtroEstadoAtual = filtroEstado;
+async function initHomeSupabase(filtroEstado = "on") {
+  try {
+    // ============================
+    // LIMPAR ESTADO AO ENTRAR
+    // ============================
+    window.dadosOriginais = [];
+    window.filtroEstadoAtual = filtroEstado;
 
-        const tableBody = document.getElementById("itemsBody");
-        if (!tableBody) return;
+    const tableBody = document.getElementById("itemsBody");
+    if (!tableBody) return;
 
-        // ============================
-        // LOADING (só se NÃO for realtime)
-        // ============================
-        if (!window.isRealtimeUpdate) {
-            tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
-        } 
-
-        // ============================
-        // ORDENAR POR ESTADO
-        // ============================
-        const orderField =
-            filtroEstado === 'off' || filtroEstado === 'nosso'
-                ? 'data_off'
-                : 'id';
-
-        // ============================
-        // FETCH SUPABASE
-        // ============================
-        const { data, error } = await supabaseClient
-            .from("items_view")
-            .select("*")
-            .eq("estado", filtroEstado)
-            .order(orderField, { ascending: false });
-
-        if (error) {
-            if (!window.isRealtimeUpdate) {
-                tableBody.innerHTML =
-                    `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
-            }
-            showMessage(`Erro ao carregar dados: ${error.message}`, 'danger');
-            window.isRealtimeUpdate = false;
-            return;
-        }
-
-        // ============================
-        // SEM DADOS
-        // ============================
-        if (!data || data.length === 0) {
-            if (!window.isRealtimeUpdate) {
-                tableBody.innerHTML =
-                    `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
-            }
-
-            window.dadosOriginais = [];
-            preencherFiltroMarcas();
-            window.isRealtimeUpdate = false;
-            return;
-        }
-
-        // ============================
-        // DADOS OK
-        // ============================
-        window.dadosOriginais = data;
-
-        // filtros + paginação
-        preencherFiltroMarcas();
-        ativarPaginacao();
-        initFiltros();
-
-        // ============================
-        // FIM
-        // ============================
-        window.isRealtimeUpdate = false;
-
-    } catch (err) {
-        const tableBody = document.getElementById("itemsBody");
-        if (!window.isRealtimeUpdate && tableBody) {
-            tableBody.innerHTML =
-                `<tr><td colspan="10">Erro inesperado ao carregar dados.</td></tr>`;
-        }
-        showMessage("Erro inesperado ao carregar dados.", "danger");
-        console.error(err);
-        window.isRealtimeUpdate = false;
+    // ============================
+    // LOADING (só se NÃO for realtime)
+    // ============================
+    if (!window.isRealtimeUpdate) {
+      tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
     }
-}
 
+    // ============================
+    // ORDENAR POR ESTADO
+    // ============================
+    const orderField =
+      filtroEstado === "off" || filtroEstado === "nosso" ? "data_off" : "id";
+
+    // ============================
+    // FETCH SUPABASE
+    // ============================
+    const { data, error } = await supabaseClient
+      .from("items_view")
+      .select("*")
+      .eq("estado", filtroEstado)
+      .order(orderField, { ascending: false });
+
+    if (error) {
+      if (!window.isRealtimeUpdate) {
+        tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
+      }
+      showMessage(`Erro ao carregar dados: ${error.message}`, "danger");
+      window.isRealtimeUpdate = false;
+      return;
+    }
+
+    // ============================
+    // SEM DADOS
+    // ============================
+    if (!data || data.length === 0) {
+      if (!window.isRealtimeUpdate) {
+        tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
+      }
+
+      window.dadosOriginais = [];
+      preencherFiltroMarcas();
+      window.isRealtimeUpdate = false;
+      return;
+    }
+
+    // ============================
+    // DADOS OK
+    // ============================
+    window.dadosOriginais = data;
+
+    // filtros + paginação
+    preencherFiltroMarcas();
+    ativarPaginacao();
+    initFiltros();
+
+    // ============================
+    // FIM
+    // ============================
+    window.isRealtimeUpdate = false;
+  } catch (err) {
+    const tableBody = document.getElementById("itemsBody");
+    if (!window.isRealtimeUpdate && tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="10">Erro inesperado ao carregar dados.</td></tr>`;
+    }
+    showMessage("Erro inesperado ao carregar dados.", "danger");
+    console.error(err);
+    window.isRealtimeUpdate = false;
+  }
+}
 
 /* ============================
    Funções de Filtros & UI
@@ -190,7 +183,7 @@ function initFiltros() {
 
   // eventos
   [filtroId, filtroNome].forEach((el) =>
-    el.addEventListener("input", aplicarFiltros)
+    el.addEventListener("input", aplicarFiltros),
   );
   [filtroMarca, filtroTipo].forEach((el) => {
     el.addEventListener("change", aplicarFiltros);
@@ -223,7 +216,7 @@ function renderTabela(lista, estadoAtual) {
     .map((item) => {
       const fotoHtml = item.foto
         ? `<img src="${escapeHtml(
-            item.foto
+            item.foto,
           )}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
         : "";
       const dataCol =
@@ -232,8 +225,8 @@ function renderTabela(lista, estadoAtual) {
             ? new Date(item.data_off).toLocaleString("pt-PT")
             : ""
           : item.created_at
-          ? new Date(item.created_at).toLocaleString("pt-PT")
-          : "";
+            ? new Date(item.created_at).toLocaleString("pt-PT")
+            : "";
       const marcaenomeeespessura = `${item.marca ?? ""} - ${item.nome ?? ""} ${
         item.espessura ?? ""
       }`;
@@ -277,10 +270,10 @@ function renderTabela(lista, estadoAtual) {
     })
     .join("");
 
-     // Remover a transição de opacidade para evitar "piscar"
+  // Remover a transição de opacidade para evitar "piscar"
   const rows = tableBody.querySelectorAll("tr");
-  rows.forEach(row => {
-    row.style.opacity = 1;  // Remover a transição de opacidade
+  rows.forEach((row) => {
+    row.style.opacity = 1; // Remover a transição de opacidade
   });
   // Depois de renderizar, configurar eventos nas linhas (editar, eliminar, mover)
   configurarEventosTabela();
@@ -306,55 +299,54 @@ function configurarEventosTabela() {
   }
 
   document
-  .getElementById("confirmDeleteBtn")
-  ?.addEventListener("click", async () => {
-    if (!itemToDelete) return;
+    .getElementById("confirmDeleteBtn")
+    ?.addEventListener("click", async () => {
+      if (!itemToDelete) return;
 
-    const itemId = itemToDelete.id;
+      const itemId = itemToDelete.id;
 
-    // 1. Buscar foto atual
-    const { data: itemData, error: fetchError } = await supabaseClient
-      .from("items")
-      .select("foto")
-      .eq("id", itemId)
-      .maybeSingle();
+      // 1. Buscar foto atual
+      const { data: itemData, error: fetchError } = await supabaseClient
+        .from("items")
+        .select("foto")
+        .eq("id", itemId)
+        .maybeSingle();
 
-    if (fetchError) {
-      showMessage("Erro ao buscar item: " + fetchError.message, "danger");
-      return;
-    }
+      if (fetchError) {
+        showMessage("Erro ao buscar item: " + fetchError.message, "danger");
+        return;
+      }
 
-    if (itemData?.foto) {
-      const fileName = itemData.foto.split("/").pop();
-      if (fileName) {
-        // 🔥 Apaga diretamente do storage
-        const { error: deleteErr } = await supabaseClient.storage
-          .from("imagens")
-          .remove([fileName]);
-        if (deleteErr) {
-          console.error(deleteErr);
-          showMessage("Erro ao apagar a imagem do storage", "danger");
-          return;
+      if (itemData?.foto) {
+        const fileName = itemData.foto.split("/").pop();
+        if (fileName) {
+          // 🔥 Apaga diretamente do storage
+          const { error: deleteErr } = await supabaseClient.storage
+            .from("imagens")
+            .remove([fileName]);
+          if (deleteErr) {
+            console.error(deleteErr);
+            showMessage("Erro ao apagar a imagem do storage", "danger");
+            return;
+          }
         }
       }
-    }
 
-    // 2. Apagar item do banco
-    const { error: delError } = await supabaseClient
-      .from("items")
-      .delete()
-      .eq("id", itemId);
+      // 2. Apagar item do banco
+      const { error: delError } = await supabaseClient
+        .from("items")
+        .delete()
+        .eq("id", itemId);
 
-    if (delError) {
-      showMessage("Erro ao eliminar item", "danger");
-      return;
-    }
+      if (delError) {
+        showMessage("Erro ao eliminar item", "danger");
+        return;
+      }
 
-    showMessage("Item eliminado com sucesso!", "success");
-    itemToDelete.row?.remove();
-    deleteModal?.hide();
-  });
-
+      showMessage("Item eliminado com sucesso!", "success");
+      itemToDelete.row?.remove();
+      deleteModal?.hide();
+    });
 
   // MOVE / REACTIVATE (para estado 'off' -> 'on')
   let itemToReactivate = null;
@@ -397,7 +389,7 @@ function configurarEventosTabela() {
         itemToReactivate.row?.remove();
         // atualizar dados locais
         window.dadosOriginais = (window.dadosOriginais || []).filter(
-          (i) => String(i.id) !== String(itemToReactivate.id)
+          (i) => String(i.id) !== String(itemToReactivate.id),
         );
         preencherFiltroMarcas();
         const pageKey = window.currentRoute || window.location.pathname;
@@ -446,16 +438,16 @@ function configurarEventosTabela() {
       } else {
         showMessage(
           "Produto movido para 'Nossas Reservas' com sucesso!",
-          "success"
+          "success",
         );
         const row = itemToMoveNosso.row;
         if (row) {
-            row.style.transition = "opacity 0.5s";
-            row.style.opacity = 0;
-            setTimeout(() => row.remove(), 500);
+          row.style.transition = "opacity 0.5s";
+          row.style.opacity = 0;
+          setTimeout(() => row.remove(), 500);
         }
         window.dadosOriginais = (window.dadosOriginais || []).filter(
-          (i) => String(i.id) !== String(itemToMoveNosso.id)
+          (i) => String(i.id) !== String(itemToMoveNosso.id),
         );
         preencherFiltroMarcas();
         const pageKey = window.currentRoute || window.location.pathname;
@@ -472,24 +464,51 @@ function configurarEventosTabela() {
     btn.addEventListener("click", onEditClick);
   });
 
+  async function loadBrandsForEdit(selectedMarca = "") {
+  try {
+    const { data: brands, error } = await supabaseClient
+      .from("brands")
+      .select("display_name, items_key")
+      .order("display_name", { ascending: true });
+
+    if (error) throw error;
+
+    const editMarcaSelect = document.getElementById("editMarca");
+    
+    // Limpa dropdown antes de preencher
+    editMarcaSelect.innerHTML = `<option value="" disabled selected>Seleciona a marca...</option>`;
+
+    brands.forEach((b) => {
+      const option = document.createElement("option");
+      option.value = b.items_key;        // valor final: items_key
+      option.textContent = b.display_name;
+      option.dataset.itemsKey = b.items_key;
+      if (b.items_key === selectedMarca) option.selected = true; // seleciona a marca atual
+      editMarcaSelect.appendChild(option);
+    });
+
+  } catch (err) {
+    console.error("Erro ao carregar marcas:", err);
+    showMessage("Erro ao carregar marcas.", "danger");
+  }
+}
+
+
   function onEditClick(e) {
     const row = e.currentTarget.closest("tr");
     const itemId = row?.getAttribute("data-id");
     if (!itemId) return;
 
     const item = (window.dadosOriginais || []).find(
-      (i) => String(i.id) === String(itemId)
+      (i) => String(i.id) === String(itemId),
     );
     if (!item) return;
 
-    // Preencher offcanvas inputs
-    const editOffcanvasEl = document.getElementById("editOffcanvas");
-    const editOffcanvas = editOffcanvasEl
-      ? new bootstrap.Offcanvas(editOffcanvasEl)
-      : null;
+    // ✅ Carregar marcas no dropdown, selecionando a atual
+    loadBrandsForEdit(item.marca);
 
+    // Preencher demais campos do offcanvas
     document.getElementById("editId").value = item.id;
-    document.getElementById("editMarca").value = item.marca ?? "";
     document.getElementById("editNome").value = item.nome ?? "";
     document.getElementById("editLote").value = item.lote ?? "";
     document.getElementById("editTipo").value = item.tipo ?? "";
@@ -503,6 +522,10 @@ function configurarEventosTabela() {
     const editFotoInput = document.getElementById("editFoto");
     if (editFotoInput) editFotoInput.value = "";
 
+    const editOffcanvasEl = document.getElementById("editOffcanvas");
+    const editOffcanvas = editOffcanvasEl
+      ? new bootstrap.Offcanvas(editOffcanvasEl)
+      : null;
     editOffcanvas?.show();
   }
 }
@@ -548,7 +571,7 @@ window.addEventListener("load", () => {
                 console.error(deleteErr);
                 showMessage(
                   "Aviso: Não foi possível apagar a imagem antiga.",
-                  "warning"
+                  "warning",
                 );
               }
             }
@@ -780,7 +803,7 @@ function ativarPaginacao() {
     newNext.addEventListener("click", () => {
       const pag = paginacaoPorPagina[pageKey];
       const totalPaginas = Math.ceil(
-        (window.dadosOriginais?.length || 0) / pag.itensPorPagina
+        (window.dadosOriginais?.length || 0) / pag.itensPorPagina,
       );
 
       if (pag.paginaAtual < totalPaginas) {

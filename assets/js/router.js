@@ -9,23 +9,33 @@ const routes = {
     title: "home",
     description: "Home Page",
   },
-  "/form": {
-    template: "/templates/form.html",
+  "/form-chapas-e-sobras": {
+    template: "/templates/chapas-e-sobras/form-chapas-e-sobras.html",
     title: "form",
     description: "Form Page",
   },
   "/list-reservations": {
-    template: "/templates/list-reservations.html",
+    template: "/templates/chapas-e-sobras/list-reservations.html",
     title: "list-reservations",
     description: "List Reservations Page",
   },
   "/list-products": {
-    template: "/templates/list-products.html",
+    template: "/templates/chapas-e-sobras/list-products.html",
     title: "list-products",
     description: "List Products Page",
   },
   "/our-reservations": {
-    template: "/templates/our-reservations.html",
+    template: "/templates/chapas-e-sobras/our-reservations.html",
+    title: "our-reservations",
+    description: "List Our Reservations Page",
+  },
+  "/form-website": {
+    template: "/templates/web-site/form-website.html",
+    title: "our-reservations",
+    description: "List Our Reservations Page",
+  },
+  "/list-website": {
+    template: "/templates/web-site/list-website.html",
     title: "our-reservations",
     description: "List Our Reservations Page",
   },
@@ -43,6 +53,7 @@ const route = (event) => {
     window.open(targetUrl.href, "_blank");
   }
 };
+
 
 // ===========================
 // MAIN LOCATION HANDLER
@@ -65,6 +76,7 @@ const locationHandler = async () => {
     await ativarRealtimeItems();
     window.realtimeItemsAtivo = true;
   }
+  
 
   let location = window.location.pathname;
   if (location === "/") {
@@ -84,7 +96,10 @@ const locationHandler = async () => {
   const html = await fetch(route.template).then((res) => res.text());
   document.getElementById("content").innerHTML = html;
 
-  if (window.initFormSupabase && location === "/form") initFormSupabase();
+  if (window.initFormSupabase && location === "/form-chapas-e-sobras") initFormSupabase();
+  if (window.initWebsiteForm && location === "/form-website") initWebsiteForm();
+  if (window.initWebsiteList && location === "/list-website") initWebsiteList();
+
   if (
     window.initHomeSpaceSupabase &&
     (location === "/" || location === "/home")

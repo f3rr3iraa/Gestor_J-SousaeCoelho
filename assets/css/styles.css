@@ -249,6 +249,8 @@ body {
   overflow-y: auto;
 }
 
+
+
 .pagination {
   display: flex;
   justify-content: center;
@@ -265,19 +267,26 @@ body {
   border-radius: 0px;
   cursor: pointer;
   transition: 0.2s;
+  outline: none; 
+  box-shadow: none;
 }
 
-
-.pagination button:hover:not(:disabled) {
+.pagination button:hover:not(:disabled),
+.pagination button:focus:not(:disabled) {
   background-color: #2e4752;
   color: white;
+  outline: none;
+  box-shadow: none;
 }
 
-.pagination button:disabled {
-  opacity: 0.5;
+.pagination .page-link:disabled {
+  background-color: #22333B !important; /* fundo escuro */
+  color: white !important;              /* texto branco */
   cursor: not-allowed;
-  background-color: #22333b98;
+  opacity: 0.5;                         /* efeito de desabilitado */
+  box-shadow: none;
 }
+
 
 
 
@@ -551,3 +560,6 @@ td img {
     0%   { background-color: rgba(25, 135, 84, 0.25); }
     100% { background-color: transparent; }
 }
+
+
+
