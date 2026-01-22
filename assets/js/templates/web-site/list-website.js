@@ -135,6 +135,60 @@ window.initWebsiteList = async function () {
   }
 
   // ================================
+  // LOAD DATA COM AJUSTE DE PÁGINA
+  // ================================
+  async function loadDataWithPageAdjust() {
+    try {
+      // Primeiro verifica se a página atual ainda é válida
+      const maxPage = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+      if (currentPage > maxPage && maxPage > 0) {
+        currentPage = maxPage;
+      }
+
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+
+      let query = supabase
+        .from("website")
+        .select(
+          `id, "Brand", "Title_pt", "ImageURL", "Title_en", "Text_pt", "Text_en"`,
+          { count: "exact" },
+        )
+        .order("id", { ascending: false })
+        .range(from, to);
+
+      if (filtroBrand.value) query = query.eq("Brand", filtroBrand.value);
+      if (filtroTitlePt.value)
+        query = query.ilike("Title_pt", `%${filtroTitlePt.value}%`);
+      if (filtroBrand.value === "marbles_&_granites" && filtroTextPt.value)
+        query = query.eq("Text_pt", filtroTextPt.value);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      totalItems = count || 0;
+
+      // Se a página atual está vazia e não é a primeira página, volta uma página
+      if (data.length === 0 && currentPage > 1) {
+        currentPage--;
+        return loadDataWithPageAdjust(); // recursivamente carrega a página anterior
+      }
+
+      renderTable(data || []);
+      updatePagination();
+
+      setTimeout(() => {
+        tbody.style.opacity = "1";
+      }, 50);
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7">Erro ao carregar dados</td></tr>`;
+      tbody.style.opacity = "1";
+      showMessage("❌ Erro: " + err.message, "danger");
+    }
+  }
+
+  // ================================
   // RENDER TABLE
   // ================================
   function renderTable(items) {
@@ -244,7 +298,8 @@ window.initWebsiteList = async function () {
         const modal = bootstrap.Modal.getInstance(deleteModalEl);
         modal.hide();
 
-        loadData();
+        // MUDANÇA: usa loadDataWithPageAdjust em vez de loadData
+        loadDataWithPageAdjust();
       } catch (err) {
         showMessage("❌ Erro ao eliminar: " + err.message, "danger");
       } finally {
@@ -296,8 +351,8 @@ window.initWebsiteList = async function () {
 
       // **Reset do input de arquivo**
       const websiteEditFoto = document.getElementById("websiteEditFoto");
-      websiteEditFoto.value = null; // limpa o arquivo selecionado
-      websiteFotoPreview.src = tr.dataset.imageurl || ""; // mostra a foto atual
+      websiteEditFoto.value = null;
+      websiteFotoPreview.src = tr.dataset.imageurl || "";
 
       // Mostrar apenas para Marbles & Granites
       const isMarbles = brand === "marbles_&_granites";
@@ -315,48 +370,50 @@ window.initWebsiteList = async function () {
     }
   });
 
-  let brandMap = {}; // mapa website_key -> display_name
+  let brandMap = {};
 
-async function loadBrandsDropdowns() {
-  try {
-    const { data, error } = await supabase
-      .from("brands")
-      .select("display_name, website_key")
-      .order("display_name", { ascending: true });
+  async function loadBrandsDropdowns() {
+    try {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("display_name, website_key")
+        .order("display_name", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // ===== FILTRO =====
-    filtroBrand.innerHTML = `<option value="">Todas</option>`;
+      // Guardar o filtro atual antes de limpar
+      const currentFilter = filtroBrand.value;
 
-    // ===== OFFCANVAS EDIT =====
-    websiteEditMarca.innerHTML = `<option value="" disabled selected>Selecionar uma marca</option>`;
+      filtroBrand.innerHTML = `<option value="">Todas</option>`;
+      websiteEditMarca.innerHTML = `<option value="" disabled selected>Selecionar uma marca</option>`;
 
-    data.forEach((brand) => {
-      // Mapear a marca
-      brandMap[brand.website_key] = brand.display_name;
+      data.forEach((brand) => {
+        brandMap[brand.website_key] = brand.display_name;
 
-      // filtro
-      const optFiltro = document.createElement("option");
-      optFiltro.value = brand.website_key;
-      optFiltro.textContent = brand.display_name;
-      filtroBrand.appendChild(optFiltro);
+        const optFiltro = document.createElement("option");
+        optFiltro.value = brand.website_key;
+        optFiltro.textContent = brand.display_name;
+        filtroBrand.appendChild(optFiltro);
 
-      // edit
-      const optEdit = document.createElement("option");
-      optEdit.value = brand.website_key;
-      optEdit.textContent = brand.display_name;
-      websiteEditMarca.appendChild(optEdit);
-    });
-  } catch (err) {
-    console.error("Erro ao carregar brands:", err.message);
+        const optEdit = document.createElement("option");
+        optEdit.value = brand.website_key;
+        optEdit.textContent = brand.display_name;
+        websiteEditMarca.appendChild(optEdit);
+      });
+
+      // Restaurar o filtro
+      if (currentFilter) {
+        filtroBrand.value = currentFilter;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar brands:", err.message);
+    }
   }
-}
-
 
   async function reloadWebsite() {
-    await loadBrandsDropdowns(); // atualiza o filtro
-    loadData(); // atualiza a tabela
+    await loadBrandsDropdowns();
+    // Não muda a página atual, só recarrega os dados
+    await loadDataWithPageAdjust();
   }
 
   // Preview da imagem ao escolher arquivo
@@ -382,7 +439,6 @@ async function loadBrandsDropdowns() {
       .getElementById("wrapperTextEn")
       .classList.toggle("d-none", !isMarbles);
 
-    // Se NÃO for marbles → limpar campos
     if (!isMarbles) {
       websiteEditTitleEn.value = "";
       websiteEditTextPt.value = "";
@@ -400,9 +456,6 @@ async function loadBrandsDropdowns() {
 
       const file = document.getElementById("websiteEditFoto").files[0];
       if (file) {
-        // =============================================
-        // 1️⃣ APAGAR A FOTO ANTIGA DO STORAGE
-        // =============================================
         if (websiteEditFotoAtual.value) {
           try {
             const oldUrl = new URL(websiteEditFotoAtual.value);
@@ -426,9 +479,6 @@ async function loadBrandsDropdowns() {
           }
         }
 
-        // =============================================
-        // 2️⃣ FAZER UPLOAD DA NOVA FOTO
-        // =============================================
         const fileName = `${Date.now()}-${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from("imagens-website")
@@ -442,7 +492,6 @@ async function loadBrandsDropdowns() {
         imageURL = publicData.publicUrl;
       }
 
-      // Atualiza o Supabase
       const isMarbles = websiteEditMarca.value === "marbles_&_granites";
 
       const updateData = {
@@ -463,7 +512,8 @@ async function loadBrandsDropdowns() {
 
       showMessage("✅ Produto atualizado com sucesso!", "success");
       editOffcanvas.hide();
-      loadData(); // recarrega tabela
+      // MUDANÇA: usa loadDataWithPageAdjust em vez de loadData
+      loadDataWithPageAdjust();
     } catch (err) {
       showMessage("❌ Erro ao atualizar: " + err.message, "danger");
     }

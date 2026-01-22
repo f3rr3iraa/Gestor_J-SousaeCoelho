@@ -13,9 +13,24 @@ async function initSupabaseClient() {
 /**
  * initHomeSupabase
  * @param {string} filtroEstado - 'on' | 'off' | 'nosso'
+ * @param {boolean} preservarPaginacao - Se true, mantém página atual
  */
-async function initHomeSupabase(filtroEstado = "on") {
+async function initHomeSupabase(filtroEstado = "on", preservarPaginacao = false) {
   try {
+    const pageKey = window.currentRoute || window.location.pathname;
+    
+    // 🔹 GUARDAR página atual e filtros ANTES de limpar
+    const paginaAtualSalva = preservarPaginacao && paginacaoPorPagina[pageKey] 
+      ? paginacaoPorPagina[pageKey].paginaAtual 
+      : 1;
+    
+    const filtrosAtuais = preservarPaginacao ? {
+      ref: document.getElementById("filtroid")?.value || "",
+      marca: document.getElementById("filtroMarca")?.value || "",
+      nome: document.getElementById("filtroNome")?.value || "",
+      tipo: document.getElementById("filtroTipo")?.value || ""
+    } : null;
+
     // ============================
     // LIMPAR ESTADO AO ENTRAR
     // ============================
@@ -77,6 +92,20 @@ async function initHomeSupabase(filtroEstado = "on") {
 
     // filtros + paginação
     preencherFiltroMarcas();
+    
+    // 🔹 RESTAURAR filtros se solicitado
+    if (preservarPaginacao && filtrosAtuais) {
+      if (filtrosAtuais.ref) document.getElementById("filtroid").value = filtrosAtuais.ref;
+      if (filtrosAtuais.marca) document.getElementById("filtroMarca").value = filtrosAtuais.marca;
+      if (filtrosAtuais.nome) document.getElementById("filtroNome").value = filtrosAtuais.nome;
+      if (filtrosAtuais.tipo) document.getElementById("filtroTipo").value = filtrosAtuais.tipo;
+    }
+    
+    // 🔹 RESTAURAR página se solicitado
+    if (preservarPaginacao && paginacaoPorPagina[pageKey]) {
+      paginacaoPorPagina[pageKey].paginaAtual = paginaAtualSalva;
+    }
+    
     ativarPaginacao();
     initFiltros();
 
@@ -102,6 +131,9 @@ async function initHomeSupabase(filtroEstado = "on") {
 function preencherFiltroMarcas() {
   const filtroMarca = document.getElementById("filtroMarca");
   if (!filtroMarca) return;
+
+  // 🔹 GUARDAR o valor selecionado ANTES de recriar o HTML
+  const valorAtualSelecionado = filtroMarca.value;
 
   const mapaMarcas = new Map();
 
@@ -130,6 +162,54 @@ function preencherFiltroMarcas() {
       .sort((a, b) => a.localeCompare(b))
       .map((m) => `<option value="${m}">${m}</option>`)
       .join("");
+  
+  // 🔹 RESTAURAR o valor que estava selecionado
+  if (valorAtualSelecionado) {
+    filtroMarca.value = valorAtualSelecionado;
+  }
+}
+
+// 🔹 NOVA FUNÇÃO para aplicar filtros e retornar dados filtrados
+function aplicarFiltrosAtuais() {
+  const filtroId = document.getElementById("filtroid");
+  const filtroMarca = document.getElementById("filtroMarca");
+  const filtroNome = document.getElementById("filtroNome");
+  const filtroTipo = document.getElementById("filtroTipo");
+
+  if (!filtroId || !filtroMarca || !filtroNome || !filtroTipo) {
+    return window.dadosOriginais || [];
+  }
+
+  const refValor = filtroId.value.trim().toLowerCase();
+  const marcaValor = filtroMarca.value.trim().toLowerCase();
+  const nomeValor = (filtroNome.value || "")
+    .toLowerCase()
+    .replace(/-/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+  const tipoValor = filtroTipo.value.trim().toLowerCase();
+
+  return (window.dadosOriginais || []).filter((item) => {
+    // === FILTRO DE REFERÊNCIA ===
+    let refOk = true;
+    if (refValor) {
+      const refId = String(item.id || "").toLowerCase();
+      const refCampo = String(item.referencia || "").toLowerCase();
+      refOk = refId.startsWith(refValor) || refCampo.startsWith(refValor);
+    }
+
+    // === RESTANTES FILTROS ===
+    const marcaOk =
+      !marcaValor ||
+      (item.marca || "").trim().toLowerCase() === marcaValor.trim().toLowerCase();
+    const nomeOk =
+      !nomeValor ||
+      (item.marca_nome_espessura_clean || "").includes(nomeValor);
+    const tipoOk =
+      !tipoValor || (item.tipo || "").toLowerCase() === tipoValor;
+
+    return refOk && marcaOk && nomeOk && tipoOk;
+  });
 }
 
 function initFiltros() {
@@ -143,42 +223,15 @@ function initFiltros() {
     return;
 
   const aplicarFiltros = () => {
-    const refValor = filtroId.value.trim().toLowerCase();
-    const marcaValor = filtroMarca.value.trim().toLowerCase();
-    const nomeValor = (filtroNome.value || "")
-      .toLowerCase() // minusculas
-      .replace(/-/g, "") // remove hífen
-      .replace(/\s+/g, "") // remove espaços
-      .trim();
-
-    const tipoValor = filtroTipo.value.trim().toLowerCase();
-
-    const filtrados = (window.dadosOriginais || []).filter((item) => {
-      // === FILTRO DE REFERÊNCIA ===
-      let refOk = true;
-      if (refValor) {
-        const refId = String(item.id || "").toLowerCase();
-        const refCampo = String(item.referencia || "").toLowerCase();
-
-        // Só aceita se o ID ou referência COMEÇAR pelo valor digitado (não conter no meio)
-        refOk = refId.startsWith(refValor) || refCampo.startsWith(refValor);
-      }
-
-      // === RESTANTES FILTROS ===
-      const marcaOk =
-        !marcaValor ||
-        (item.marca || "").trim().toLowerCase() ===
-          marcaValor.trim().toLowerCase();
-      const nomeOk =
-        !nomeValor ||
-        (item.marca_nome_espessura_clean || "").includes(nomeValor);
-      const tipoOk =
-        !tipoValor || (item.tipo || "").toLowerCase() === tipoValor;
-
-      return refOk && marcaOk && nomeOk && tipoOk;
-    });
-
-    renderTabela(filtrados, window.filtroEstadoAtual || "on");
+    const pageKey = window.currentRoute || window.location.pathname;
+    const dadosFiltrados = aplicarFiltrosAtuais();
+    
+    // 🔹 Resetar para página 1 quando aplicar filtros manualmente
+    if (paginacaoPorPagina[pageKey]) {
+      paginacaoPorPagina[pageKey].paginaAtual = 1;
+    }
+    
+    renderTabelaComPaginacao(dadosFiltrados, pageKey);
   };
 
   // eventos
@@ -270,12 +323,11 @@ function renderTabela(lista, estadoAtual) {
     })
     .join("");
 
-  // Remover a transição de opacidade para evitar "piscar"
   const rows = tableBody.querySelectorAll("tr");
   rows.forEach((row) => {
-    row.style.opacity = 1; // Remover a transição de opacidade
+    row.style.opacity = 1;
   });
-  // Depois de renderizar, configurar eventos nas linhas (editar, eliminar, mover)
+  
   configurarEventosTabela();
 }
 
@@ -286,7 +338,7 @@ function configurarEventosTabela() {
   const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 
   document.querySelectorAll(".btn-delete").forEach((btn) => {
-    btn.removeEventListener?.("click", onDeleteClick); // tentativa de limpeza (se suportado)
+    btn.removeEventListener?.("click", onDeleteClick);
     btn.addEventListener("click", onDeleteClick);
   });
 
@@ -304,6 +356,15 @@ function configurarEventosTabela() {
       if (!itemToDelete) return;
 
       const itemId = itemToDelete.id;
+      const pageKey = window.currentRoute || window.location.pathname;
+      
+      // 🔹 GUARDAR página atual e TODOS os filtros
+      const paginaAnterior = paginacaoPorPagina[pageKey]?.paginaAtual || 1;
+      const filtrosAtuais = {
+        ref: document.getElementById("filtroid")?.value || "",
+        nome: document.getElementById("filtroNome")?.value || "",
+        tipo: document.getElementById("filtroTipo")?.value || ""
+      };
 
       // 1. Buscar foto atual
       const { data: itemData, error: fetchError } = await supabaseClient
@@ -320,7 +381,6 @@ function configurarEventosTabela() {
       if (itemData?.foto) {
         const fileName = itemData.foto.split("/").pop();
         if (fileName) {
-          // 🔥 Apaga diretamente do storage
           const { error: deleteErr } = await supabaseClient.storage
             .from("imagens")
             .remove([fileName]);
@@ -344,8 +404,40 @@ function configurarEventosTabela() {
       }
 
       showMessage("Item eliminado com sucesso!", "success");
-      itemToDelete.row?.remove();
+      
+      // 🔹 Remover da lista local
+      window.dadosOriginais = (window.dadosOriginais || []).filter(
+        (i) => String(i.id) !== String(itemId)
+      );
+      
+      // 🔹 Atualizar marcas (preserva filtro de marca automaticamente)
+      preencherFiltroMarcas();
+      
+      // 🔹 RESTAURAR os outros filtros
+      const filtroIdEl = document.getElementById("filtroid");
+      const filtroNomeEl = document.getElementById("filtroNome");
+      const filtroTipoEl = document.getElementById("filtroTipo");
+      
+      if (filtroIdEl) filtroIdEl.value = filtrosAtuais.ref;
+      if (filtroNomeEl) filtroNomeEl.value = filtrosAtuais.nome;
+      if (filtroTipoEl) filtroTipoEl.value = filtrosAtuais.tipo;
+      
+      // 🔹 Aplicar filtros para obter lista filtrada
+      const dadosFiltrados = aplicarFiltrosAtuais();
+      
+      // 🔹 Ajustar página se necessário (se ficou vazia)
+      const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / paginacaoPorPagina[pageKey].itensPorPagina));
+      if (paginaAnterior > totalPaginas) {
+        paginacaoPorPagina[pageKey].paginaAtual = totalPaginas;
+      } else {
+        paginacaoPorPagina[pageKey].paginaAtual = paginaAnterior;
+      }
+      
+      // 🔹 Re-renderizar com a página preservada
+      renderTabelaComPaginacao(dadosFiltrados, pageKey);
+      
       deleteModal?.hide();
+      itemToDelete = null;
     });
 
   // MOVE / REACTIVATE (para estado 'off' -> 'on')
@@ -373,6 +465,14 @@ function configurarEventosTabela() {
     ?.addEventListener("click", async () => {
       if (!itemToReactivate) return;
 
+      const pageKey = window.currentRoute || window.location.pathname;
+      const paginaAnterior = paginacaoPorPagina[pageKey]?.paginaAtual || 1;
+      const filtrosAtuais = {
+        ref: document.getElementById("filtroid")?.value || "",
+        nome: document.getElementById("filtroNome")?.value || "",
+        tipo: document.getElementById("filtroTipo")?.value || ""
+      };
+
       const { error } = await supabaseClient
         .from("items")
         .update({
@@ -385,15 +485,33 @@ function configurarEventosTabela() {
         showMessage(`Erro ao reativar: ${error.message}`, "danger");
       } else {
         showMessage("Produto reativado com sucesso!", "success");
-        // remover linha da vista atual (assumindo que era 'off')
-        itemToReactivate.row?.remove();
-        // atualizar dados locais
+        
         window.dadosOriginais = (window.dadosOriginais || []).filter(
           (i) => String(i.id) !== String(itemToReactivate.id),
         );
+        
+        // 🔹 Atualizar marcas (preserva filtro de marca automaticamente)
         preencherFiltroMarcas();
-        const pageKey = window.currentRoute || window.location.pathname;
-        renderTabelaComPaginacao(window.dadosOriginais, pageKey);
+        
+        // 🔹 RESTAURAR os outros filtros
+        const filtroIdEl = document.getElementById("filtroid");
+        const filtroNomeEl = document.getElementById("filtroNome");
+        const filtroTipoEl = document.getElementById("filtroTipo");
+        
+        if (filtroIdEl) filtroIdEl.value = filtrosAtuais.ref;
+        if (filtroNomeEl) filtroNomeEl.value = filtrosAtuais.nome;
+        if (filtroTipoEl) filtroTipoEl.value = filtrosAtuais.tipo;
+        
+        const dadosFiltrados = aplicarFiltrosAtuais();
+        
+        const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / paginacaoPorPagina[pageKey].itensPorPagina));
+        if (paginaAnterior > totalPaginas) {
+          paginacaoPorPagina[pageKey].paginaAtual = totalPaginas;
+        } else {
+          paginacaoPorPagina[pageKey].paginaAtual = paginaAnterior;
+        }
+        
+        renderTabelaComPaginacao(dadosFiltrados, pageKey);
       }
 
       reactivateModal?.hide();
@@ -425,6 +543,14 @@ function configurarEventosTabela() {
     ?.addEventListener("click", async () => {
       if (!itemToMoveNosso) return;
 
+      const pageKey = window.currentRoute || window.location.pathname;
+      const paginaAnterior = paginacaoPorPagina[pageKey]?.paginaAtual || 1;
+      const filtrosAtuais = {
+        ref: document.getElementById("filtroid")?.value || "",
+        nome: document.getElementById("filtroNome")?.value || "",
+        tipo: document.getElementById("filtroTipo")?.value || ""
+      };
+
       const { error } = await supabaseClient
         .from("items")
         .update({
@@ -440,18 +566,33 @@ function configurarEventosTabela() {
           "Produto movido para 'Nossas Reservas' com sucesso!",
           "success",
         );
-        const row = itemToMoveNosso.row;
-        if (row) {
-          row.style.transition = "opacity 0.5s";
-          row.style.opacity = 0;
-          setTimeout(() => row.remove(), 500);
-        }
+        
         window.dadosOriginais = (window.dadosOriginais || []).filter(
           (i) => String(i.id) !== String(itemToMoveNosso.id),
         );
+        
+        // 🔹 Atualizar marcas (preserva filtro de marca automaticamente)
         preencherFiltroMarcas();
-        const pageKey = window.currentRoute || window.location.pathname;
-        renderTabelaComPaginacao(window.dadosOriginais, pageKey);
+        
+        // 🔹 RESTAURAR os outros filtros
+        const filtroIdEl = document.getElementById("filtroid");
+        const filtroNomeEl = document.getElementById("filtroNome");
+        const filtroTipoEl = document.getElementById("filtroTipo");
+        
+        if (filtroIdEl) filtroIdEl.value = filtrosAtuais.ref;
+        if (filtroNomeEl) filtroNomeEl.value = filtrosAtuais.nome;
+        if (filtroTipoEl) filtroTipoEl.value = filtrosAtuais.tipo;
+        
+        const dadosFiltrados = aplicarFiltrosAtuais();
+        
+        const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / paginacaoPorPagina[pageKey].itensPorPagina));
+        if (paginaAnterior > totalPaginas) {
+          paginacaoPorPagina[pageKey].paginaAtual = totalPaginas;
+        } else {
+          paginacaoPorPagina[pageKey].paginaAtual = paginaAnterior;
+        }
+        
+        renderTabelaComPaginacao(dadosFiltrados, pageKey);
       }
 
       moveNossoModal?.hide();
@@ -465,34 +606,32 @@ function configurarEventosTabela() {
   });
 
   async function loadBrandsForEdit(selectedMarca = "") {
-  try {
-    const { data: brands, error } = await supabaseClient
-      .from("brands")
-      .select("display_name, items_key")
-      .order("display_name", { ascending: true });
+    try {
+      const { data: brands, error } = await supabaseClient
+        .from("brands")
+        .select("display_name, items_key")
+        .order("display_name", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const editMarcaSelect = document.getElementById("editMarca");
-    
-    // Limpa dropdown antes de preencher
-    editMarcaSelect.innerHTML = `<option value="" disabled selected>Seleciona a marca...</option>`;
+      const editMarcaSelect = document.getElementById("editMarca");
+      
+      editMarcaSelect.innerHTML = `<option value="" disabled selected>Seleciona a marca...</option>`;
 
-    brands.forEach((b) => {
-      const option = document.createElement("option");
-      option.value = b.items_key;        // valor final: items_key
-      option.textContent = b.display_name;
-      option.dataset.itemsKey = b.items_key;
-      if (b.items_key === selectedMarca) option.selected = true; // seleciona a marca atual
-      editMarcaSelect.appendChild(option);
-    });
+      brands.forEach((b) => {
+        const option = document.createElement("option");
+        option.value = b.items_key;
+        option.textContent = b.display_name;
+        option.dataset.itemsKey = b.items_key;
+        if (b.items_key === selectedMarca) option.selected = true;
+        editMarcaSelect.appendChild(option);
+      });
 
-  } catch (err) {
-    console.error("Erro ao carregar marcas:", err);
-    showMessage("Erro ao carregar marcas.", "danger");
+    } catch (err) {
+      console.error("Erro ao carregar marcas:", err);
+      showMessage("Erro ao carregar marcas.", "danger");
+    }
   }
-}
-
 
   function onEditClick(e) {
     const row = e.currentTarget.closest("tr");
@@ -504,10 +643,8 @@ function configurarEventosTabela() {
     );
     if (!item) return;
 
-    // ✅ Carregar marcas no dropdown, selecionando a atual
     loadBrandsForEdit(item.marca);
 
-    // Preencher demais campos do offcanvas
     document.getElementById("editId").value = item.id;
     document.getElementById("editNome").value = item.nome ?? "";
     document.getElementById("editLote").value = item.lote ?? "";
@@ -531,11 +668,10 @@ function configurarEventosTabela() {
 }
 
 /* ============================
-   Edit Form (Offcanvas) - versão FINAL CORRIGIDA
+   Edit Form (Offcanvas)
    ============================ */
 
 window.addEventListener("load", () => {
-  // === Captura o evento de SUBMIT do form dinamicamente ===
   document.addEventListener("submit", async (e) => {
     const form = e.target;
     if (form.id !== "editForm") return;
@@ -551,21 +687,29 @@ window.addEventListener("load", () => {
       return;
     }
 
+    const pageKey = window.currentRoute || window.location.pathname;
+    
+    // 🔹 GUARDAR página e filtros ANTES de editar
+    const paginaAnterior = paginacaoPorPagina[pageKey]?.paginaAtual || 1;
+    const filtrosAtuais = {
+      ref: document.getElementById("filtroid")?.value || "",
+      nome: document.getElementById("filtroNome")?.value || "",
+      tipo: document.getElementById("filtroTipo")?.value || ""
+    };
+
     let fotoUrl = fotoAtual;
 
     try {
-      // === SE EXISTE NOVA FOTO ===
       if (fileInput && fileInput.files && fileInput.files.length > 0) {
         const newFile = fileInput.files[0];
 
-        // 1) APAGAR A IMAGEM ANTIGA
         if (fotoAtual) {
           try {
             const oldName = fotoAtual.split("/").pop();
             if (oldName) {
               const { error: deleteErr } = await supabaseClient.storage
                 .from("imagens")
-                .remove([oldName]); // 🔥 DELETE DEFINITIVO
+                .remove([oldName]);
 
               if (deleteErr) {
                 console.error(deleteErr);
@@ -580,7 +724,6 @@ window.addEventListener("load", () => {
           }
         }
 
-        // 2) UPLOAD DA NOVA
         const cleanName = newFile.name
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
@@ -598,7 +741,6 @@ window.addEventListener("load", () => {
           return;
         }
 
-        // 3) GET PUBLIC URL
         const { data: publicData } = supabaseClient.storage
           .from("imagens")
           .getPublicUrl(fileName);
@@ -606,7 +748,6 @@ window.addEventListener("load", () => {
         fotoUrl = publicData.publicUrl;
       }
 
-      // ==== PREPARAR DADOS PARA UPDATE ====
       const updatedItem = {
         marca: document.getElementById("editMarca").value || null,
         nome: document.getElementById("editNome").value || null,
@@ -619,10 +760,8 @@ window.addEventListener("load", () => {
         foto: fotoUrl,
       };
 
-      // === ID numérico ===
       const idValue = /^[0-9]+$/.test(id) ? Number(id) : id;
 
-      // === UPDATE FINAL ===
       const { data, error } = await supabaseClient
         .from("items")
         .update(updatedItem)
@@ -636,20 +775,45 @@ window.addEventListener("load", () => {
 
       showMessage("Produto atualizado com sucesso!", "success");
 
-      // Fechar offcanvas
       const editOffcanvasEl = document.getElementById("editOffcanvas");
       const offcanvas = bootstrap.Offcanvas.getInstance(editOffcanvasEl);
-      offcanvas.hide();
+      offcanvas?.hide();
 
-      // Atualizar lista
-      await initHomeSupabase(window.filtroEstadoAtual || "on");
+      // 🔹 Atualizar o item na lista local
+      const index = (window.dadosOriginais || []).findIndex(
+        (i) => String(i.id) === String(id)
+      );
+      if (index !== -1 && data && data[0]) {
+        window.dadosOriginais[index] = { ...window.dadosOriginais[index], ...data[0] };
+      }
+
+      // 🔹 Atualizar marcas (preserva filtros automaticamente)
+      preencherFiltroMarcas();
+
+      // 🔹 RESTAURAR os outros filtros (ref, nome, tipo)
+      const filtroIdEl = document.getElementById("filtroid");
+      const filtroNomeEl = document.getElementById("filtroNome");
+      const filtroTipoEl = document.getElementById("filtroTipo");
+      
+      if (filtroIdEl) filtroIdEl.value = filtrosAtuais.ref;
+      if (filtroNomeEl) filtroNomeEl.value = filtrosAtuais.nome;
+      if (filtroTipoEl) filtroTipoEl.value = filtrosAtuais.tipo;
+
+      // 🔹 RESTAURAR página atual
+      if (paginacaoPorPagina[pageKey]) {
+        paginacaoPorPagina[pageKey].paginaAtual = paginaAnterior;
+      }
+
+      // 🔹 Re-renderizar mantendo a página
+      const dadosFiltrados = aplicarFiltrosAtuais();
+      renderTabelaComPaginacao(dadosFiltrados, pageKey);
+
     } catch (err) {
       console.error(err);
       showMessage("Erro inesperado ao atualizar item.", "danger");
     }
   });
 
-  // === Preview da Imagem ===
   document.addEventListener("change", (e) => {
     if (e.target.id === "editFoto") {
       const fileInput = e.target;
@@ -672,7 +836,6 @@ window.addEventListener("load", () => {
    Utilitárias
    ============================ */
 
-// Escapa texto para inserir em HTML (previne XSS simples)
 function escapeHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str)
@@ -683,7 +846,6 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
-// Toast simples
 function showMessage(message, type = "info") {
   const containerId = "toast-container";
   let container = document.getElementById(containerId);
@@ -714,15 +876,12 @@ function showMessage(message, type = "info") {
    ============================ */
 
 const paginacaoPorPagina = {};
-const defaultItensPorPagina = 10; // itens padrão
+const defaultItensPorPagina = 10;
 
 function ativarPaginacao() {
   const pageKey = window.currentRoute || window.location.pathname;
-  const storageKey = `itemsPerPage_${pageKey}`; // chave única por página
+  const storageKey = `itemsPerPage_${pageKey}`;
 
-  /* ==============================
-       LER / DEFINIR ITENS POR PÁGINA
-       ============================== */
   let itensSalvos = localStorage.getItem(storageKey);
 
   if (!itensSalvos) {
@@ -732,15 +891,15 @@ function ativarPaginacao() {
     itensSalvos = parseInt(itensSalvos);
   }
 
-  // Estado inicial da página
-  paginacaoPorPagina[pageKey] = {
-    paginaAtual: 1,
-    itensPorPagina: itensSalvos,
-  };
+  if (!paginacaoPorPagina[pageKey]) {
+    paginacaoPorPagina[pageKey] = {
+      paginaAtual: 1,
+      itensPorPagina: itensSalvos,
+    };
+  } else {
+    paginacaoPorPagina[pageKey].itensPorPagina = itensSalvos;
+  }
 
-  /* ==============================
-       REINICIAR LISTENERS
-       ============================== */
   const itemsPerPageEl = document.getElementById("itemsPerPage");
   const prevPageEl = document.getElementById("prevPage");
   const nextPageEl = document.getElementById("nextPage");
@@ -758,17 +917,12 @@ function ativarPaginacao() {
     nextPageEl.parentNode.replaceChild(clone, nextPageEl);
   }
 
-  // Re-obter elementos depois dos clones
   const newItemsPerPageEl = document.getElementById("itemsPerPage");
   const newPrev = document.getElementById("prevPage");
   const newNext = document.getElementById("nextPage");
 
-  // Colocar valor inicial no select
   if (newItemsPerPageEl) newItemsPerPageEl.value = itensSalvos;
 
-  /* ==============================
-       ALTERAR ITENS POR PÁGINA
-       ============================== */
   if (newItemsPerPageEl) {
     newItemsPerPageEl.addEventListener("change", (e) => {
       const novoValor = parseInt(e.target.value);
@@ -776,48 +930,41 @@ function ativarPaginacao() {
       paginacaoPorPagina[pageKey].itensPorPagina = novoValor;
       paginacaoPorPagina[pageKey].paginaAtual = 1;
 
-      // SALVAR para esta página específica
       localStorage.setItem(storageKey, novoValor);
 
-      renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+      const dadosFiltrados = aplicarFiltrosAtuais();
+      renderTabelaComPaginacao(dadosFiltrados, pageKey);
     });
   }
 
-  /* ==============================
-       BOTÃO ANTERIOR
-       ============================== */
   if (newPrev) {
     newPrev.addEventListener("click", () => {
       const pag = paginacaoPorPagina[pageKey];
       if (pag.paginaAtual > 1) {
         pag.paginaAtual--;
-        renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+        const dadosFiltrados = aplicarFiltrosAtuais();
+        renderTabelaComPaginacao(dadosFiltrados, pageKey);
       }
     });
   }
 
-  /* ==============================
-       BOTÃO SEGUINTE
-       ============================== */
   if (newNext) {
     newNext.addEventListener("click", () => {
       const pag = paginacaoPorPagina[pageKey];
-      const totalPaginas = Math.ceil(
-        (window.dadosOriginais?.length || 0) / pag.itensPorPagina,
-      );
+      const dadosFiltrados = aplicarFiltrosAtuais();
+      const totalPaginas = Math.ceil(dadosFiltrados.length / pag.itensPorPagina);
 
       if (pag.paginaAtual < totalPaginas) {
         pag.paginaAtual++;
-        renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+        renderTabelaComPaginacao(dadosFiltrados, pageKey);
       }
     });
   }
 
-  /* ==============================
-       RENDER INICIAL
-       ============================== */
-  renderTabelaComPaginacao(window.dadosOriginais || [], pageKey);
+  const dadosFiltrados = aplicarFiltrosAtuais();
+  renderTabelaComPaginacao(dadosFiltrados, pageKey);
 }
+
 
 function renderTabelaComPaginacao(lista, pageKey) {
   const tableBody = document.getElementById("itemsBody");
@@ -826,7 +973,6 @@ function renderTabelaComPaginacao(lista, pageKey) {
   if (table) table.classList.add("table-fade");
 
   setTimeout(() => {
-    // === código original ===
     let { paginaAtual, itensPorPagina } = paginacaoPorPagina[pageKey];
 
     const totalItens = lista.length;
@@ -857,9 +1003,5 @@ function renderTabelaComPaginacao(lista, pageKey) {
     }
   }, 120);
 }
-
-/* ============================
-   Export / disponibilidade global
-   ============================ */
 
 window.initHomeSupabase = initHomeSupabase;
