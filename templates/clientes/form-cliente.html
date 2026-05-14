@@ -1,0 +1,153 @@
+<div class="form-container">
+  <h2 class="title-color">Adicionar Cliente</h2>
+
+  <form id="clienteForm" autocomplete="off">
+
+    <!-- ================= DADOS PRINCIPAIS ================= -->
+    <fieldset>
+      <legend>Dados do Cliente</legend>
+      <div class="row g-3">
+
+        <div class="coolinput col-4">
+          <label for="clienteDescricao" class="text">Nome / Descrição:</label>
+          <input
+            type="text"
+            name="clienteDescricao"
+            id="clienteDescricao"
+            class="input"
+            placeholder="Nome completo ou empresa"
+            required
+          />
+        </div>
+
+        <div class="coolinput col-4">
+          <label for="clienteDescricao2" class="text">Descrição 2:</label>
+          <input
+            type="text"
+            name="clienteDescricao2"
+            id="clienteDescricao2"
+            class="input"
+            placeholder="Nome alternativo / departamento..."
+          />
+        </div>
+
+        <div class="coolinput col-4">
+          <label for="clienteContribuinte" class="text">Contribuinte (NIF/NIPC):</label>
+          <input
+            type="text"
+            name="clienteContribuinte"
+            id="clienteContribuinte"
+            class="input"
+            placeholder="Ex: 123456789"
+            maxlength="20"
+          />
+          
+        </div>
+
+      </div>
+    </fieldset>
+
+    <br />
+
+    <!-- ================= MORADA ================= -->
+    <fieldset>
+      <legend>Morada</legend>
+      <div class="row g-3">
+
+        <div class="coolinput col-4">
+          <label for="clienteMorada" class="text">Morada:</label>
+          <input
+            type="text"
+            name="clienteMorada"
+            id="clienteMorada"
+            class="input"
+            placeholder="Rua, Avenida, número..."
+          />
+        </div>
+
+        <div class="coolinput col-4">
+          <label for="clienteMorada2" class="text">Localidade:</label>
+          <input
+            type="text"
+            name="clienteMorada2"
+            id="clienteMorada2"
+            class="input"
+            placeholder="Localidade / Complemento..."
+          />
+        </div>
+
+        <div class="coolinput col-2">
+          <label for="clienteCodpostal" class="text">Código Postal:</label>
+          <input
+            type="text"
+            name="clienteCodpostal"
+            id="clienteCodpostal"
+            class="input"
+            placeholder="0000-000"
+            maxlength="10"
+          />
+        </div>
+
+        <div class="coolinput col-2">
+          <label for="clientePais" class="text">País:</label>
+          <input
+            type="text"
+            name="clientePais"
+            id="clientePais"
+            class="input"
+            placeholder="Ex: PORTUGAL"
+            maxlength="50"
+          />
+        </div>
+
+      </div>
+    </fieldset>
+
+    <br />
+
+    <!-- ================= CONTACTOS ================= -->
+    <fieldset>
+      <legend>Contactos</legend>
+      <div class="row g-3">
+
+        <div class="coolinput col-3">
+          <label for="clienteTelefone" class="text">Telefone:</label>
+          <input
+            type="text"
+            name="clienteTelefone"
+            id="clienteTelefone"
+            class="input"
+            placeholder="Ex: 255 861 372"
+            maxlength="20"
+          />
+        </div>
+
+        <div class="coolinput col-3">
+          <label for="clienteTelefone2" class="text">Telefone 2:</label>
+          <input
+            type="text"
+            name="clienteTelefone2"
+            id="clienteTelefone2"
+            class="input"
+            placeholder="Ex: 919 789 143"
+            maxlength="20"
+          />
+        </div>
+
+      </div>
+    </fieldset>
+
+    <br />
+
+    <!-- ================= AÇÕES ================= -->
+    <div class="form-actions justify-content-end">
+      <button type="button" id="btnLimparCliente" class="btn-form" style="background-color: #6c757d;">
+        <i class="bi bi-eraser me-2"></i> Limpar
+      </button>
+      <button type="submit" class="btn-form">
+        <i class="bi bi-save me-2"></i> Guardar Cliente
+      </button>
+    </div>
+
+  </form>
+</div>

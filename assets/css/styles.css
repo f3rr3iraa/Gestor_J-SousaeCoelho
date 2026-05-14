@@ -1,4 +1,3 @@
-
 body {
   margin: 0;
   display: flex;
@@ -135,8 +134,8 @@ input:-webkit-autofill {
 
 
 .sidebar-content {
-  min-width: 230px;
-  max-width: 230px;
+  min-width: 240px;
+  max-width: 240px;
   background-color: #22333B !important;
   color: #fff;
   height: 100vh;
@@ -175,6 +174,70 @@ input:-webkit-autofill {
 }
 
 
+/* ====== ESTILOS PARA ACCORDION DA SIDEBAR ====== */
+
+/* Botão do accordion */
+.sidebar-accordion-btn {
+  background-color: transparent !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 10px 15px !important;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: none !important;
+  transition: all 0.2s ease;
+}
+
+.sidebar-accordion-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sidebar-accordion-btn:focus {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Ícone de seta do accordion */
+.sidebar-accordion-btn::after {
+  filter: brightness(0) invert(1); /* torna a seta branca */
+  transition: transform 0.2s ease;
+}
+
+.sidebar-accordion-btn:not(.collapsed)::after {
+  transform: rotate(-180deg);
+}
+
+/* Links dentro do accordion (submenu) */
+.submenu-link {
+  padding: 8px 15px 8px 25px !important;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+}
+
+
+
+.submenu-link.active {
+  background-color: #f8f9fa;
+  color: #000000 !important;
+  font-weight: bold;
+}
+
+/* Remove padding padrão do accordion-body */
+.accordion-body {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* Estilo geral do accordion */
+.accordion-flush .accordion-item {
+  border: none;
+}
+
+.accordion-flush .accordion-button {
+  border-radius: 6px !important;
+}
+
+
 .btn-close:focus {
   outline: none !important;
   box-shadow: none !important;
@@ -208,6 +271,15 @@ body {
   border-color: #373b3e;
 }
 
+/* ✅ TRUNCAMENTO PARA CABEÇALHO DE TODAS AS TABELAS */
+.table-color th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 6px;
+}
+
+
 
 .title-color {
   color: #22333B !important;
@@ -239,6 +311,7 @@ body {
   justify-content: flex-end;
   margin-right: 2vh;
   margin-bottom: 2vh;
+  gap: 15px;
 }
 
 
@@ -336,6 +409,7 @@ legend {
   padding: 0 3px;
   background: #f8f9fa;
   width: fit-content;
+  z-index: 1; /* ✅ GARANTE QUE O LABEL FICA POR CIMA DA BORDA */
 }
 
 .coolinput .input {
@@ -375,21 +449,38 @@ legend {
 }
 
 
-/* ====== BOTÃO ====== */
+/* ====== BOTÃO PRINCIPAL ====== */
 .btn-form {
   display: block;
-  margin: 20px  0 auto;
+  margin: 20px 0 auto;
   padding: 10px 25px;
   border: none;
   background-color: #22333B;
   color: white;
   font-weight: 600;
   cursor: pointer;
-  transition: 0.2s;
+  transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .btn-form:hover {
   background-color: #2e4752;
+}
+
+/* ====== BOTÕES DE AÇÃO SECUNDÁRIA (CINZA - LIMPAR) ====== */
+.btn-form[style*="background-color: #6c757d"]:hover,
+.btn-form[style*="background-color:#6c757d"]:hover {
+  background-color: #5a6268 !important;
+}
+
+/* ====== BOTÕES DE AÇÃO DESTRUTIVA (VERMELHO - CANCELAR/LIMPAR TUDO) ====== */
+.btn-form[style*="background-color: #dc3545"]:hover,
+.btn-form[style*="background-color:#dc3545"]:hover {
+  background-color: #c82333 !important;
+}
+
+/* ====== EFEITO DE CLIQUE ====== */
+.btn-form:active {
+  transform: scale(0.98);
 }
 
 
@@ -414,12 +505,31 @@ select.input option {
 
 
 
+.thickness-check {
+  accent-color: #22333B;
+}
+
+.edit-thickness-check {
+  accent-color: #22333B;
+}
 
 
 
+.btn-price {
+  display: block;
+  margin: 20px  0 auto;
+  padding: 10px 25px;
+  border: none;
+  background-color: #5b899f;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
 
-
-
+.btn-price:hover {
+  background-color: #6B94A8;
+}
 
 
 
@@ -562,4 +672,1094 @@ td img {
 }
 
 
+/* orcamento */
 
+
+ #produtosTableBody tr td {
+  vertical-align: middle;
+}
+
+.produto-row {
+  transition: background-color 0.2s;
+}
+
+.produto-row:hover {
+  background-color: #f8f9fa;
+}
+
+.btn-remove {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.btn-remove:hover {
+    background-color: #c82333;
+  }
+
+/* ================= MODAL LIMPAR ORÇAMENTO ================= */
+#limparOrcamentoModal .modal-header .btn-close {
+  filter: invert(1);
+}
+
+#limparOrcamentoModal .modal-body {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+#limparOrcamentoModal .btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+
+#limparOrcamentoModal .btn-danger:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+
+/* ================= ESTILOS DO PREÇÁRIO FLUTUANTE ================= */
+  .precario-modal {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 9999;
+    max-width: 350px;
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  .precario-content {
+    background: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    border: 2px solid #5b899f;
+  }
+
+  .precario-header {
+    background: #5b899f;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .precario-header h5 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    /* ✅ TRUNCAR TÍTULO SE MUITO LONGO */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px; /* Limita largura e adiciona ... se necessário */
+  }
+
+  .btn-close-precario {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+  }
+
+  .btn-close-precario:hover {
+    background-color: transparent; 
+    color: #dededf; 
+  }
+
+
+  .precario-body {
+    padding: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+  
+  }
+
+  .precario-body table {
+    margin-bottom: 0;
+    
+  }
+
+  .precario-body table th {
+    font-size: 13px;
+    font-weight: 600;
+    background-color: #f8f9fa;
+    padding: 10px;
+  }
+
+  .precario-body table td {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+ 
+
+  /* Centrar conteúdo da tabela do preçário */
+  #precarioModal table th,
+  #precarioModal table td {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  #precarioModal .text-end {
+    text-align: center !important;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideOutRight {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  .precario-modal.closing {
+    animation: slideOutRight 0.3s ease-out;
+  }
+
+
+
+.btn-edit-item {
+  background-color: #5b899f;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  margin-right: 5px;
+}
+
+.btn-edit-item:hover {
+  background-color: #4a7a8f;
+}
+
+
+.produto-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 0.95rem;
+}
+
+.btn-view {
+  background-color: #5b899f;
+  color: white;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s, color 0.2s;
+  outline: none;
+  margin-right: 5px;
+}
+
+.btn-view:hover {
+  background-color: #6B94A8;
+  color: white;
+}
+
+.btn-view:active,
+.btn-view:focus {
+  color: white; 
+  outline: none;
+}
+
+
+.produto-descricao {
+  max-height: 60px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.produto-descricao::-webkit-scrollbar {
+  width: 4px;
+}
+
+.produto-descricao::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+
+
+
+.orcamento-header {
+  border-bottom: 2px solid #dee2e6;
+  padding-bottom: 15px;
+}
+
+.orcamento-print-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.orcamento-print-table td {
+  font-size: 0.85rem;
+  vertical-align: middle;
+}
+
+.totais-table td {
+  padding: 8px 12px;
+}
+
+/* Modal de edição inline de produto */
+.edit-inline-row {
+  background-color: #fff3cd !important;
+}
+
+.edit-inline-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.edit-inline-input:focus {
+  outline: none;
+  border-color: #5b899f;
+  box-shadow: 0 0 0 0.2rem rgba(91, 137, 159, 0.25);
+}
+
+
+
+.thickness-checkboxes {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.price-input-group {
+  margin-bottom: 15px;
+}
+
+
+.thickness-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 2px;
+  font-size: 0.85rem;
+}
+
+.thickness-badge strong {
+  color: #000000;
+}
+
+.edit-price-input-group {
+  margin-bottom: 15px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =====================================================
+   ESTILOS PARA PDF COM TRUNCAMENTO E LINHAS FIXAS
+   ===================================================== */
+
+/* ─── CONFIGURAÇÃO GERAL DO PDF ─── */
+#printableArea {
+  --pdf-dark: #2c3e50;
+  --pdf-mid: #5a6a7a;
+  --pdf-light: #8a9bb0;
+  --pdf-bg-row: #f4f6f8;
+  --pdf-bg-total: #2c3e50;
+
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  color: #2c3e50;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 0;
+  background: #fff;
+}
+
+/* ─── CLASSES PARA CONTROLE DE QUEBRA DE PÁGINA ─── */
+.pdf-page-break {
+  page-break-before: always;
+  break-before: page;
+}
+
+.pdf-avoid-break {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ─── SEÇÕES DE HEADER E FOOTER ─── */
+.pdf-page-header {
+  width: 100%;
+  background: #fff;
+  padding-bottom: 15px;
+}
+
+.pdf-page-footer {
+  width: 100%;
+  background: #fff;
+  padding-top: 15px;
+}
+
+/* ─── CONTEÚDO PRINCIPAL ─── */
+.pdf-content {
+  width: 100%;
+  background: #fff;
+}
+
+/* ─── CABEÇALHO ─── */
+#printableArea .pdf-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 15px;
+
+}
+
+#printableArea .pdf-header_1 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 15px;
+}
+
+/* Logo */
+#printableArea .pdf-header-logo {
+  flex: 0 0 230px;
+}
+
+#printableArea .pdf-header-logo img {
+  width: 230px;
+  height: auto;
+  display: block;
+}
+
+/* Empresa (centro) - COM TRUNCAMENTO */
+#printableArea .pdf-header-empresa {
+  flex: 1;
+  text-align: start;
+}
+
+#printableArea .pdf-header-empresa .empresa-nome {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  /* ✅ TRUNCAR SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+#printableArea .pdf-header-empresa p {
+  margin: 0;
+  font-size: 14px;
+  color: #000;
+  /* ✅ TRUNCAR SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Ref + Data (direita) */
+#printableArea .pdf-header-ref {
+  flex: 0 0 auto;
+  text-align: left;
+}
+
+#printableArea .pdf-header-ref table {
+  border-collapse: collapse;
+}
+
+#printableArea .pdf-header-ref td {
+  padding: 2px 0;
+  font-size: 14px;
+  vertical-align: middle;
+  /* ✅ TRUNCAR SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+#printableArea .pdf-header-ref .ref-label {
+  color: #000;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 10px;
+  text-align: left;
+}
+
+#printableArea .pdf-header-ref .ref-value {
+  color: #000;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* ─── SEPARADOR ─── */
+#printableArea .pdf-divider {
+  border: none;
+  border-top: 1px solid #000;
+  margin: 0 0 20px 0;
+}
+
+/* ─── CLIENTE - COM TRUNCAMENTO ─── */
+#printableArea .pdf-cliente {
+  margin-bottom: 22px;
+  padding: 14px 18px;
+  background: #f7f9fb;
+  border-left: 3px solid var(--pdf-dark);
+}
+
+#printableArea .pdf-cliente .cliente-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--pdf-light);
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+#printableArea .pdf-cliente .cliente-nome {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pdf-dark);
+  margin: 0;
+  /* ✅ TRUNCAR NOME DO CLIENTE SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ─── TABELA DE PRODUTOS - ALTURA FIXA E TRUNCAMENTO ─── */
+#printableArea .pdf-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+  table-layout: fixed; /* ✅ FORÇA LARGURAS FIXAS */
+}
+
+#printableArea .pdf-table thead th {
+  background: var(--pdf-dark);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 8px 6px;
+  text-align: center;
+  border: none;
+  white-space: nowrap;
+  /* ✅ ALTURA FIXA DO CABEÇALHO */
+  height: 28px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#printableArea .pdf-table tbody td {
+  font-size: 10.5px;
+  padding: 7px 6px;
+  text-align: center;
+  color: var(--pdf-dark);
+  border-bottom: 1px solid #e8ecef;
+  /* ✅ ALTURA FIXA DA LINHA */
+  height: 32px;
+  max-height: 32px;
+  line-height: 1.3;
+  /* ✅ TRUNCAR TEXTO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* ✅ NUNCA QUEBRAR LINHA */
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ✅ COLUNA DE DESCRIÇÃO - ALINHAMENTO À ESQUERDA MAS TRUNCADA */
+#printableArea .pdf-table tbody td.td-desc {
+  text-align: left;
+  padding-left: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px; /* Limite de largura para descrição */
+}
+
+#printableArea .pdf-table tbody tr:nth-child(even) {
+  background: var(--pdf-bg-row);
+}
+
+#printableArea .pdf-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ✅ GARANTIR QUE LINHAS NUNCA SEJAM CORTADAS */
+#printableArea .pdf-table tbody tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ─── TOTAIS ─── */
+#printableArea .pdf-totais {
+  display: flex;
+  justify-content: flex-end;
+}
+
+#printableArea .pdf-totais-table {
+  width: 260px;
+  border-collapse: collapse;
+  margin-bottom: 5px;
+}
+
+#printableArea .pdf-totais-table td {
+  font-size: 10.5px;
+  padding: 6px 12px;
+  /* ✅ TRUNCAR SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#printableArea .pdf-totais-table .tot-label {
+  text-align: right;
+  color: var(--pdf-mid);
+  font-weight: 500;
+}
+
+#printableArea .pdf-totais-table .tot-value {
+  text-align: right;
+  color: var(--pdf-dark);
+  font-weight: 600;
+  width: 150px;
+}
+
+#printableArea .pdf-totais-table .tot-sep td {
+  border-top: 1px solid var(--pdf-light);
+  padding-top: 10px;
+}
+
+#printableArea .pdf-totais-table .tot-total {
+  background: var(--pdf-bg-total);
+}
+
+#printableArea .pdf-totais-table .tot-total td {
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 8px 12px;
+}
+
+
+#printableArea .pdf-totais-table .tot-total .tot-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+#printableArea .pdf-totais-table .tot-total .tot-value {
+  color: #fff;
+}
+
+/* ─── SEÇÃO LEGAL ─── */
+#printableArea .pdf-divider-legal {
+  border: none;
+  border-top: 1px solid #000;
+  margin: 15px 0 15px 0;
+}
+
+#printableArea .pdf-legal-section {
+  margin-bottom: 20px;
+}
+
+#printableArea .pdf-legal-col {
+  flex: 1;
+  margin-bottom: 10px;
+}
+
+#printableArea .legal-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  /* ✅ TRUNCAR SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+#printableArea .legal-text {
+  font-size: 8px;
+  color: #000;
+  line-height: 1.6;
+  margin: 0 0 5px 0;
+  /* ✅ PERMITIR WRAP APENAS NO TEXTO LEGAL (É TEXTO CORRIDO) */
+  text-align: justify;
+}
+
+#printableArea .pdf-legal-terms .legal-title {
+  font-size: 9px;
+  margin-bottom: 2px;
+}
+
+#printableArea .pdf-legal-terms .legal-text {
+  margin-bottom: 5px;
+  text-align: justify;
+}
+
+#printableArea .pdf-legal-terms .legal-text strong {
+  color: #000;
+  font-weight: 600;
+}
+
+#printableArea .legal-disclaimer {
+  font-size: 9px;
+  font-style: italic;
+  color: #000;
+}
+
+/* ─── RODAPÉ ─── */
+#printableArea .pdf-footer {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding-top: 15px;
+}
+
+#printableArea .pdf-footer-logo {
+  flex: 0 0 80px;
+}
+
+#printableArea .pdf-footer-logo img {
+  width: 80px;
+  height: auto;
+  display: block;
+}
+
+#printableArea .pdf-footer-divider {
+  width: 0.5px;
+  height: 60px;
+  background-color: #bfbfbf;
+  flex-shrink: 0;
+}
+
+#printableArea .pdf-footer-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+#printableArea .footer-website {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 4px 0;
+  /* ✅ TRUNCAR SE MUITO LONGO */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#printableArea .footer-description {
+  font-size: 8.5px;
+  color: #000;
+  line-height: 1.4;
+  margin: 0;
+  /* ✅ PERMITIR WRAP APENAS NA DESCRIÇÃO DO FOOTER */
+}
+
+/* ─── RESPONSIVIDADE PARA IMPRESSÃO ─── */
+@media print {
+  #printableArea {
+    margin: 0;
+    padding: 0;
+  }
+
+  .pdf-page-header,
+  .pdf-page-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+  }
+
+  .pdf-page-header {
+    top: 0;
+  }
+
+  .pdf-page-footer {
+    bottom: 0;
+  }
+
+  .pdf-content {
+    margin-top: 180px;
+    margin-bottom: 200px;
+  }
+  
+  /* ✅ GARANTIR QUE LINHAS DA TABELA NUNCA SEJAM CORTADAS */
+  #printableArea .pdf-table tbody tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+
+
+
+
+
+
+/* ================= INPUT WITH CLEAR BUTTON ================= */
+.input-with-clear {
+  position: relative;
+  width: 100%;
+}
+
+.input-with-clear .input {
+  width: 100%;
+  padding-right: 40px !important; /* ✅ Espaço maior para o botão X */
+  /* ✅ Impedir que o texto ultrapasse o padding */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ✅ Para inputs de autocomplete especificamente */
+.input-with-clear .autocomplete-input {
+  width: 100%;
+  padding-right: 40px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-clear-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  font-size: 20px;
+  line-height: 1;
+  z-index: 10; /* ✅ Garantir que o botão fica sempre por cima */
+  pointer-events: auto; /* ✅ Garantir que o botão é clicável */
+}
+
+.input-clear-btn:hover {
+  color: #22333b;
+}
+
+.input-clear-btn:active {
+  color: #22333b;
+}
+
+.input-clear-btn.d-none {
+  display: none !important;
+}
+
+/* Garantir que o wrapper do autocomplete funcione corretamente */
+.autocomplete-wrapper {
+  position: relative;
+}
+
+.autocomplete-wrapper .input-with-clear {
+  position: relative;
+  width: 100%;
+}
+
+/* ✅ EXTRA: Se quiser ver reticências (...) quando o texto é muito longo */
+.coolinput .input:focus {
+  /* Quando está em foco, pode mostrar o texto completo se quiser */
+  /* overflow: visible; */
+  /* white-space: normal; */
+  /* Ou manter truncado: */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ================= AUTOCOMPLETE STYLES ================= */
+.autocomplete-wrapper {
+  position: relative;
+}
+
+.autocomplete-input {
+  width: 100%;
+  cursor: pointer;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #2e4752;
+  border-top: none;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.autocomplete-dropdown.show {
+  display: block;
+}
+
+.autocomplete-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.autocomplete-active {
+  background-color: #2e4752;
+  color: white;
+}
+
+.autocomplete-item.disabled {
+  cursor: not-allowed;
+  color: #6c757d;
+  font-style: italic;
+  background-color: #f8f9fa;
+}
+
+.autocomplete-item.disabled:hover {
+  background-color: #f8f9fa;
+  color: #6c757d;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: #2e4752;
+  border-radius: 4px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+/* Ícone visual no input para indicar que é clicável */
+.autocomplete-input:focus {
+  cursor: text;
+}
+
+
+
+
+
+
+/* ================= BOTÕES DE AÇÃO (EDITAR E ELIMINAR) - VERTICAIS ================= */
+.produto-row td:last-child {
+  vertical-align: middle;
+}
+
+.produto-row td:last-child .btn {
+  display: block;
+  margin-bottom: 5px;
+  width: 100%;
+}
+
+.produto-row td:last-child .btn:last-child {
+  margin-bottom: 0;
+  
+}
+
+/* ✅ DESTACAR PRODUTO EM EDIÇÃO - EXCETO COLUNA AÇÕES */
+.produto-row td {
+  transition: background-color 0.3s ease;
+}
+
+
+/* Quando produto está em edição */
+tr[style*="background-color: #fff3cd"] td:not(:last-child) {
+  background-color: #fff3cd !important;
+}
+
+tr[style*="background-color: #fff3cd"] td:last-child {
+  background-color: transparent !important;
+}
+
+/* Animação suave para botão quando muda de Adicionar para Atualizar */
+#btnAdicionarProdutoEdit {
+  transition: background-color 0.3s ease, transform 0.1s ease;
+}
+
+#btnAdicionarProdutoEdit:active {
+  transform: scale(0.98);
+}
+
+
+/* =====================================================
+   OVERRIDE DOS TOASTS BOOTSTRAP - ESTILO FLAT
+   Substitui as cores sólidas agressivas por:
+   - Fundo claro da cor
+   - Borda esquerda grossa mais escura
+   - Retângulo reto (sem border-radius)
+   - Texto escuro legível
+   ===================================================== */
+
+/* ── BASE ── */
+.toast {
+  border-radius: 0 !important;
+  border: none !important;
+  border-left: 4px solid transparent !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  min-width: 280px;
+}
+
+.toast .btn-close {
+  filter: none !important; /* remove o filtro branco do Bootstrap */
+  opacity: 0.5;
+}
+
+.toast .btn-close:hover {
+  opacity: 1;
+}
+
+/* ── INFO – azul ── */
+.toast.text-bg-info {
+  background-color: #dbeafe !important;
+  border-left-color: #3b82f6 !important;
+  color: #1e3a5f !important;
+}
+
+.toast.text-bg-info .btn-close {
+  filter: none !important;
+}
+
+/* ── WARNING – amarelo ── */
+.toast.text-bg-warning {
+  background-color: #fef9c3 !important;
+  border-left-color: #ca8a04 !important;
+  color: #713f12 !important;
+}
+
+.toast.text-bg-warning .btn-close {
+  filter: none !important;
+}
+
+/* ── DANGER – vermelho ── */
+.toast.text-bg-danger {
+  background-color: #fee2e2 !important;
+  border-left-color: #dc2626 !important;
+  color: #7f1d1d !important;
+}
+
+.toast.text-bg-danger .btn-close {
+  filter: none !important;
+}
+
+/* ── SUCCESS – verde ── */
+.toast.text-bg-success {
+  background-color: #dcfce7 !important;
+  border-left-color: #16a34a !important;
+  color: #14532d !important;
+}
+
+.toast.text-bg-success .btn-close {
+  filter: none !important;
+}
+
+/* ── Inputs da tabela duplicar ── */
+.dup-preco,
+.dup-desconto {
+  border-radius: 0 !important;
+  border: 1px solid #ced4da !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: border-color 0.15s ease;
+}
+
+.dup-preco:focus,
+.dup-desconto:focus {
+  border-color: #ced4da !important;
+  box-shadow: none !important;
+  outline: none !important;
+}

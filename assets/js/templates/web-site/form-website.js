@@ -16,13 +16,17 @@ window.initWebsiteForm = function () {
 
   const titleEnWrapper = document.getElementById("titleEnWrapper");
   const textsWrapper = document.getElementById("textsWrapper");
+  const pricesWrapper = document.getElementById("pricesWrapper");
+  const priceInputs = document.getElementById("priceInputs");
 
   const newBrandWrapper = document.getElementById("newBrandWrapper");
   const newBrandInput = document.getElementById("new_brand");
   const addNewBrandBtn = document.getElementById("addNewBrand");
 
+  const thicknessCheckboxes = document.querySelectorAll(".thickness-check");
+
   // =========================
-  // FUNÇÃO CARREGAR MARCAS
+  // CARREGAR MARCAS
   // =========================
   async function loadBrands() {
     try {
@@ -44,7 +48,7 @@ window.initWebsiteForm = function () {
 
       const novaOption = document.createElement("option");
       novaOption.value = "nova_marca";
-      novaOption.innerHTML = '<span style="color:black"></span>+ Adicionar nova marca';
+      novaOption.innerHTML = '<span style="color:black"></span>+ Adicionar Nova Marca';
       brand.appendChild(novaOption);
 
     } catch (err) {
@@ -73,7 +77,6 @@ window.initWebsiteForm = function () {
       textEn.value = "";
     }
 
-    // Mostrar input nova marca
     if (brand.value === "nova_marca") {
       newBrandWrapper.classList.remove("d-none");
     } else {
@@ -83,13 +86,54 @@ window.initWebsiteForm = function () {
   });
 
   // =========================
-  // TEXT PT -> TEXT EN AUTOMATICO
+  // TEXT PT -> TEXT EN
   // =========================
   textPt.addEventListener("change", () => {
     if (textPt.value === "Mármore") textEn.value = "Marble";
     else if (textPt.value === "Granito") textEn.value = "Granites";
     else textEn.value = "";
   });
+
+  // =========================
+  // ESPESSURAS - MOSTRAR PREÇOS
+  // =========================
+  thicknessCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener("change", updatePriceInputs);
+  });
+
+  function updatePriceInputs() {
+    const selectedThicknesses = Array.from(thicknessCheckboxes)
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+
+    if (selectedThicknesses.length === 0) {
+      pricesWrapper.classList.add("d-none");
+      priceInputs.innerHTML = "";
+      return;
+    }
+
+    pricesWrapper.classList.remove("d-none");
+    priceInputs.innerHTML = "";
+
+    selectedThicknesses.forEach(thickness => {
+      const div = document.createElement("div");
+      div.className = "coolinput col-2 price-input-group";
+      div.innerHTML = `
+        <label for="price_${thickness}" class="text">Preço ${thickness}mm (€/m²):</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          name="price_${thickness}"
+          id="price_${thickness}"
+          class="input price-input"
+          placeholder="Preço por m²"
+          required
+        />
+      `;
+      priceInputs.appendChild(div);
+    });
+  }
 
   // =========================
   // ADICIONAR NOVA MARCA
@@ -132,6 +176,42 @@ window.initWebsiteForm = function () {
     try {
       showMessage("⏳ A guardar ...", "info");
 
+      // Validar espessuras selecionadas
+      const selectedThicknesses = Array.from(thicknessCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+      if (selectedThicknesses.length === 0) {
+        throw new Error("Seleciona pelo menos uma espessura");
+      }
+
+      // Validar preços
+      const thicknessPrices = [];
+      for (const thickness of selectedThicknesses) {
+        const priceInput = document.getElementById(`price_${thickness}`);
+        const price = parseFloat(priceInput.value);
+        
+        if (!price || price <= 0) {
+          throw new Error(`Preço inválido para espessura ${thickness}mm`);
+        }
+        
+        thicknessPrices.push({ thickness: parseInt(thickness), price });
+      }
+
+      
+      const { data: existingProducts, error: checkError } = await supabase
+        .from("website")
+        .select("id, Title_pt, Brand")
+        .eq("Brand", brand.value)
+        .eq("Title_pt", titlePt.value.trim());
+
+      if (checkError) throw checkError;
+
+      if (existingProducts && existingProducts.length > 0) {
+        const brandName = brand.options[brand.selectedIndex].text;
+        throw new Error(`❌ Já existe um produto "${titlePt.value.trim()}" na marca "${brandName}". Por favor, escolha outro nome.`);
+      }
+
       const file = imageInput.files[0];
       if (!file) throw new Error("Imagem obrigatória");
 
@@ -154,28 +234,47 @@ window.initWebsiteForm = function () {
 
       const imageURL = publicData.publicUrl;
 
-      const { error } = await supabase
+      // Inserir produto
+      const { data: websiteData, error: websiteError } = await supabase
         .from("website")
         .insert([{
           ImageURL: imageURL,
-          Title_pt: titlePt.value,
-          Title_en: titleEn.value || null,
+          Title_pt: titlePt.value.trim(),
+          Title_en: titleEn.value.trim() || null,
           Text_pt: textPt.value || null,
           Text_en: textEn.value || null,
           Brand: brand.value
-        }]);
+        }])
+        .select();
 
-      if (error) throw error;
+      if (websiteError) throw websiteError;
 
-      showMessage("✅ Produto no Catálogo com sucesso!", "success");
+      const websiteItemId = websiteData[0].id;
+
+      // Inserir espessuras e preços
+      const thicknessInserts = thicknessPrices.map(tp => ({
+        website_item_id: websiteItemId,
+        thickness: tp.thickness,
+        price_per_m2: tp.price
+      }));
+
+      const { error: thicknessError } = await supabase
+        .from("product_thicknesses")
+        .insert(thicknessInserts);
+
+      if (thicknessError) throw thicknessError;
+
+      showMessage("✅ Produto adicionado com sucesso!", "success");
 
       form.reset();
       titleEnWrapper.classList.add("d-none");
       textsWrapper.classList.add("d-none");
       newBrandWrapper.classList.add("d-none");
+      pricesWrapper.classList.add("d-none");
+      priceInputs.innerHTML = "";
 
     } catch (err) {
-      showMessage("Erro: " + (err.message || err), "danger");
+      showMessage((err.message || err), "danger");
     }
   });
 };

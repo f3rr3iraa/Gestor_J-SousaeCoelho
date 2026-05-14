@@ -36,7 +36,7 @@ async function initFormSupabase() {
       // Opção para adicionar nova marca
       const novaOption = document.createElement("option");
       novaOption.value = "nova_marca";
-      novaOption.innerHTML = '<span style="color:black"></span>+ Adicionar nova marca';
+      novaOption.innerHTML = '<span style="color:black"></span>+ Adicionar Nova Marca';
       marcaSelect.appendChild(novaOption);
 
     } catch (err) {
@@ -201,7 +201,7 @@ function showMessage(message, type = "info") {
   `;
   container.appendChild(toast);
 
-  setTimeout(() => toast.remove(), 5000);
+  setTimeout(() => toast.remove(), 6000);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

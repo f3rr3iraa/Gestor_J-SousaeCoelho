@@ -1,0 +1,1232 @@
+// =====================================================
+// LIST-ORCAMENTO.JS - VERSÃO COMPLETA COM ESPESSURA AUTOCOMPLETE
+// ✅ Todos os campos com autocomplete (Tipo, Marca, Descrição, Espessura)
+// ✅ Botões Clear (×) em todos os inputs
+// ✅ Preenchimento automático do preço ao selecionar espessura
+// ✅ CORRIGIDO: Placeholders atualizados corretamente
+// =====================================================
+
+window.initOrcamentoList = async function () {
+  if (!window.supabaseClient) {
+    showMessage("❌ Supabase não inicializado", "danger");
+    return;
+  }
+
+  const supabase = window.supabaseClient;
+
+  // =====================================================
+  // CONFIG PAGINAÇÃO
+  // =====================================================
+  const pageKey = "list-orcamento";
+  const storageKey = `itemsPerPage_${pageKey}`;
+  const DEFAULT_ITEMS_PER_PAGE = 10;
+
+  // =====================================================
+  // ELEMENTOS DOM
+  // =====================================================
+  const tbody = document.getElementById("orcamentosTableBody");
+  const filtroReferencia = document.getElementById("filtroReferencia");
+  const filtroCliente = document.getElementById("filtroCliente");
+  const filtroProduto = document.getElementById("filtroProduto");
+  const btnLimpar = document.getElementById("btnLimparFiltros");
+  const itemsPerPageSelect = document.getElementById("itemsPerPage");
+  const prevPageBtn = document.getElementById("prevPage");
+  const nextPageBtn = document.getElementById("nextPage");
+  const pageIndicator = document.getElementById("pageIndicator");
+
+  const editOffcanvasEl = document.getElementById("editOffcanvas");
+  const editOffcanvas = new bootstrap.Offcanvas(editOffcanvasEl);
+  const orcamentoEditForm = document.getElementById("orcamentoEditForm");
+  const editOrcamentoId = document.getElementById("editOrcamentoId");
+  const editClienteNome = document.getElementById("editClienteNome");
+  const editProdutosTableBody = document.getElementById("editProdutosTableBody");
+  const editTotalGeral = document.getElementById("editTotalGeral");
+
+  // Campos do produto - AUTOCOMPLETE
+  const editProdutoTipo = document.getElementById("editProdutoTipo");
+  const editProdutoTipoId = document.getElementById("editProdutoTipoId");
+  const editTipoDropdown = document.getElementById("editTipoDropdown");
+  
+  const editProdutoBrand = document.getElementById("editProdutoBrand");
+  const editProdutoBrandKey = document.getElementById("editProdutoBrandKey");
+  const editBrandDropdown = document.getElementById("editBrandDropdown");
+  
+  const editProdutoDescricao = document.getElementById("editProdutoDescricao");
+  const editProdutoDescricaoId = document.getElementById("editProdutoDescricaoId");
+  const editDescricaoDropdown = document.getElementById("editDescricaoDropdown");
+  
+  const editProdutoEspessura = document.getElementById("editProdutoEspessura");
+  const editProdutoEspessuraValue = document.getElementById("editProdutoEspessuraValue");
+  const editEspessuraDropdown = document.getElementById("editEspessuraDropdown");
+  
+  // Botões Clear
+  const editClearTipo = document.getElementById("editClearTipo");
+  const editClearBrand = document.getElementById("editClearBrand");
+  const editClearDescricao = document.getElementById("editClearDescricao");
+  const editClearEspessura = document.getElementById("editClearEspessura");
+  
+  const editProdutoQuantidade = document.getElementById("editProdutoQuantidade");
+  const editProdutoComprimento = document.getElementById("editProdutoComprimento");
+  const editProdutoLargura = document.getElementById("editProdutoLargura");
+  const editProdutoMt2 = document.getElementById("editProdutoMt2");
+  const editProdutoPrecoMt2 = document.getElementById("editProdutoPrecoMt2");
+  const editProdutoDesconto = document.getElementById("editProdutoDesconto");
+  const editProdutoSubtotal = document.getElementById("editProdutoSubtotal");
+  const editProdutoTotal = document.getElementById("editProdutoTotal");
+  const btnAdicionarProdutoEdit = document.getElementById("btnAdicionarProdutoEdit");
+  const btnLimparFormularioEdit = document.getElementById("btnLimparFormularioEdit");
+
+  const btnVerPrecarioEdit = document.getElementById("btnVerPrecarioEdit");
+  const precarioModalEdit = document.getElementById("precarioModalEdit");
+  const precarioTituloEdit = document.getElementById("precarioTituloEdit");
+  const precarioTableBodyEdit = document.getElementById("precarioTableBodyEdit");
+  const btnFecharPrecarioEdit = document.getElementById("btnFecharPrecarioEdit");
+
+  // =====================================================
+  // ESTADO
+  // =====================================================
+  let currentPage = 1;
+  let itemsPerPage = parseInt(
+    localStorage.getItem(storageKey) || DEFAULT_ITEMS_PER_PAGE
+  );
+  itemsPerPageSelect.value = itemsPerPage;
+  let totalItems = 0;
+  let brandMap = {};
+  let tiposMap = {};
+  let currentOrcamento = null;
+  let produtosWebsite = [];
+  let precosPorProduto = {};
+  let produtosEdit = [];
+  let precarioEditAberto = false;
+  
+  // Dados para autocomplete
+  let tiposData = [];
+  let brandsData = [];
+  let produtosDaMarca = [];
+  let espessurasDisponiveis = [];
+
+  // =====================================================
+  // ✅ FUNÇÃO PARA MOSTRAR/ESCONDER BOTÃO CLEAR
+  // =====================================================
+  function toggleClearButton(input, clearBtn) {
+    if (!clearBtn) return;
+    
+    if (input.value.trim() !== "") {
+      clearBtn.classList.remove("d-none");
+    } else {
+      clearBtn.classList.add("d-none");
+    }
+  }
+
+  // =====================================================
+  // ✅ EVENTOS CLEAR - TIPO
+  // =====================================================
+  editProdutoTipo.addEventListener("input", () => {
+    toggleClearButton(editProdutoTipo, editClearTipo);
+  });
+
+  editClearTipo.addEventListener("click", (e) => {
+    e.stopPropagation();
+    editProdutoTipo.value = "";
+    editProdutoTipoId.value = "";
+    editClearTipo.classList.add("d-none");
+    editProdutoTipo.focus();
+  });
+
+  // =====================================================
+  // ✅ EVENTOS CLEAR - MARCA (CORRIGIDO)
+  // =====================================================
+  editProdutoBrand.addEventListener("input", () => {
+    toggleClearButton(editProdutoBrand, editClearBrand);
+  });
+
+  editClearBrand.addEventListener("click", (e) => {
+    e.stopPropagation();
+    editProdutoBrand.value = "";
+    editProdutoBrandKey.value = "";
+    editClearBrand.classList.add("d-none");
+    
+    // ✅ CORRIGIDO: Resetar campo Descrição
+    editProdutoDescricao.value = "";
+    editProdutoDescricaoId.value = "";
+    editProdutoDescricao.disabled = true;
+    editProdutoDescricao.placeholder = "Primeiro seleciona a marca...";
+    editClearDescricao.classList.add("d-none");
+    
+    // ✅ CORRIGIDO: Resetar campo Espessura
+    editProdutoEspessura.value = "";
+    editProdutoEspessuraValue.value = "";
+    editProdutoEspessura.disabled = true;
+    editProdutoEspessura.placeholder = "Primeiro seleciona a descrição...";
+    editClearEspessura.classList.add("d-none");
+    
+    resetCamposDependentes();
+    
+    editProdutoBrand.focus();
+  });
+
+  // =====================================================
+  // ✅ EVENTOS CLEAR - DESCRIÇÃO (CORRIGIDO)
+  // =====================================================
+  editProdutoDescricao.addEventListener("input", () => {
+    toggleClearButton(editProdutoDescricao, editClearDescricao);
+  });
+
+  editClearDescricao.addEventListener("click", (e) => {
+    e.stopPropagation();
+    editProdutoDescricao.value = "";
+    editProdutoDescricaoId.value = "";
+    editClearDescricao.classList.add("d-none");
+    
+    // ✅ CORRIGIDO: Atualizar placeholder da Espessura
+    editProdutoEspessura.value = "";
+    editProdutoEspessuraValue.value = "";
+    editProdutoEspessura.disabled = true;
+    editProdutoEspessura.placeholder = "Primeiro seleciona a descrição...";
+    editClearEspessura.classList.add("d-none");
+    
+    resetCamposDependentes();
+    editProdutoDescricao.focus();
+  });
+
+  // =====================================================
+  // ✅ EVENTOS CLEAR - ESPESSURA
+  // =====================================================
+  editProdutoEspessura.addEventListener("input", () => {
+    toggleClearButton(editProdutoEspessura, editClearEspessura);
+  });
+
+  editClearEspessura.addEventListener("click", (e) => {
+    e.stopPropagation();
+    editProdutoEspessura.value = "";
+    editProdutoEspessuraValue.value = "";
+    editClearEspessura.classList.add("d-none");
+    editProdutoPrecoMt2.value = "";
+    calcularValoresEdit();
+    editProdutoEspessura.focus();
+  });
+
+  // =====================================================
+  // ✅ CONTROLE GLOBAL DE DROPDOWNS
+  // =====================================================
+  let allDropdowns = [];
+  
+  function closeAllDropdowns() {
+    allDropdowns.forEach(dropdown => {
+      dropdown.classList.remove("show");
+      dropdown.innerHTML = "";
+    });
+  }
+
+  // =====================================================
+  // FUNÇÃO AUTOCOMPLETE GENÉRICA
+  // =====================================================
+  function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value) {
+    let currentFocus = -1;
+    
+    if (!allDropdowns.includes(dropdown)) {
+      allDropdowns.push(dropdown);
+    }
+    
+    const clearBtn = input.parentElement.querySelector('.input-clear-btn');
+    
+    function showOptions(filterValue = "") {
+      closeAllDropdowns();
+      
+      const filtered = filterValue 
+        ? data.filter(item => getDisplay(item).toLowerCase().includes(filterValue.toLowerCase()))
+        : data;
+      
+      if (filtered.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-item disabled">Nenhum resultado encontrado</div>';
+        dropdown.classList.add("show");
+        return;
+      }
+      
+      dropdown.innerHTML = "";
+      filtered.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className = "autocomplete-item";
+        div.textContent = getDisplay(item);
+        
+        div.addEventListener("click", function(e) {
+          e.stopPropagation();
+          input.value = getDisplay(item);
+          onSelect(item);
+          closeAllLists();
+          
+          if (clearBtn) {
+            clearBtn.classList.remove("d-none");
+          }
+        });
+        
+        dropdown.appendChild(div);
+      });
+      
+      dropdown.classList.add("show");
+      currentFocus = -1;
+    }
+    
+    input.addEventListener("click", function(e) {
+      e.stopPropagation();
+      showOptions(this.value.trim());
+    });
+    
+    input.addEventListener("focus", function(e) {
+      showOptions(this.value.trim());
+    });
+    
+    input.addEventListener("input", function() {
+      const val = this.value.trim();
+      showOptions(val);
+      
+      if (clearBtn) {
+        toggleClearButton(input, clearBtn);
+      }
+    });
+    
+    input.addEventListener("keydown", function(e) {
+      let items = dropdown.getElementsByClassName("autocomplete-item");
+      
+      if (e.keyCode === 40) {
+        e.preventDefault();
+        currentFocus++;
+        addActive(items);
+      } else if (e.keyCode === 38) {
+        e.preventDefault();
+        currentFocus--;
+        addActive(items);
+      } else if (e.keyCode === 13) {
+        e.preventDefault();
+        if (currentFocus > -1 && items[currentFocus]) {
+          items[currentFocus].click();
+        }
+      } else if (e.keyCode === 27) {
+        closeAllLists();
+      }
+    });
+    
+    function addActive(items) {
+      if (!items || items.length === 0) return;
+      removeActive(items);
+      
+      if (currentFocus >= items.length) currentFocus = 0;
+      if (currentFocus < 0) currentFocus = items.length - 1;
+      
+      items[currentFocus].classList.add("autocomplete-active");
+      items[currentFocus].scrollIntoView({ block: "nearest" });
+    }
+    
+    function removeActive(items) {
+      for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove("autocomplete-active");
+      }
+    }
+    
+    function closeAllLists() {
+      dropdown.classList.remove("show");
+      dropdown.innerHTML = "";
+      currentFocus = -1;
+    }
+    
+    document.addEventListener("click", function(e) {
+      if (e.target !== input && !dropdown.contains(e.target)) {
+        closeAllLists();
+      }
+    });
+  }
+
+  // =====================================================
+  // ✅ FUNÇÃO PARA VERIFICAR SE HÁ DADOS NO FORMULÁRIO
+  // =====================================================
+  function formularioTemDados() {
+    return editProdutoTipo.value.trim() !== "" ||
+           editProdutoBrand.value.trim() !== "" ||
+           editProdutoDescricao.value.trim() !== "" ||
+           editProdutoEspessura.value !== "" ||
+           parseFloat(editProdutoComprimento.value) > 0 ||
+           parseFloat(editProdutoLargura.value) > 0 ||
+           parseFloat(editProdutoPrecoMt2.value) > 0 ||
+           (parseFloat(editProdutoDesconto.value) > 0);
+  }
+
+  // =====================================================
+  // ✅ VERIFICAR FORMULÁRIO AO FECHAR OFFCANVAS
+  // =====================================================
+  editOffcanvasEl.addEventListener('hide.bs.offcanvas', function (e) {
+    if (formularioTemDados()) {
+      e.preventDefault();
+      e.stopPropagation();
+      showMessage("⚠️ Ainda tem dados no formulário de adicionar produto! Use o botão 'Limpar Formulário' ou adicione o produto antes de fechar.", "warning");
+      return false;
+    } else {
+      if (precarioEditAberto) {
+        fecharPrecarioEdit();
+      }
+    }
+  });
+
+  // =====================================================
+  // ✅ BOTÃO DE LIMPAR FORMULÁRIO
+  // =====================================================
+  btnLimparFormularioEdit.addEventListener("click", () => {
+    limparCamposProdutoEdit();
+    showMessage("🧹 Formulário limpo", "info");
+  });
+
+  // =====================================================
+  // FUNÇÕES DE CARREGAMENTO
+  // =====================================================
+  async function loadBrands() {
+    try {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("display_name, website_key")
+        .order("display_name", { ascending: true });
+      if (error) throw error;
+      
+      data.forEach(brand => {
+        brandMap[brand.website_key] = brand.display_name;
+      });
+      
+      brandsData = data.map(brand => ({
+        display: brand.display_name,
+        value: brand.website_key,
+        website_key: brand.website_key,
+        display_name: brand.display_name
+      }));
+      
+      setupAutocomplete(
+        editProdutoBrand,
+        editBrandDropdown,
+        brandsData,
+        async (item) => {
+          editProdutoBrandKey.value = item.website_key;
+          await carregarDescricoesDaMarca(item.website_key);
+        }
+      );
+      
+    } catch (err) {
+      console.error("Erro ao carregar brands:", err);
+    }
+  }
+
+  async function loadTipos() {
+    try {
+      const { data, error } = await supabase
+        .from("type_products")
+        .select("id, nome")
+        .order("nome", { ascending: true });
+      if (error) throw error;
+      
+      tiposMap = {};
+      data.forEach(tipo => {
+        tiposMap[tipo.id] = tipo.nome;
+      });
+      
+      tiposData = data.map(tipo => ({
+        display: tipo.nome,
+        value: tipo.id,
+        id: tipo.id,
+        nome: tipo.nome
+      }));
+      
+      setupAutocomplete(
+        editProdutoTipo,
+        editTipoDropdown,
+        tiposData,
+        (item) => {
+          editProdutoTipoId.value = item.id;
+        }
+      );
+      
+    } catch (err) {
+      console.error("Erro ao carregar tipos:", err);
+    }
+  }
+
+  async function loadProdutosWebsite() {
+    try {
+      const { data, error } = await supabase
+        .from("website")
+        .select("id, Brand, Title_pt");
+      if (error) throw error;
+      produtosWebsite = data || [];
+    } catch (err) {
+      console.error("Erro ao carregar produtos:", err);
+    }
+  }
+
+  // =====================================================
+  // ✅ CARREGAR DESCRIÇÕES DA MARCA SELECIONADA (CORRIGIDO)
+  // =====================================================
+  async function carregarDescricoesDaMarca(brandKey) {
+    editProdutoDescricao.value = "";
+    editProdutoDescricaoId.value = "";
+    editProdutoDescricao.disabled = false;
+    editProdutoDescricao.placeholder = "Seleciona a descrição..."; // ✅ CORRIGIDO
+    editClearDescricao.classList.add("d-none");
+    
+    // ✅ CORRIGIDO: Resetar Espessura
+    editProdutoEspessura.value = "";
+    editProdutoEspessuraValue.value = "";
+    editProdutoEspessura.disabled = true;
+    editProdutoEspessura.placeholder = "Primeiro seleciona a descrição...";
+    editClearEspessura.classList.add("d-none");
+    
+    resetCamposDependentes();
+
+    produtosDaMarca = produtosWebsite.filter(p => p.Brand === brandKey).map(p => ({
+      display: p.Title_pt,
+      value: p.id,
+      id: p.id,
+      title: p.Title_pt
+    }));
+
+    if (produtosDaMarca.length === 0) {
+      editProdutoDescricao.disabled = true;
+      editProdutoDescricao.placeholder = "Nenhum produto disponível para esta marca";
+      showMessage("⚠️ Nenhum produto disponível para esta marca", "warning");
+      return;
+    }
+
+    setupAutocomplete(
+      editProdutoDescricao,
+      editDescricaoDropdown,
+      produtosDaMarca,
+      async (item) => {
+        editProdutoDescricaoId.value = item.id;
+        await carregarEspessuras(item.id);
+      }
+    );
+  }
+
+  // =====================================================
+  // ✅ CARREGAR ESPESSURAS (AUTOCOMPLETE) (CORRIGIDO)
+  // =====================================================
+  async function carregarEspessuras(produtoId) {
+    editProdutoEspessura.value = "";
+    editProdutoEspessuraValue.value = "";
+    editProdutoEspessura.disabled = false;
+    editProdutoEspessura.placeholder = "Seleciona a espessura..."; // ✅ CORRIGIDO
+    editClearEspessura.classList.add("d-none");
+    editProdutoPrecoMt2.value = "";
+    btnVerPrecarioEdit.classList.add("d-none");
+    espessurasDisponiveis = [];
+    if (precarioEditAberto) {
+      fecharPrecarioEdit();
+    }
+
+    try {
+      const { data: thicknesses, error } = await supabase
+        .from("product_thicknesses")
+        .select("thickness, price_per_m2")
+        .eq("website_item_id", produtoId)
+        .order("thickness", { ascending: true });
+
+      if (error) throw error;
+
+      if (!thicknesses || thicknesses.length === 0) {
+        editProdutoEspessura.disabled = true;
+        editProdutoEspessura.placeholder = "Sem espessuras disponíveis";
+        showMessage("⚠️ Este produto não tem espessuras configuradas", "warning");
+        return;
+      }
+
+      // Armazenar preços
+      precosPorProduto[produtoId] = {};
+      thicknesses.forEach(t => {
+        precosPorProduto[produtoId][t.thickness] = t.price_per_m2;
+      });
+
+      // Preparar dados para autocomplete
+      espessurasDisponiveis = thicknesses.map(t => ({
+        display: `${t.thickness}mm`,
+        value: t.thickness,
+        thickness: t.thickness,
+        price: t.price_per_m2
+      }));
+
+      // Setup autocomplete para espessura
+      setupAutocomplete(
+        editProdutoEspessura,
+        editEspessuraDropdown,
+        espessurasDisponiveis,
+        (item) => {
+          editProdutoEspessuraValue.value = item.thickness;
+          // Não preencher o preço automaticamente - utilizador deve preencher manualmente
+          calcularValoresEdit();
+        }
+      );
+
+      btnVerPrecarioEdit.classList.remove("d-none");
+
+    } catch (err) {
+      console.error("Erro ao carregar espessuras:", err);
+      showMessage("Erro ao carregar espessuras: " + err.message, "danger");
+      editProdutoEspessura.disabled = true;
+    }
+  }
+
+  // =====================================================
+  // ✅ RESETAR CAMPOS DEPENDENTES
+  // =====================================================
+  function resetCamposDependentes() {
+    espessurasDisponiveis = [];
+    editProdutoPrecoMt2.value = "";
+    btnVerPrecarioEdit.classList.add("d-none");
+    if (precarioEditAberto) {
+      fecharPrecarioEdit();
+    }
+  }
+
+  // =====================================================
+  // ✅ VALIDAÇÃO DO CAMPO DESCONTO EDIT
+  // =====================================================
+  editProdutoDesconto.addEventListener("input", (e) => {
+    let valor = parseFloat(e.target.value);
+    
+    if (valor > 100) {
+      e.target.value = e.target.dataset.lastValid || "0";
+      return;
+    }
+    
+    if (valor < 0) {
+      e.target.value = "0";
+      e.target.dataset.lastValid = "0";
+      return;
+    }
+    
+    if (!isNaN(valor)) {
+      e.target.dataset.lastValid = e.target.value;
+    }
+    
+    calcularValoresEdit();
+  });
+
+  function calcularValoresEdit() {
+    const qtd = parseInt(editProdutoQuantidade.value) || 0;
+    const compM = parseFloat(editProdutoComprimento.value) || 0;
+    const largM = parseFloat(editProdutoLargura.value) || 0;
+    const precoMt2 = parseFloat(editProdutoPrecoMt2.value) || 0;
+    let desconto = parseFloat(editProdutoDesconto.value) || 0;
+    
+    if (desconto < 0) desconto = 0;
+    if (desconto > 100) desconto = 100;
+    
+    const mt2 = qtd * compM * largM;
+    editProdutoMt2.value = mt2 > 0 ? mt2.toFixed(4) : "";
+    
+    const fatorDesconto = 1 - (desconto / 100);
+    const subtotal = compM * largM * precoMt2 * fatorDesconto;
+    editProdutoSubtotal.value = subtotal > 0 ? subtotal.toFixed(2) : "0.00";
+    
+    const total = subtotal * qtd;
+    editProdutoTotal.value = total > 0 ? total.toFixed(2) : "0.00";
+  }
+
+  editProdutoQuantidade.addEventListener("input", calcularValoresEdit);
+  editProdutoComprimento.addEventListener("input", calcularValoresEdit);
+  editProdutoLargura.addEventListener("input", calcularValoresEdit);
+  editProdutoPrecoMt2.addEventListener("input", calcularValoresEdit);
+  editProdutoDesconto.addEventListener("focus", function() {
+    this.select();
+  });
+
+  btnVerPrecarioEdit.addEventListener("click", () => {
+    if (precarioEditAberto) {
+      fecharPrecarioEdit();
+    } else {
+      abrirPrecarioEdit();
+    }
+  });
+
+  btnFecharPrecarioEdit.addEventListener("click", () => {
+    fecharPrecarioEdit();
+  });
+
+  function abrirPrecarioEdit() {
+    const produtoId = editProdutoDescricaoId.value;
+    if (!produtoId || !precosPorProduto[produtoId]) {
+      showMessage("⚠️ Seleciona uma descrição primeiro", "warning");
+      return;
+    }
+    const descricaoTexto = editProdutoDescricao.value;
+    precarioTituloEdit.textContent = descricaoTexto;
+    precarioTableBodyEdit.innerHTML = "";
+    const precos = precosPorProduto[produtoId];
+    Object.keys(precos).sort((a, b) => a - b).forEach(thickness => {
+      const preco = precos[thickness];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${thickness}mm</strong></td>
+        <td class="text-end">${parseFloat(preco).toFixed(2)} €</td>
+      `;
+      precarioTableBodyEdit.appendChild(tr);
+    });
+    precarioModalEdit.classList.remove("d-none");
+    precarioEditAberto = true;
+    btnVerPrecarioEdit.innerHTML = '<i class="bi bi-x-circle me-2"></i>Fechar Preçário';
+    btnVerPrecarioEdit.style.backgroundColor = "#dc3545";
+  }
+
+  function fecharPrecarioEdit() {
+    precarioModalEdit.classList.add("closing");
+    setTimeout(() => {
+      precarioModalEdit.classList.add("d-none");
+      precarioModalEdit.classList.remove("closing");
+      precarioEditAberto = false;
+      btnVerPrecarioEdit.innerHTML = '<i class="bi bi-table me-2"></i>Tabela de Compra';
+      btnVerPrecarioEdit.style.backgroundColor = "#5b899f";
+    }, 300);
+  }
+
+  // =====================================================
+  // CONTINUAÇÃO DO CÓDIGO ORIGINAL
+  // =====================================================
+  
+  function resetAndLoad() {
+    currentPage = 1;
+    loadData();
+  }
+
+  function debounce(fn, delay) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  filtroReferencia.addEventListener("input", debounce(resetAndLoad, 400));
+  filtroCliente.addEventListener("input", debounce(resetAndLoad, 400));
+  filtroProduto.addEventListener("input", debounce(resetAndLoad, 400));
+
+  itemsPerPageSelect.addEventListener("change", () => {
+    itemsPerPage = parseInt(itemsPerPageSelect.value);
+    localStorage.setItem(storageKey, itemsPerPage);
+    resetAndLoad();
+  });
+
+  btnLimpar.addEventListener("click", () => {
+    filtroReferencia.value = "";
+    filtroCliente.value = "";
+    filtroProduto.value = "";
+    resetAndLoad();
+  });
+
+  prevPageBtn.addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      loadData();
+    }
+  });
+
+  nextPageBtn.addEventListener("click", () => {
+    const maxPage = Math.ceil(totalItems / itemsPerPage);
+    if (currentPage < maxPage) {
+      currentPage++;
+      loadData();
+    }
+  });
+
+  async function loadData() {
+    try {
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+      let query = supabase
+        .from("orcamentos")
+        .select("*", { count: "exact" })
+        .order("id", { ascending: false });
+      if (filtroReferencia.value) {
+        query = query.eq("id", parseInt(filtroReferencia.value) || 0);
+      }
+      if (filtroCliente.value) {
+        query = query.ilike("cliente_nome", `%${filtroCliente.value}%`);
+      }
+      const { data: allOrcamentos, error } = await query;
+      if (error) throw error;
+      let orcamentosComItens = await Promise.all(
+        (allOrcamentos || []).map(async (orcamento) => {
+          const { data: itens } = await supabase
+            .from("orcamento_itens")
+            .select("*")
+            .eq("orcamento_id", orcamento.id)
+            .order("id", { ascending: true });
+          return {
+            ...orcamento,
+            itens: itens || []
+          };
+        })
+      );
+      if (filtroProduto.value) {
+        const termoProduto = filtroProduto.value
+          .toLowerCase()
+          .replace(/-/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        orcamentosComItens = orcamentosComItens.filter(orc => {
+          return orc.itens.some(item => {
+            const brandName = brandMap[item.brand] || formatBrand(item.brand);
+            const descricaoCompleta = `${brandName} ${item.descricao}`
+              .toLowerCase()
+              .replace(/-/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            return descricaoCompleta.includes(termoProduto);
+          });
+        });
+      }
+      totalItems = orcamentosComItens.length;
+      const orcamentosPaginados = orcamentosComItens.slice(from, to + 1);
+      renderTable(orcamentosPaginados);
+      updatePagination();
+      setTimeout(() => {
+        tbody.style.opacity = "1";
+      }, 50);
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="8">Erro ao carregar dados</td></tr>`;
+      tbody.style.opacity = "1";
+      showMessage("❌ Erro: " + err.message, "danger");
+    }
+  }
+
+  function renderTable(orcamentos) {
+    if (!orcamentos.length) {
+      tbody.innerHTML = `<tr><td colspan="8">Nenhum orçamento encontrado</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = "";
+    orcamentos.forEach((orc) => {
+      const tr = document.createElement("tr");
+      tr.dataset.id = orc.id;
+      const data = new Date(orc.data_criacao);
+      const dataFormatada = data.toLocaleDateString("pt-PT");
+      let descricaoProdutos = "";
+      if (orc.itens && orc.itens.length > 0) {
+        descricaoProdutos = orc.itens
+          .map(item => {
+            const brandName = brandMap[item.brand] || formatBrand(item.brand);
+            return `<span class="produto-badge">${brandName} - ${item.descricao}</span>`;
+          })
+          .join(" ");
+      } else {
+        descricaoProdutos = '<span class="text-muted">Sem produtos</span>';
+      }
+      tr.innerHTML = `
+        <td><strong>${orc.id}</strong></td>
+        <td>${orc.cliente_nome}</td>
+        <td>
+          <div class="produto-descricao">
+            ${descricaoProdutos}
+          </div>
+        </td>
+        <td><strong>${parseFloat(orc.total_geral).toFixed(2)} €</strong></td>
+        <td>${dataFormatada}</td>
+        <td>
+          <button class="btn btn-sm btn-view" title="Ver Completo" data-id="${orc.id}">
+            <i class="bi bi-eye"></i> Ver
+          </button>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-outline-primary me-1" title="Editar" data-id="${orc.id}">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" title="Eliminar" data-id="${orc.id}">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updatePagination() {
+    const maxPage = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+    pageIndicator.textContent = `${currentPage} / ${maxPage}`;
+    prevPageBtn.disabled = currentPage === 1;
+    nextPageBtn.disabled = currentPage === maxPage;
+    prevPageBtn.parentElement.classList.toggle("disabled", currentPage === 1);
+    nextPageBtn.parentElement.classList.toggle("disabled", currentPage === maxPage);
+  }
+
+  tbody.addEventListener("click", async (e) => {
+    if (e.target.closest(".btn-view")) {
+      const orcamentoId = e.target.closest(".btn-view").dataset.id;
+      await mostrarOrcamentoCompleto(orcamentoId);
+    } else if (e.target.closest("button[title='Editar']")) {
+      const orcamentoId = e.target.closest("button[title='Editar']").dataset.id;
+      await abrirEdicaoOrcamento(orcamentoId);
+    }
+  });
+
+  async function mostrarOrcamentoCompleto(orcamentoId) {
+    try {
+      const { data: orcamento, error: orcError } = await supabase
+        .from("orcamentos")
+        .select("*")
+        .eq("id", orcamentoId)
+        .single();
+      if (orcError) throw orcError;
+      const { data: itens, error: itensError } = await supabase
+        .from("orcamento_itens")
+        .select("*")
+        .eq("orcamento_id", orcamentoId)
+        .order("id", { ascending: true });
+      if (itensError) throw itensError;
+      currentOrcamento = { ...orcamento, itens: itens || [] };
+      document.getElementById("viewRefPrint").textContent = `${orcamento.id}`;
+      document.getElementById("viewClientePrint").textContent = orcamento.cliente_nome;
+      const data = new Date(orcamento.data_criacao);
+      document.getElementById("viewDataPrint").textContent = 
+        data.toLocaleDateString("pt-PT") + " " + data.toLocaleTimeString("pt-PT", { hour: '2-digit', minute: '2-digit' });
+      const viewProdutosBodyPrint = document.getElementById("viewProdutosBodyPrint");
+      viewProdutosBodyPrint.innerHTML = "";
+      
+      let descontoTotal = 0;
+      if (itens && itens.length > 0) {
+        itens.forEach(item => {
+          const brandName = brandMap[item.brand] || formatBrand(item.brand);
+          const tipoNome = tiposMap[item.tipo_id] || `Tipo ${item.tipo_id}`;
+          const precoSemDesconto = item.quantidade * item.comprimento * item.largura * item.preco_mt2;
+          const descontoItem = Math.max(0, precoSemDesconto - item.total);
+          descontoTotal += descontoItem;
+          
+          let descontoFormatado;
+          if (item.desconto_percentagem && item.desconto_percentagem > 0) {
+            const valorDescontado = (item.quantidade * item.comprimento * item.largura * item.preco_mt2) - item.total;
+            descontoFormatado = `${item.desconto_percentagem.toFixed(2)}% <span style="font-size: 8px;">[${Math.max(0, valorDescontado).toFixed(2)} €]</span>`;
+          } else {
+            descontoFormatado = '0.00%';
+          }
+          
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${tipoNome}</td>
+            <td class="td-desc">${brandName} - ${item.descricao}</td>
+            <td>${item.quantidade}</td>
+            <td>${item.comprimento.toFixed(3)}</td>
+            <td>${item.largura.toFixed(3)}</td>
+            <td>${item.espessura}</td>
+            <td>${item.mt2.toFixed(4)}</td>
+            <td>${item.preco_mt2.toFixed(2)} €</td>
+            <td>${descontoFormatado}</td>
+            <td>${item.subtotal.toFixed(2)} €</td>
+            <td>${item.total.toFixed(2)} €</td>
+          `;
+          viewProdutosBodyPrint.appendChild(tr);
+        });
+      } else {
+        viewProdutosBodyPrint.innerHTML = `<tr><td colspan="11">Sem produtos</td></tr>`;
+      }
+      
+      const totalGeral = parseFloat(orcamento.total_geral);
+      const subtotalSemIVA = totalGeral / 1.23;
+      const valorIVA = totalGeral - subtotalSemIVA;
+      
+      document.getElementById("viewDescontoTotal").textContent = Math.max(0, descontoTotal).toFixed(2) + " €";
+      document.getElementById("viewSubtotalSemIVA").textContent = subtotalSemIVA.toFixed(2) + " €";
+      document.getElementById("viewValorIVA").textContent = valorIVA.toFixed(2) + " €";
+      document.getElementById("viewTotalGeralPrint").textContent = totalGeral.toFixed(2) + " €";
+      const viewOffcanvas = new bootstrap.Offcanvas(document.getElementById("viewOffcanvas"));
+      viewOffcanvas.show();
+    } catch (err) {
+      console.error("Erro ao carregar orçamento:", err);
+      showMessage("❌ Erro ao carregar orçamento: " + err.message, "danger");
+    }
+  }
+
+  async function abrirEdicaoOrcamento(orcamentoId) {
+    try {
+      const { data: orcamento, error: orcError } = await supabase
+        .from("orcamentos")
+        .select("*")
+        .eq("id", orcamentoId)
+        .single();
+      if (orcError) throw orcError;
+      const { data: itens, error: itensError } = await supabase
+        .from("orcamento_itens")
+        .select("*")
+        .eq("orcamento_id", orcamentoId)
+        .order("id", { ascending: true });
+      if (itensError) throw itensError;
+      editOrcamentoId.value = orcamento.id;
+      editClienteNome.value = orcamento.cliente_nome;
+      produtosEdit = (itens || []).map(item => {
+        return {
+          id: item.id,
+          tipo_id: item.tipo_id,
+          tipoNome: tiposMap[item.tipo_id] || `Tipo ${item.tipo_id}`,
+          brand: item.brand,
+          brandNome: brandMap[item.brand] || formatBrand(item.brand),
+          descricao: item.descricao,
+          quantidade: item.quantidade,
+          comprimento: item.comprimento,
+          largura: item.largura,
+          espessura: item.espessura,
+          mt2: item.mt2,
+          preco_mt2: item.preco_mt2,
+          desconto_percentagem: item.desconto_percentagem || 0,
+          subtotal: item.subtotal,
+          total: item.total,
+          isNew: false
+        };
+      });
+      renderEditProdutosTable();
+      limparCamposProdutoEdit();
+      editOffcanvas.show();
+    } catch (err) {
+      console.error("Erro ao carregar orçamento para edição:", err);
+      showMessage("❌ Erro ao carregar orçamento: " + err.message, "danger");
+    }
+  }
+
+  function renderEditProdutosTable() {
+    if (produtosEdit.length === 0) {
+      editProdutosTableBody.innerHTML = `
+        <tr>
+          <td colspan="13" class="text-muted" style="background-color: #eeeeef; border-color: #cbccce;">Nenhum produto adicionado</td>
+        </tr>
+      `;
+      editTotalGeral.textContent = "0.00 €";
+      return;
+    }
+    editProdutosTableBody.innerHTML = "";
+    let totalGeral = 0;
+    produtosEdit.forEach((produto, index) => {
+      totalGeral += produto.total;
+      const tr = document.createElement("tr");
+      tr.className = "produto-row";
+      if (produto.isNew) {
+        tr.classList.add("row-updated");
+      }
+      tr.innerHTML = `
+        <td>${produto.tipoNome}</td>
+        <td>${produto.brandNome}</td>
+        <td class="text-start">${produto.descricao}</td>
+        <td>${produto.quantidade}</td>
+        <td>${produto.comprimento.toFixed(3)}</td>
+        <td>${produto.largura.toFixed(3)}</td>
+        <td>${produto.espessura}mm</td>
+        <td>${produto.mt2.toFixed(4)}</td>
+        <td>${produto.preco_mt2.toFixed(2)} €</td>
+        <td>${produto.desconto_percentagem.toFixed(2)}%</td>
+        <td>${produto.subtotal.toFixed(2)} €</td>
+        <td>${produto.total.toFixed(2)} €</td>
+        <td>
+          <button type="button" class="btn-remove" data-index="${index}">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      editProdutosTableBody.appendChild(tr);
+    });
+    editTotalGeral.textContent = totalGeral.toFixed(2) + " €";
+  }
+
+  editProdutosTableBody.addEventListener("click", (e) => {
+    if (e.target.closest(".btn-remove")) {
+      const index = parseInt(e.target.closest(".btn-remove").dataset.index);
+      produtosEdit.splice(index, 1);
+      renderEditProdutosTable();
+      showMessage("🗑️ Produto removido", "info");
+    }
+  });
+
+  btnAdicionarProdutoEdit.addEventListener("click", () => {
+    if (!editProdutoTipoId.value) {
+      showMessage("⚠️ Seleciona o tipo", "warning");
+      return;
+    }
+    if (!editProdutoBrandKey.value) {
+      showMessage("⚠️ Seleciona a marca", "warning");
+      return;
+    }
+    if (!editProdutoDescricaoId.value) {
+      showMessage("⚠️ Seleciona a descrição", "warning");
+      return;
+    }
+    if (!editProdutoEspessuraValue.value) {
+      showMessage("⚠️ Seleciona a espessura", "warning");
+      return;
+    }
+    if (!editProdutoQuantidade.value || editProdutoQuantidade.value <= 0) {
+      showMessage("⚠️ Quantidade deve ser maior que zero", "warning");
+      return;
+    }
+    if (!editProdutoComprimento.value || editProdutoComprimento.value <= 0) {
+      showMessage("⚠️ Comprimento deve ser maior que zero", "warning");
+      return;
+    }
+    if (!editProdutoLargura.value || editProdutoLargura.value <= 0) {
+      showMessage("⚠️ Largura deve ser maior que zero", "warning");
+      return;
+    }
+    if (!editProdutoPrecoMt2.value || editProdutoPrecoMt2.value <= 0) {
+      showMessage("⚠️ Preço/m² deve ser maior que zero", "warning");
+      return;
+    }
+    const produto = {
+      id: null,
+      tipo_id: parseInt(editProdutoTipoId.value),
+      tipoNome: editProdutoTipo.value,
+      brand: editProdutoBrandKey.value,
+      brandNome: editProdutoBrand.value,
+      descricao: editProdutoDescricao.value,
+      quantidade: parseInt(editProdutoQuantidade.value),
+      comprimento: parseFloat(editProdutoComprimento.value),
+      largura: parseFloat(editProdutoLargura.value),
+      espessura: parseInt(editProdutoEspessuraValue.value),
+      mt2: parseFloat(editProdutoMt2.value),
+      preco_mt2: parseFloat(editProdutoPrecoMt2.value),
+      desconto_percentagem: parseFloat(editProdutoDesconto.value) || 0,
+      subtotal: parseFloat(editProdutoSubtotal.value),
+      total: parseFloat(editProdutoTotal.value),
+      isNew: true
+    };
+    produtosEdit.push(produto);
+    renderEditProdutosTable();
+    limparCamposProdutoEdit();
+  });
+
+  // =====================================================
+  // ✅ LIMPAR CAMPOS DO PRODUTO (CORRIGIDO)
+  // =====================================================
+  function limparCamposProdutoEdit() {
+    editProdutoTipo.value = "";
+    editProdutoTipoId.value = "";
+    editClearTipo.classList.add("d-none");
+    
+    editProdutoBrand.value = "";
+    editProdutoBrandKey.value = "";
+    editClearBrand.classList.add("d-none");
+    
+    editProdutoDescricao.value = "";
+    editProdutoDescricao.disabled = true;
+    editProdutoDescricao.placeholder = "Primeiro seleciona a marca..."; // ✅ CORRIGIDO
+    editProdutoDescricaoId.value = "";
+    editClearDescricao.classList.add("d-none");
+    
+    editProdutoEspessura.value = "";
+    editProdutoEspessura.disabled = true;
+    editProdutoEspessura.placeholder = "Primeiro seleciona a descrição..."; // ✅ CORRIGIDO
+    editProdutoEspessuraValue.value = "";
+    editClearEspessura.classList.add("d-none");
+    espessurasDisponiveis = [];
+    
+    editProdutoQuantidade.value = 1;
+    editProdutoComprimento.value = "";
+    editProdutoLargura.value = "";
+    editProdutoMt2.value = "";
+    editProdutoPrecoMt2.value = "";
+    editProdutoDesconto.value = "0";
+    editProdutoDesconto.dataset.lastValid = "0";
+    editProdutoSubtotal.value = "";
+    editProdutoTotal.value = "";
+    
+    btnVerPrecarioEdit.classList.add("d-none");
+    if (precarioEditAberto) {
+      fecharPrecarioEdit();
+    }
+  }
+
+  orcamentoEditForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!editClienteNome.value.trim()) {
+      showMessage("⚠️ Digite o nome do cliente", "warning");
+      editClienteNome.focus();
+      return;
+    }
+    if (produtosEdit.length === 0) {
+      showMessage("⚠️ Adicione pelo menos um produto ao orçamento", "warning");
+      return;
+    }
+    try {
+      showMessage("⏳ A guardar alterações...", "info");
+      const orcamentoId = parseInt(editOrcamentoId.value);
+      const totalGeral = produtosEdit.reduce((sum, p) => sum + p.total, 0);
+      const { error: updateError } = await supabase
+        .from("orcamentos")
+        .update({
+          cliente_nome: editClienteNome.value.trim(),
+          total_geral: totalGeral
+        })
+        .eq("id", orcamentoId);
+      if (updateError) throw updateError;
+      const { error: deleteError } = await supabase
+        .from("orcamento_itens")
+        .delete()
+        .eq("orcamento_id", orcamentoId);
+      if (deleteError) throw deleteError;
+      const itensParaInserir = produtosEdit.map(p => ({
+        orcamento_id: orcamentoId,
+        tipo_id: p.tipo_id,
+        brand: p.brand,
+        descricao: p.descricao,
+        quantidade: p.quantidade,
+        comprimento: p.comprimento,
+        largura: p.largura,
+        espessura: p.espessura,
+        preco_mt2: p.preco_mt2,
+        desconto_percentagem: p.desconto_percentagem
+      }));
+      const { error: insertError } = await supabase
+        .from("orcamento_itens")
+        .insert(itensParaInserir);
+      if (insertError) throw insertError;
+      showMessage("✅ Orçamento atualizado com sucesso!", "success");
+      editOffcanvas.hide();
+      loadData();
+    } catch (err) {
+      console.error("❌ Erro ao atualizar orçamento:", err);
+      showMessage("❌ Erro ao atualizar: " + (err.message || err), "danger");
+    }
+  });
+
+  // =====================================================
+  // ELIMINAR ORÇAMENTO
+  // =====================================================
+  let orcamentoToDelete = null;
+
+  tbody.addEventListener("click", (e) => {
+    if (e.target.closest("button[title='Eliminar']")) {
+      const orcamentoId = e.target.closest("button").dataset.id;
+      orcamentoToDelete = orcamentoId;
+      const deleteModal = new bootstrap.Modal(document.getElementById("deleteModal"));
+      deleteModal.show();
+    }
+  });
+
+  document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
+    if (!orcamentoToDelete) return;
+    try {
+      const { error } = await supabase
+        .from("orcamentos")
+        .delete()
+        .eq("id", orcamentoToDelete);
+      if (error) throw error;
+      showMessage("✅ Orçamento eliminado com sucesso", "success");
+      const deleteModal = bootstrap.Modal.getInstance(document.getElementById("deleteModal"));
+      deleteModal.hide();
+      loadData();
+    } catch (err) {
+      showMessage("❌ Erro ao eliminar: " + err.message, "danger");
+    } finally {
+      orcamentoToDelete = null;
+    }
+  });
+
+  function formatBrand(brand) {
+    return brand
+      .replaceAll("_", " ")
+      .replace("&", "&")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+  }
+
+  await loadBrands();
+  await loadTipos();
+  await loadProdutosWebsite();
+  loadData();
+
+  console.log("✅ Lista de Orçamentos - Versão Completa com Espessura Autocomplete e Placeholders Corrigidos");
+};

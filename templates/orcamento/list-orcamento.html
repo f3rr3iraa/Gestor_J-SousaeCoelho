@@ -1,0 +1,730 @@
+<!-- Mensagem de erro para mobile em retângulo -->
+<div class="content-error">
+    <div class="unsupported alert alert-danger text-center" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mb-2" style="font-size: 2.5rem;"></i>
+        <h4 class="mb-2">Oops!</h4>
+        <p>Esta aplicação não é compatível com dispositivos móveis. Por favor, aceda através de um computador.</p>
+    </div>
+</div>
+
+<h2 class="title-color">Lista de Orçamentos</h2>
+
+<!-- ================= FILTROS ================= -->
+<div id="filtrosContainer" class="container-fluid mb-3 px-0">
+  <div class="row g-2 align-items-end col-12">
+
+    <!-- REFERÊNCIA -->
+    <div class="col-2">
+      <div class="coolinput w-100">
+        <label for="filtroReferencia" class="text">Referência</label>
+        <input
+          type="text"
+          id="filtroReferencia"
+          class="input w-100"
+          placeholder="Pesquisar pelo Nº do orçamento..."
+        >
+      </div>
+    </div>
+
+    <!-- CLIENTE -->
+    <div class="col-3">
+      <div class="coolinput w-100">
+        <label for="filtroCliente" class="text">Cliente</label>
+        <input
+          type="text"
+          id="filtroCliente"
+          class="input w-100"
+          placeholder="Pesquisar pelo cliente..."
+        >
+      </div>
+    </div>
+
+    <!-- DESCRIÇÃO PRODUTO -->
+    <div class="col-3">
+      <div class="coolinput w-100">
+        <label for="filtroProduto" class="text">Descrição do Produto</label>
+        <input
+          type="text"
+          id="filtroProduto"
+          class="input w-100"
+          placeholder="Pesquisar pela descrição..."
+        >
+      </div>
+    </div>
+
+    <!-- LIMPAR -->
+    <div class="col-2">
+      <button id="btnLimparFiltros" class="btn-form">
+        Limpar Filtros
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= TABELA ================= -->
+<div class="table-responsive mt-3">
+  <table class="table table-striped table-bordered align-middle text-center">
+    <thead class="table-color">
+        <tr>
+            <th class="col-1 align-middle">Referência</th>
+            <th class="col-2 align-middle">Cliente</th>
+            <th class="col-5 align-middle">Descrição Produtos</th>
+            <th class="col-1 align-middle">Total (€)</th>
+            <th class="col-1 align-middle">Data</th>
+            <th class="col-1 align-middle">Detalhes</th>
+            <th class="col-1 align-middle">Ações</th>
+        </tr>
+    </thead>
+    <tbody id="orcamentosTableBody">
+      <tr>
+        <td colspan="8">A carregar dados...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ================= PAGINAÇÃO ================= -->
+<div class="d-flex justify-content-between align-items-center px-4 py-3 flex-wrap">
+  <!-- Filtro de quantidade -->
+  <div class="mb-2 mb-md-0">
+    <label for="itemsPerPage" class="me-2 fw-bold">Itens por página:</label>
+    <select id="itemsPerPage" class="form-select d-inline-block w-auto">
+      <option value="10" selected>10</option>
+      <option value="25">25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+  </div>
+
+  <!-- Paginação -->
+  <nav aria-label="Navegação de páginas" class="mb-2 mb-md-0">
+    <ul class="pagination mb-0" id="paginationControls">
+      <li class="page-item">
+        <button class="page-link" id="prevPage">
+          <i class="bi bi-caret-left-fill"></i>
+        </button>
+      </li>
+      <li class="page-item disabled">
+        <span class="page-link" id="pageIndicator">1 / 1</span>
+      </li>
+      <li class="page-item">
+        <button class="page-link" id="nextPage">
+          <i class="bi bi-caret-right-fill"></i>
+        </button>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+<!-- ================= MODAL ELIMINAR ================= -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        Tem a certeza que quer eliminar este orçamento?
+        <p class="text-muted mt-2 mb-0">Esta ação não pode ser revertida.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OFFCANVAS DUPLICAR ORÇAMENTO ================= -->
+<!-- ================= OFFCANVAS DUPLICAR ORÇAMENTO ================= -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="duplicateModal" aria-labelledby="duplicateModalLabel" style="width: 75vw; display: flex; flex-direction: column;">
+  <div class="offcanvas-header" style="flex-shrink: 0;">
+    <div>
+      <h5 class="offcanvas-title mb-0" id="duplicateModalLabel">
+        <i class="bi bi-copy me-2"></i>Duplicar Orçamento <span id="duplicateOrcRef"></span>
+      </h5>
+      <small id="duplicateClienteNome" style="color: var(--bs-secondary-color); font-size: 13px; padding-left: 0.60rem;"></small>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+  </div>
+
+  <div style="flex: 1; overflow-y: auto; padding: 1rem 1.25rem;">
+    <p class="text-muted mb-3">
+      Novo orçamento com as mesmas medidas. Pode alterar <strong>Marca</strong>, <strong>Descrição</strong>, <strong>Espessura</strong>, <strong>Preço/m²</strong> e <strong>Desconto</strong> por linha.
+    </p>
+
+    <div class="table-responsive" style="padding-bottom: 300px;">
+      <table class="table table-striped table-bordered align-middle text-center">
+        <thead class="table-color">
+          <tr>
+            <th style="width:6%">Tipo</th>
+            <th style="width:16%">Marca</th>
+            <th style="width:22%">Descrição</th>
+            <th style="width:10%">Espessura</th>
+            <th style="width:4%">Qt</th>
+            <th style="width:6%">Comp.</th>
+            <th style="width:6%">Larg.</th>
+            <th style="width:9%">Preço/m²</th>
+            <th style="width:7%">Desc. (%)</th>
+            <th style="width:9%">Total (€)</th>
+          </tr>
+        </thead>
+        <tbody id="duplicateItensBody"></tbody>
+      </table>
+    </div>
+
+    
+  </div>
+
+  <!-- Rodapé fixo no fundo -->
+  <div style="flex-shrink: 0; padding: 0.875rem 1.25rem;">
+    <div class="d-flex justify-content-end mb-3 me-1">
+      <strong>Total Geral: <span id="duplicateTotalGeral" class="ms-2">0.00 €</span></strong>
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+      
+      <button
+        type="button"
+        class="btn btn-secondary"
+        data-bs-dismiss="offcanvas"
+        style="height: 38px; padding: 0 20px; font-size: 14px; border-radius: 6px; line-height: 38px;">
+        Cancelar
+      </button>
+      <button
+        type="button"
+        id="confirmDuplicateBtn"
+        style="height: 38px; padding: 0 20px; font-size: 14px; border-radius: 6px; line-height: 38px; margin: 0; display: inline-flex; align-items: center; gap: 6px;"
+        class="btn-form">
+        <i class="bi bi-copy"></i>Confirmar Duplicação
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OFFCANVAS VER ORÇAMENTO COMPLETO ================= -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="viewOffcanvas" aria-labelledby="viewOffcanvasLabel" style="width: 55vw;">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="viewOffcanvasLabel">Orçamento Completo</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+  </div>
+  <div class="offcanvas-body">
+    
+    
+    <!-- Botão de Download -->
+    <div class="mt-2 mb-3 d-flex gap-2">
+      <button type="button" class="btn btn-success flex-fill" id="btnDownloadPDF">
+        <i class="bi bi-download me-2"></i> Download PDF
+      </button>
+
+      <button type="button" class="btn btn-primary flex-fill" id="btnPrintPDF">
+        <i class="bi bi-printer me-2"></i> Imprimir PDF
+      </button>
+    </div>
+
+    <!-- ===== ÁREA DO ORÇAMENTO (PDF) ===== -->
+    <div id="printableArea">
+
+      <!-- ===== CABEÇALHO (repetido em todas as páginas) ===== -->
+      <div class="pdf-page-header">
+        <div class="pdf-header">
+          <!-- Logo (esquerda) -->
+          <div class="pdf-header-logo">
+            <img src="assets/images/jsousacoelho_logo.png" alt="J Sousa &amp; Coelho">
+          </div>
+          
+          <!-- Cliente (direita do cabeçalho) -->
+          <div class="pdf-header-ref" style="white-space:normal;overflow:visible;height:auto;max-height:none;text-align:left;margin-right: 150px;">
+            <div id="viewClientePrint" style="line-height:1.5;white-space:normal;overflow:visible;word-break:break-word;"></div>
+          </div>
+          
+        </div>
+        <div class="pdf-header_1">
+          <!-- Empresa (centro) -->
+          <div class="pdf-header-empresa">
+            <div class="empresa-nome">J Sousa &amp; Coelho Lda</div>
+            <p>Rua da Indústria, nº 130</p>
+            <p>4595-355 Penamaior</p>
+            <p>Paços de Ferreira, Portugal</p>
+          </div>
+        </div>
+
+        <!-- Separador fino -->
+        <hr class="pdf-divider">
+      </div>
+
+      <!-- ===== CONTEÚDO PRINCIPAL ===== -->
+      <div class="pdf-content">
+        <!-- Orçamento nº + Data -->
+        <div class="pdf-cliente pdf-avoid-break" style="margin-bottom:6px; padding: 8px 12px;">
+          <div><span class="ref-label" style="font-weight:bold;">Orçamento nº </span><span class="ref-value" id="viewRefPrint" style="font-weight:bold;"></span></div>
+          <div style="margin-top:3px;"><span class="ref-label"><strong>Data: </strong></span><span class="ref-value" id="viewDataPrint"></span></div>
+        </div>
+
+        <!-- Tabela de Produtos -->
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th style="width:7%">Tipo</th>
+              <th style="width:26%">Marca – Descrição</th>
+              <th style="width:3%">Qt</th>
+              <th style="width:7%">Comp.</th>
+              <th style="width:7%">Larg.</th>
+              <th style="width:3%">Esp.</th>
+              <th style="width:8%">m²</th>
+              <th style="width:8%">Preço/m²</th>
+              <th style="width:10%">Desc.</th>
+              <th style="width:9%">Subtotal</th>
+              <th style="width:9%">Total</th>
+            </tr>
+          </thead>
+          <tbody id="viewProdutosBodyPrint">
+            <tr><td colspan="11">A Carregar...</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Totais -->
+        <div class="pdf-totais pdf-avoid-break">
+          <table class="pdf-totais-table">
+            <tr>
+              <td class="tot-label">Desconto Total</td>
+              <td class="tot-value" id="viewDescontoTotal">0.00 €</td>
+            </tr>
+            <tr>
+              <td class="tot-label">Subtotal (sem IVA)</td>
+              <td class="tot-value" id="viewSubtotalSemIVA">0.00 €</td>
+            </tr>
+            <tr>
+              <td class="tot-label">IVA (23%)</td>
+              <td class="tot-value" id="viewValorIVA">0.00 €</td>
+            </tr>
+            <tr class="tot-sep tot-total">
+              <td class="tot-label">TOTAL</td>
+              <td class="tot-value"><strong id="viewTotalGeralPrint">0.00 €</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== RODAPÉ (repetido em todas as páginas) ===== -->
+      <div class="pdf-page-footer">
+        <!-- Separador antes das informações legais -->
+        <hr class="pdf-divider-legal">
+
+        <!-- Informações Legais e Contratuais -->
+        <div class="pdf-legal-section">
+          <!-- Coluna Esquerda: NIF -->
+          <div class="pdf-legal-col">
+            <p class="legal-title">NIF – J. Sousa &amp; Coelho, Lda.</p>
+            <p class="legal-text">502 961 309</p>
+          </div>
+
+          <!-- Coluna Direita: Condições de Pagamento -->
+          <div class="pdf-legal-col">
+            <p class="legal-title">Condições de Pagamento</p>
+            <p class="legal-text">
+              Pagamento integral (100%) no ato do levantamento ou da entrega do produto.
+            </p>
+          </div>
+
+          <!-- Condições Contratuais -->
+          <div class="pdf-legal-terms">
+            <p class="legal-title">Condições Contratuais</p>
+
+            <p class="legal-text">
+              <strong>Reserva de Propriedade:</strong> Os bens descritos no presente documento
+              permanecerão propriedade da J. Sousa &amp; Coelho, Lda. até à liquidação integral
+              do montante constante da respetiva fatura.
+            </p>
+
+            <p class="legal-text">
+              <strong>Proteção de Dados:</strong> Os dados pessoais recolhidos, designadamente
+              nome, endereço de correio eletrónico, contacto telefónico e demais informações
+              facultadas pelo cliente, serão tratados de forma confidencial, em conformidade
+              com a legislação em vigor em matéria de proteção de dados pessoais.
+            </p>
+
+            <p class="legal-text">
+              <strong>Validade do Orçamento:</strong> O presente orçamento é válido por um
+              período de 90 (noventa) dias a contar da data de emissão. Findo este prazo,
+              os preços apresentados poderão ser revistos.
+            </p>
+
+            <p class="legal-text legal-disclaimer">
+              O presente documento contém informação confidencial e de carácter exclusivo
+              da J. Sousa &amp; Coelho, Lda., não podendo ser divulgado, reproduzido ou utilizado,
+              no todo ou em parte, por terceiros, sem autorização prévia e escrita da empresa.
+            </p>
+          </div>
+        </div>
+
+
+        <!-- Separador final -->
+        <hr class="pdf-divider-legal">
+
+        <!-- Rodapé com logo e informações da empresa -->
+        <div class="pdf-footer">
+          <div class="pdf-footer-logo">
+            <img src="assets/images/jsousacoelho_logo.png" alt="J Sousa & Coelho">
+          </div>
+          <div class="pdf-footer-divider"></div>
+          <div class="pdf-footer-info">
+            <p class="footer-website">www.jsousaecoelho.com/</p>
+            <p class="footer-description">Somos uma empresa especializada em mármores, granitos e cerâmicas,<br>oferecendo soluções de elevada qualidade para revestimentos e acabamentos.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- ===== FIM printableArea ===== -->
+
+    
+  </div>
+</div>
+
+<!-- ================= OFFCANVAS EDITAR ORÇAMENTO ================= -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="editOffcanvas" aria-labelledby="editOffcanvasLabel" style="width: 80vw;">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="editOffcanvasLabel">Editar Orçamento</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+  </div>
+  <div class="offcanvas-body">
+    
+    <form id="orcamentoEditForm" autocomplete="off">
+      <input type="hidden" id="editOrcamentoId">
+
+      <!-- ================= DADOS DO CLIENTE ================= -->
+      <fieldset>
+        <legend>Dados do Cliente</legend>
+        <div class="row">
+          <div class="coolinput col-6">
+            <label for="editClienteNome" class="text">Nome do Cliente:</label>
+            <input
+              type="text"
+              id="editClienteNome"
+              class="input"
+              placeholder="Nome completo do cliente"
+              required
+            />
+          </div>
+        </div>
+      </fieldset>
+
+      <br />
+
+      <!-- ================= PRODUTOS EXISTENTES ================= -->
+      <fieldset>
+        <legend>Produtos do Orçamento</legend>
+        
+        <div class="table-responsive">
+          <table class="table table-striped table-bordered align-middle text-center">
+            <thead class="table-color">
+              <tr>
+                <th style="width: 6%">Tipo</th>
+                <th style="width: 10%">Marca</th>
+                <th style="width: 14%">Descrição</th>
+                <th style="width: 5%">Qtd</th>
+                <th style="width: 6%">Comp. (m)</th>
+                <th style="width: 6%">Larg. (m)</th>
+                <th style="width: 6%">Esp. (mm)</th>
+                <th style="width: 6%">m²</th>
+                <th style="width: 8%">Preço/m²</th>
+                <th style="width: 6%">Desc. (%)</th>
+                <th style="width: 8%">Subtotal</th>
+                <th style="width: 8%">Total</th>
+                <th style="width: 5%">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="editProdutosTableBody">
+              <tr>
+                <td colspan="13" class="text-muted">A Carregar Produtos...</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="table-secondary fw-bold">
+                <td colspan="11" class="text-end">Preço Total:</td>
+                <td id="editTotalGeral">0.00 €</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </fieldset>
+
+      <br />
+
+      <!-- ================= ADICIONAR NOVO PRODUTO ================= -->
+      <fieldset>
+        <legend>Adicionar Novo Produto</legend>
+
+        <div class="row g-3 mb-3">
+          <!-- TIPO (autocomplete) -->
+          <div class="col-md-2">
+            <div class="coolinput autocomplete-wrapper">
+              <label for="editProdutoTipo" class="text">Tipo:</label>
+              <div class="input-with-clear">
+                <input
+                  type="text"
+                  id="editProdutoTipo"
+                  class="input autocomplete-input"
+                  placeholder="Seleciona o tipo..."
+                  autocomplete="off"
+                />
+                <button type="button" class="input-clear-btn d-none" id="editClearTipo">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+              <input type="hidden" id="editProdutoTipoId" />
+              <div id="editTipoDropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <!-- MARCA (autocomplete) -->
+          <div class="col-md-3">
+            <div class="coolinput autocomplete-wrapper">
+              <label for="editProdutoBrand" class="text">Marca:</label>
+              <div class="input-with-clear">
+                <input
+                  type="text"
+                  id="editProdutoBrand"
+                  class="input autocomplete-input"
+                  placeholder="Seleciona a marca..."
+                  autocomplete="off"
+                />
+                <button type="button" class="input-clear-btn d-none" id="editClearBrand">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+              <input type="hidden" id="editProdutoBrandKey" />
+              <div id="editBrandDropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <!-- DESCRIÇÃO (autocomplete) -->
+          <div class="col-md-4">
+            <div class="coolinput autocomplete-wrapper">
+              <label for="editProdutoDescricao" class="text">Descrição:</label>
+              <div class="input-with-clear">
+                <input
+                  type="text"
+                  id="editProdutoDescricao"
+                  class="input autocomplete-input"
+                  placeholder="Primeiro seleciona a marca..."
+                  autocomplete="off"
+                  disabled
+                />
+                <button type="button" class="input-clear-btn d-none" id="editClearDescricao">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+              <input type="hidden" id="editProdutoDescricaoId" />
+              <div id="editDescricaoDropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <!-- ESPESSURA -->
+          <div class="col-md-3">
+            <div class="coolinput autocomplete-wrapper">
+              <label for="editProdutoEspessura" class="text">Espessura (mm):</label>
+              <div class="input-with-clear">
+                <input
+                  type="text"
+                  id="editProdutoEspessura"
+                  class="input autocomplete-input"
+                  placeholder="Primeiro seleciona a descrição..."
+                  autocomplete="off"
+                  disabled
+                  readonly
+                />
+                <button type="button" class="input-clear-btn d-none" id="editClearEspessura">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+              <input type="hidden" id="editProdutoEspessuraValue" />
+              <div id="editEspessuraDropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <!-- QUANTIDADE -->
+          <div class="col-md-1">
+            <div class="coolinput">
+              <label for="editProdutoQuantidade" class="text">Quantidade:</label>
+              <input
+                type="number"
+                id="editProdutoQuantidade"
+                class="input"
+                min="1"
+                value="1"
+                step="1"
+              />
+            </div>
+          </div>
+
+          <!-- COMPRIMENTO -->
+          <div class="col-md-2">
+            <div class="coolinput">
+              <label for="editProdutoComprimento" class="text">Comprimento (m):</label>
+              <input
+                type="number"
+                id="editProdutoComprimento"
+                class="input"
+                min="0"
+                step="0.001"
+                placeholder="Comprimento..."
+              />
+            </div>
+          </div>
+
+          <!-- LARGURA -->
+          <div class="col-md-2">
+            <div class="coolinput">
+              <label for="editProdutoLargura" class="text">Largura (m):</label>
+              <input
+                type="number"
+                id="editProdutoLargura"
+                class="input"
+                min="0"
+                step="0.001"
+                placeholder="Largura..."
+              />
+            </div>
+          </div>
+
+          <!-- M² -->
+          <div class="col-md-1">
+            <div class="coolinput">
+              <label for="editProdutoMt2" class="text">m²:</label>
+              <input
+                type="text"
+                id="editProdutoMt2"
+                class="input"
+                readonly
+                placeholder="Auto"
+                style="background-color: #f0f0f0"
+              />
+            </div>
+          </div>
+
+          <!-- PREÇO M² -->
+          <div class="col-md-2">
+            <div class="coolinput">
+              <label for="editProdutoPrecoMt2" class="text">Preço/m² (€):</label>
+              <input
+                type="number"
+                id="editProdutoPrecoMt2"
+                class="input"
+                min="0"
+                step="0.01"
+                placeholder="Preço por m²..."
+              />
+            </div>
+          </div>
+
+          <!-- DESCONTO -->
+          <div class="col-md-1">
+            <div class="coolinput">
+              <label for="editProdutoDesconto" class="text">Desc. (%):</label>
+              <input
+                type="number"
+                id="editProdutoDesconto"
+                class="input"
+                min="0"
+                max="100"
+                step="0.01"
+                value="0"
+                placeholder="0%"
+              />
+            </div>
+          </div>
+
+          <!-- SUBTOTAL -->
+          <div class="col-md-2">
+            <div class="coolinput">
+              <label for="editProdutoSubtotal" class="text">Subtotal (€):</label>
+              <input
+                type="text"
+                id="editProdutoSubtotal"
+                class="input"
+                readonly
+                placeholder="Auto"
+                style="background-color: #f0f0f0"
+              />
+            </div>
+          </div>
+
+          <!-- TOTAL -->
+          <div class="col-md-1">
+            <div class="coolinput">
+              <label for="editProdutoTotal" class="text">Total (€):</label>
+              <input
+                type="text"
+                id="editProdutoTotal"
+                class="input"
+                readonly
+                placeholder="Auto"
+                style="background-color: #f0f0f0; font-weight: 600"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-3">
+          <button type="button" id="btnAdicionarProdutoEdit" class="btn-form">
+            <i class="bi bi-plus-square me-2"></i>Adicionar Produto
+          </button>
+          <button type="button" id="btnCancelarEdicaoEdit" class="btn-form d-none" style="background-color: #dc3545;">
+            <i class="bi bi-x-square me-2"></i>Cancelar Edição
+          </button>
+          <button type="button" id="btnLimparFormularioEdit" class="btn-form" style="background-color: #6c757d;">
+            <i class="bi bi-eraser me-2"></i>Limpar Formulário
+          </button>
+          <button type="button" id="btnVerPrecarioEdit" class="btn-price d-none">
+            <i class="bi bi-table me-2"></i> Tabela de Compra
+          </button>
+        </div>
+      </fieldset>
+
+      <br />
+
+      <!-- ================= AÇÕES ================= -->
+      <div class="form-actions justify-content-end">
+        <button type="button" class="btn-form" style="background-color: #dc3545;" data-bs-dismiss="offcanvas">
+          <i class="bi bi-x-square me-2"></i> Cancelar
+        </button>
+        <button type="submit" class="btn-form">
+          <i class="bi bi-save me-2"></i> Guardar Alterações
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= TABELA DE PREÇÁRIO FLUTUANTE (EDITOR) ================= -->
+<div id="precarioModalEdit" class="precario-modal d-none">
+  <div class="precario-content">
+    <div class="precario-header">
+      <h5>Preçário - <span id="precarioTituloEdit"></span></h5>
+      <button type="button" id="btnFecharPrecarioEdit" class="btn-close-precario">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="precario-body">
+      <table class="table table-sm table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>Espessura</th>
+            <th>Preço/m²</th>
+          </tr>
+        </thead>
+        <tbody id="precarioTableBodyEdit">
+          <tr>
+            <td colspan="2" class="text-center">A Carregar...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

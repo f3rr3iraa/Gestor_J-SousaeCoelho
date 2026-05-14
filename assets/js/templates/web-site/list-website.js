@@ -92,7 +92,7 @@ window.initWebsiteList = async function () {
   });
 
   // ================================
-  // LOAD DATA (apenas página atual)
+  // LOAD DATA COM ESPESSURAS
   // ================================
   async function loadData() {
     try {
@@ -120,15 +120,30 @@ window.initWebsiteList = async function () {
 
       totalItems = count || 0;
 
-      renderTable(data || []);
+      // Carregar espessuras para cada item
+      const itemsWithThickness = await Promise.all(
+        (data || []).map(async (item) => {
+          const { data: thicknesses } = await supabase
+            .from("product_thicknesses")
+            .select("thickness, price_per_m2")
+            .eq("website_item_id", item.id)
+            .order("thickness", { ascending: true });
+
+          return {
+            ...item,
+            thicknesses: thicknesses || [],
+          };
+        })
+      );
+
+      renderTable(itemsWithThickness);
       updatePagination();
 
-      // Fade in suave após renderizar
       setTimeout(() => {
         tbody.style.opacity = "1";
       }, 50);
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="7">Erro ao carregar dados</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8">Erro ao carregar dados</td></tr>`;
       tbody.style.opacity = "1";
       showMessage("❌ Erro: " + err.message, "danger");
     }
@@ -139,7 +154,6 @@ window.initWebsiteList = async function () {
   // ================================
   async function loadDataWithPageAdjust() {
     try {
-      // Primeiro verifica se a página atual ainda é válida
       const maxPage = Math.max(1, Math.ceil(totalItems / itemsPerPage));
       if (currentPage > maxPage && maxPage > 0) {
         currentPage = maxPage;
@@ -169,31 +183,46 @@ window.initWebsiteList = async function () {
 
       totalItems = count || 0;
 
-      // Se a página atual está vazia e não é a primeira página, volta uma página
       if (data.length === 0 && currentPage > 1) {
         currentPage--;
-        return loadDataWithPageAdjust(); // recursivamente carrega a página anterior
+        return loadDataWithPageAdjust();
       }
 
-      renderTable(data || []);
+      // Carregar espessuras
+      const itemsWithThickness = await Promise.all(
+        (data || []).map(async (item) => {
+          const { data: thicknesses } = await supabase
+            .from("product_thicknesses")
+            .select("thickness, price_per_m2")
+            .eq("website_item_id", item.id)
+            .order("thickness", { ascending: true });
+
+          return {
+            ...item,
+            thicknesses: thicknesses || [],
+          };
+        })
+      );
+
+      renderTable(itemsWithThickness);
       updatePagination();
 
       setTimeout(() => {
         tbody.style.opacity = "1";
       }, 50);
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="7">Erro ao carregar dados</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8">Erro ao carregar dados</td></tr>`;
       tbody.style.opacity = "1";
       showMessage("❌ Erro: " + err.message, "danger");
     }
   }
 
   // ================================
-  // RENDER TABLE
+  // RENDER TABLE COM ESPESSURAS
   // ================================
   function renderTable(items) {
     if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="7">Nenhum produto encontrado</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8">Nenhum produto encontrado</td></tr>`;
       return;
     }
 
@@ -208,6 +237,20 @@ window.initWebsiteList = async function () {
       tr.dataset.titleen = item.Title_en || "";
       tr.dataset.textpt = item.Text_pt || "";
       tr.dataset.texten = item.Text_en || "";
+      tr.dataset.thicknesses = JSON.stringify(item.thicknesses || []);
+
+      // Formatar espessuras e preços
+      let thicknessHtml = "";
+      if (item.thicknesses && item.thicknesses.length > 0) {
+        thicknessHtml = item.thicknesses
+          .map(
+            (t) =>
+              `<span class="thickness-badge">${t.thickness}mm: <strong>${parseFloat(t.price_per_m2).toFixed(2)}€</strong></span>`
+          )
+          .join(" ");
+      } else {
+        thicknessHtml = '<span class="text-muted"></span>';
+      }
 
       tr.innerHTML = `
         <td>
@@ -218,6 +261,7 @@ window.initWebsiteList = async function () {
         <td>${item.Title_en || ""}</td>
         <td>${item.Text_pt || ""}</td>
         <td>${item.Text_en || ""}</td>
+        <td style="font-size: 0.9rem;">${thicknessHtml}</td>
         <td>
           <button class="btn btn-sm btn-outline-primary me-1" title="Editar"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
@@ -269,6 +313,9 @@ window.initWebsiteList = async function () {
       try {
         const supabase = window.supabaseClient;
 
+        // Eliminar espessuras (CASCADE vai fazer isto automaticamente)
+        // mas podemos fazer explicitamente se necessário
+
         // Eliminar imagem do Storage
         if (itemToDelete.imageURL) {
           const url = new URL(itemToDelete.imageURL);
@@ -284,7 +331,7 @@ window.initWebsiteList = async function () {
             console.warn("Erro ao eliminar imagem:", storageError.message);
         }
 
-        // Eliminar do Supabase
+        // Eliminar do Supabase (CASCADE eliminará as espessuras)
         const { error } = await supabase
           .from("website")
           .delete()
@@ -298,7 +345,6 @@ window.initWebsiteList = async function () {
         const modal = bootstrap.Modal.getInstance(deleteModalEl);
         modal.hide();
 
-        // MUDANÇA: usa loadDataWithPageAdjust em vez de loadData
         loadDataWithPageAdjust();
       } catch (err) {
         showMessage("❌ Erro ao eliminar: " + err.message, "danger");
@@ -322,6 +368,9 @@ window.initWebsiteList = async function () {
   const websiteEditTextEn = document.getElementById("websiteEditTextEn");
   const websiteEditFotoAtual = document.getElementById("websiteEditFotoAtual");
   const websiteFotoPreview = document.getElementById("websiteFotoPreview");
+  const editPricesWrapper = document.getElementById("editPricesWrapper");
+  const editPriceInputs = document.getElementById("editPriceInputs");
+  const editThicknessCheckboxes = document.querySelectorAll(".edit-thickness-check");
 
   // Tradução automática Texto PT -> EN
   websiteEditTextPt.addEventListener("input", () => {
@@ -335,13 +384,67 @@ window.initWebsiteList = async function () {
     }
   });
 
-  // Abrir offcanvas
-  document.getElementById("websiteItemsBody").addEventListener("click", (e) => {
+  // ================================
+  // ESPESSURAS - ATUALIZAR INPUTS DE PREÇOS (EDIT)
+  // ================================
+  editThicknessCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener("change", updateEditPriceInputs);
+  });
+
+  function updateEditPriceInputs() {
+    const selectedThicknesses = Array.from(editThicknessCheckboxes)
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+
+    if (selectedThicknesses.length === 0) {
+      editPricesWrapper.classList.add("d-none");
+      editPriceInputs.innerHTML = "";
+      return;
+    }
+
+    editPricesWrapper.classList.remove("d-none");
+    
+    // Preservar valores existentes
+    const currentPrices = {};
+    editPriceInputs.querySelectorAll('.edit-price-input').forEach(input => {
+      const thickness = input.dataset.thickness;
+      currentPrices[thickness] = input.value;
+    });
+
+    editPriceInputs.innerHTML = "";
+
+    selectedThicknesses.forEach(thickness => {
+      const div = document.createElement("div");
+      div.className = "coolinput col-4 edit-price-input-group";
+      div.innerHTML = `
+        <label for="edit_price_${thickness}" class="text">Preço ${thickness}mm (€/m²):</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          name="edit_price_${thickness}"
+          id="edit_price_${thickness}"
+          class="input edit-price-input"
+          data-thickness="${thickness}"
+          placeholder="Preço por m²"
+          value="${currentPrices[thickness] || ''}"
+          required
+        />
+      `;
+      editPriceInputs.appendChild(div);
+    });
+  }
+
+  // ================================
+  // ABRIR OFFCANVAS DE EDIÇÃO
+  // ================================
+  document.getElementById("websiteItemsBody").addEventListener("click", async (e) => {
     if (e.target.closest("button[title='Editar']")) {
       const tr = e.target.closest("tr");
       const brand = tr.dataset.brand || "";
+      const itemId = tr.dataset.id;
 
-      websiteEditId.value = tr.dataset.id;
+      websiteEditId.value = itemId;
       websiteEditMarca.value = brand;
       websiteEditTitlePt.value = tr.dataset.titlept;
       websiteEditTitleEn.value = tr.dataset.titleen;
@@ -349,7 +452,6 @@ window.initWebsiteList = async function () {
       websiteEditTextEn.value = tr.dataset.texten;
       websiteEditFotoAtual.value = tr.dataset.imageurl;
 
-      // **Reset do input de arquivo**
       const websiteEditFoto = document.getElementById("websiteEditFoto");
       websiteEditFoto.value = null;
       websiteFotoPreview.src = tr.dataset.imageurl || "";
@@ -366,6 +468,45 @@ window.initWebsiteList = async function () {
         .getElementById("wrapperTextEn")
         .classList.toggle("d-none", !isMarbles);
 
+      // Carregar espessuras existentes
+      try {
+        const { data: thicknesses, error } = await supabase
+          .from("product_thicknesses")
+          .select("thickness, price_per_m2")
+          .eq("website_item_id", itemId);
+
+        if (error) throw error;
+
+        // Limpar checkboxes
+        editThicknessCheckboxes.forEach(cb => cb.checked = false);
+
+        // Marcar checkboxes e preencher preços
+        if (thicknesses && thicknesses.length > 0) {
+          thicknesses.forEach(t => {
+            const checkbox = document.querySelector(`.edit-thickness-check[value="${t.thickness}"]`);
+            if (checkbox) {
+              checkbox.checked = true;
+            }
+          });
+
+          updateEditPriceInputs();
+
+          // Preencher preços
+          thicknesses.forEach(t => {
+            const priceInput = document.getElementById(`edit_price_${t.thickness}`);
+            if (priceInput) {
+              priceInput.value = parseFloat(t.price_per_m2).toFixed(2);
+            }
+          });
+        } else {
+          editPricesWrapper.classList.add("d-none");
+          editPriceInputs.innerHTML = "";
+        }
+
+      } catch (err) {
+        console.error("Erro ao carregar espessuras:", err);
+      }
+
       editOffcanvas.show();
     }
   });
@@ -381,7 +522,6 @@ window.initWebsiteList = async function () {
 
       if (error) throw error;
 
-      // Guardar o filtro atual antes de limpar
       const currentFilter = filtroBrand.value;
 
       filtroBrand.innerHTML = `<option value="">Todas</option>`;
@@ -401,7 +541,6 @@ window.initWebsiteList = async function () {
         websiteEditMarca.appendChild(optEdit);
       });
 
-      // Restaurar o filtro
       if (currentFilter) {
         filtroBrand.value = currentFilter;
       }
@@ -412,11 +551,10 @@ window.initWebsiteList = async function () {
 
   async function reloadWebsite() {
     await loadBrandsDropdowns();
-    // Não muda a página atual, só recarrega os dados
     await loadDataWithPageAdjust();
   }
 
-  // Preview da imagem ao escolher arquivo
+  // Preview da imagem
   document.getElementById("websiteEditFoto").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -446,7 +584,9 @@ window.initWebsiteList = async function () {
     }
   });
 
-  // Submit do formulário
+  // ================================
+  // SUBMIT FORMULÁRIO DE EDIÇÃO
+  // ================================
   websiteEditForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
@@ -454,8 +594,49 @@ window.initWebsiteList = async function () {
       const id = websiteEditId.value;
       let imageURL = websiteEditFotoAtual.value;
 
+      // Validar espessuras
+      const selectedThicknesses = Array.from(editThicknessCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+      if (selectedThicknesses.length === 0) {
+        throw new Error("Seleciona pelo menos uma espessura");
+      }
+
+      // Validar preços
+      const thicknessPrices = [];
+      for (const thickness of selectedThicknesses) {
+        const priceInput = document.getElementById(`edit_price_${thickness}`);
+        const price = parseFloat(priceInput.value);
+        
+        if (!price || price <= 0) {
+          throw new Error(`Preço inválido para espessura ${thickness}mm`);
+        }
+        
+        thicknessPrices.push({ thickness: parseInt(thickness), price });
+      }
+
+
+      
+      const { data: existingProducts, error: checkError } = await supabase
+        .from("website")
+        .select("id, Title_pt, Brand")
+        .eq("Brand", websiteEditMarca.value)
+        .eq("Title_pt", websiteEditTitlePt.value.trim())
+        .neq("id", id); // ⭐ Exclui o próprio produto que está sendo editado
+
+      if (checkError) throw checkError;
+
+      if (existingProducts && existingProducts.length > 0) {
+        const brandName = websiteEditMarca.options[websiteEditMarca.selectedIndex].text;
+        throw new Error(`❌ Já existe outro produto "${websiteEditTitlePt.value.trim()}" na marca "${brandName}". Por favor, escolha outro nome.`);
+      }
+
+      // Upload de nova imagem se necessário
       const file = document.getElementById("websiteEditFoto").files[0];
       if (file) {
+        showMessage("📸 A carregar imagem...", "info");
+        
         if (websiteEditFotoAtual.value) {
           try {
             const oldUrl = new URL(websiteEditFotoAtual.value);
@@ -469,10 +650,7 @@ window.initWebsiteList = async function () {
               .remove([oldPath]);
 
             if (deleteError) {
-              console.warn(
-                "Aviso ao eliminar foto antiga:",
-                deleteError.message,
-              );
+              console.warn("Aviso ao eliminar foto antiga:", deleteError.message);
             }
           } catch (urlError) {
             console.warn("Erro ao processar URL da foto antiga:", urlError);
@@ -494,11 +672,12 @@ window.initWebsiteList = async function () {
 
       const isMarbles = websiteEditMarca.value === "marbles_&_granites";
 
+      // Atualizar produto
       const updateData = {
         Brand: websiteEditMarca.value,
-        Title_pt: websiteEditTitlePt.value,
+        Title_pt: websiteEditTitlePt.value.trim(),
         ImageURL: imageURL,
-        Title_en: isMarbles ? websiteEditTitleEn.value : null,
+        Title_en: isMarbles ? websiteEditTitleEn.value.trim() : null,
         Text_pt: isMarbles ? websiteEditTextPt.value : null,
         Text_en: isMarbles ? websiteEditTextEn.value : null,
       };
@@ -510,12 +689,32 @@ window.initWebsiteList = async function () {
 
       if (error) throw error;
 
+      // Eliminar espessuras antigas
+      const { error: deleteThicknessError } = await supabase
+        .from("product_thicknesses")
+        .delete()
+        .eq("website_item_id", id);
+
+      if (deleteThicknessError) throw deleteThicknessError;
+
+      // Inserir novas espessuras
+      const thicknessInserts = thicknessPrices.map(tp => ({
+        website_item_id: parseInt(id),
+        thickness: tp.thickness,
+        price_per_m2: tp.price
+      }));
+
+      const { error: thicknessError } = await supabase
+        .from("product_thicknesses")
+        .insert(thicknessInserts);
+
+      if (thicknessError) throw thicknessError;
+
       showMessage("✅ Produto atualizado com sucesso!", "success");
       editOffcanvas.hide();
-      // MUDANÇA: usa loadDataWithPageAdjust em vez de loadData
       loadDataWithPageAdjust();
     } catch (err) {
-      showMessage("❌ Erro ao atualizar: " + err.message, "danger");
+      showMessage(err.message, "danger");
     }
   });
 
@@ -547,7 +746,7 @@ window.initWebsiteList = async function () {
   }
 
   // ================================
-  // CLEANUP (quando sair da página)
+  // CLEANUP
   // ================================
   window.addEventListener("beforeunload", () => {
     if (cleanupRealtime) cleanupRealtime();

@@ -39,6 +39,29 @@ const routes = {
     title: "our-reservations",
     description: "List Our Reservations Page",
   },
+  "/form-orcamento": {
+    template: "/templates/orcamento/form-orcamento.html",
+    title: "our-reservations",
+    description: "List Our Reservations Page",
+  },
+  "/list-orcamento": {
+    template: "/templates/orcamento/list-orcamento.html",
+    title: "our-reservations",
+    description: "List Our Reservations Page",
+  },
+  "/form-cliente": {
+    template: "/templates/clientes/form-cliente.html",
+    title: "our-reservations",
+    description: "List Our Reservations Page",
+  },
+  "/list-cliente": {
+    template: "/templates/clientes/list-cliente.html",
+    title: "our-reservations",
+    description: "List Our Reservations Page",
+  },
+  
+  
+
 };
 
 const route = (event) => {
@@ -99,6 +122,13 @@ const locationHandler = async () => {
   if (window.initFormSupabase && location === "/form-chapas-e-sobras") initFormSupabase();
   if (window.initWebsiteForm && location === "/form-website") initWebsiteForm();
   if (window.initWebsiteList && location === "/list-website") initWebsiteList();
+
+  if (window.initOrcamentoForm && location === "/form-orcamento") initOrcamentoForm();
+  if (window.initOrcamentoList && location === "/list-orcamento") initOrcamentoList(); 
+
+
+  if (window.initClienteForm && location === "/form-cliente") initClienteForm();
+  if (window.initClienteList && location === "/list-cliente") initClienteList();
 
   if (
     window.initHomeSpaceSupabase &&
