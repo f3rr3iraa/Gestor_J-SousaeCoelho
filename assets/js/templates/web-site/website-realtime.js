@@ -1,27 +1,22 @@
-// ================================
-// REALTIME WEBSITE
-// ================================
 window.initWebsiteRealtime = function (reloadCallback) {
-  if (!window.supabaseClient) {
-    return null;
-  }
+  if (!window.supabaseClient) return null;
 
   const supabase = window.supabaseClient;
 
-  // ================================
-  // SUBSCRIÇÃO AO CANAL REALTIME
-  // ================================
+  // Remove canal anterior se já existir
+  const existingChannel = supabase.getChannels().find(
+    (ch) => ch.topic === 'realtime:website-changes'
+  );
+  if (existingChannel) {
+    supabase.removeChannel(existingChannel);
+  }
+
   const channel = supabase
     .channel('website-changes')
     .on(
       'postgres_changes',
-      {
-        event: '*', // INSERT, UPDATE, DELETE
-        schema: 'public',
-        table: 'website'
-      },
+      { event: '*', schema: 'public', table: 'website' },
       (payload) => {
-        // Recarregar dados
         if (typeof reloadCallback === 'function') {
           reloadCallback();
         }
@@ -29,9 +24,6 @@ window.initWebsiteRealtime = function (reloadCallback) {
     )
     .subscribe();
 
-  // ================================
-  // RETORNAR FUNÇÃO DE CLEANUP
-  // ================================
   return () => {
     supabase.removeChannel(channel);
   };
