@@ -15,6 +15,16 @@ window.initOrcamentoList = async function () {
 
   const supabase = window.supabaseClient;
 
+  let cleanupRealtime = null;
+
+  if (typeof window.initOrcamentoRealtime === 'function') {
+    cleanupRealtime = window.initOrcamentoRealtime(loadData);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (cleanupRealtime) cleanupRealtime();
+  });
+
   // =====================================================
   // CONFIG PAGINAÇÃO
   // =====================================================

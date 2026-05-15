@@ -1682,6 +1682,9 @@ tr[style*="background-color: #fff3cd"] td:last-child {
    - Retângulo reto (sem border-radius)
    - Texto escuro legível
    ===================================================== */
+#toast-container {
+  bottom: 70px !important;
+}
 
 /* ── BASE ── */
 .toast {

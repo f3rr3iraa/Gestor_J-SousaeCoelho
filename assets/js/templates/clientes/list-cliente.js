@@ -10,6 +10,15 @@ window.initClienteList = async function () {
 
   const supabase = window.supabaseClient;
 
+  let cleanupRealtime = null;
+  if (typeof window.initClienteRealtime === 'function') {
+    cleanupRealtime = window.initClienteRealtime(loadData);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (cleanupRealtime) cleanupRealtime();
+  });
+
   // =====================================================
   // CONFIG PAGINAÇÃO
   // =====================================================

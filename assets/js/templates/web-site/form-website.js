@@ -212,33 +212,36 @@ window.initWebsiteForm = function () {
         throw new Error(`❌ Já existe um produto "${titlePt.value.trim()}" na marca "${brandName}". Por favor, escolha outro nome.`);
       }
 
+      // Imagem é opcional — só faz upload se existir ficheiro
       const file = imageInput.files[0];
-      if (!file) throw new Error("Imagem obrigatória");
+      let imageURL = null;
 
-      showMessage("📸 A carregar imagem...", "info");
-      const fileName = `${Date.now()}-${file.name}`;
+      if (file) {
+        showMessage("📸 A carregar imagem...", "info");
+        const fileName = `${Date.now()}-${file.name}`;
 
-      const { error: uploadError } = await supabase
-        .storage
-        .from("imagens-website")
-        .upload(fileName, file);
+        const { error: uploadError } = await supabase
+          .storage
+          .from("imagens-website")
+          .upload(fileName, file);
 
-      if (uploadError) throw new Error(uploadError.message);
+        if (uploadError) throw new Error(uploadError.message);
 
-      const { data: publicData, error: publicError } = supabase
-        .storage
-        .from("imagens-website")
-        .getPublicUrl(fileName);
+        const { data: publicData, error: publicError } = supabase
+          .storage
+          .from("imagens-website")
+          .getPublicUrl(fileName);
 
-      if (publicError) throw new Error(publicError.message);
+        if (publicError) throw new Error(publicError.message);
 
-      const imageURL = publicData.publicUrl;
+        imageURL = publicData.publicUrl;
+      }
 
       // Inserir produto
       const { data: websiteData, error: websiteError } = await supabase
         .from("website")
         .insert([{
-          ImageURL: imageURL,
+          ImageURL: imageURL || null,
           Title_pt: titlePt.value.trim(),
           Title_en: titleEn.value.trim() || null,
           Text_pt: textPt.value || null,
