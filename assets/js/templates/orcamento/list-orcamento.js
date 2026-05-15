@@ -17,13 +17,17 @@ window.initOrcamentoList = async function () {
 
   let cleanupRealtime = null;
 
+try {
   if (typeof window.initOrcamentoRealtime === 'function') {
     cleanupRealtime = window.initOrcamentoRealtime(loadData);
   }
+} catch (err) {
+  console.warn("⚠️ Realtime não iniciado:", err);
+}
 
-  window.addEventListener('beforeunload', () => {
-    if (cleanupRealtime) cleanupRealtime();
-  });
+window.addEventListener('beforeunload', () => {
+  if (cleanupRealtime) cleanupRealtime();
+});
 
   // =====================================================
   // CONFIG PAGINAÇÃO
@@ -93,6 +97,8 @@ window.initOrcamentoList = async function () {
   const precarioTituloEdit = document.getElementById("precarioTituloEdit");
   const precarioTableBodyEdit = document.getElementById("precarioTableBodyEdit");
   const btnFecharPrecarioEdit = document.getElementById("btnFecharPrecarioEdit");
+
+  const editProdutoAcabamento = document.getElementById("editProdutoAcabamento");
 
   // =====================================================
   // ESTADO
@@ -582,65 +588,136 @@ editProdutoLargura.addEventListener("input", function() {
   // =====================================================
   // ✅ CARREGAR ESPESSURAS (AUTOCOMPLETE)
   // =====================================================
-  async function carregarEspessuras(produtoId) {
-    editProdutoEspessura.value = "";
-    editProdutoEspessuraValue.value = "";
-    editProdutoEspessura.disabled = false;
-    editProdutoEspessura.placeholder = "Seleciona a espessura...";
-    editClearEspessura.classList.add("d-none");
-    editProdutoPrecoMt2.value = "";
-    btnVerPrecarioEdit.classList.add("d-none");
-    espessurasDisponiveis = [];
-    if (precarioEditAberto) {
-      fecharPrecarioEdit();
-    }
+async function carregarEspessuras(produtoId) {
+  // Reset de campos
+  editProdutoAcabamento.value = "";
+  editProdutoAcabamento.disabled = true;
+  editProdutoEspessura.value = "";
+  editProdutoEspessuraValue.value = "";
+  editProdutoEspessura.disabled = false;
+  editProdutoEspessura.placeholder = "Seleciona a espessura...";
+  
+  editProdutoPrecoMt2.value = "";
+  btnVerPrecarioEdit.classList.add("d-none");
+  
+  espessurasDisponiveis = [];
 
-    try {
-      const { data: thicknesses, error } = await supabase
-        .from("product_thicknesses")
-        .select("thickness, price_per_m2")
-        .eq("website_item_id", produtoId)
-        .order("thickness", { ascending: true });
+  try {
+    const { data: thicknesses, error } = await supabase
+      .from("product_thicknesses")
+      .select("thickness, price_per_m2, type")
+      .eq("website_item_id", produtoId)
+      .order("thickness", { ascending: true });
 
-      if (error) throw error;
+    if (error) throw error;
 
-      if (!thicknesses || thicknesses.length === 0) {
-        editProdutoEspessura.disabled = true;
-        editProdutoEspessura.placeholder = "Sem espessuras disponíveis";
-        showMessage("⚠️ Este produto não tem espessuras configuradas", "warning");
-        return;
-      }
-
-      precosPorProduto[produtoId] = {};
-      thicknesses.forEach(t => {
-        precosPorProduto[produtoId][t.thickness] = t.price_per_m2;
-      });
-
-      espessurasDisponiveis = thicknesses.map(t => ({
-        display: `${t.thickness}mm`,
-        value: t.thickness,
-        thickness: t.thickness,
-        price: t.price_per_m2
-      }));
-
-      setupAutocomplete(
-        editProdutoEspessura,
-        editEspessuraDropdown,
-        espessurasDisponiveis,
-        (item) => {
-          editProdutoEspessuraValue.value = item.thickness;
-          calcularValoresEdit();
-        }
-      );
-
-      btnVerPrecarioEdit.classList.remove("d-none");
-
-    } catch (err) {
-      console.error("Erro ao carregar espessuras:", err);
-      showMessage("Erro ao carregar espessuras: " + err.message, "danger");
+    if (!thicknesses || thicknesses.length === 0) {
       editProdutoEspessura.disabled = true;
+      return;
     }
+
+    // Guardamos todos os dados para filtrar os acabamentos depois
+    window.dadosDestaEspessura = thicknesses;
+
+    // Criar lista de espessuras únicas para o primeiro dropdown
+    const espessurasUnicas = [...new Set(thicknesses.map(t => t.thickness))];
+    
+    const listaParaAutocomplete = espessurasUnicas.map(e => ({
+      display: `${e}mm`,
+      value: e
+    }));
+
+    setupAutocomplete(
+      editProdutoEspessura,
+      editEspessuraDropdown,
+      listaParaAutocomplete,
+      (item) => {
+        editProdutoEspessuraValue.value = item.value;
+        // Ao selecionar a espessura, carregamos os acabamentos
+        prepararAcabamentos(item.value);
+      }
+    );
+
+    btnVerPrecarioEdit.classList.remove("d-none");
+  } catch (err) {
+    console.error("Erro:", err);
   }
+}
+
+// Variável no topo do scope (junto às outras declarações de estado)
+let acabamentoListenerController = null;
+
+function prepararAcabamentos(espessuraSelecionada) {
+  const acabamentosParaEstaEspessura = window.dadosDestaEspessura.filter(
+    t => t.thickness == espessuraSelecionada
+  );
+
+  const ddAcabamento = document.getElementById("editAcabamentoDropdown");
+  const clearBtn = document.getElementById("editClearAcabamento");
+
+  // ─── Cancelar listeners anteriores ───
+  if (acabamentoListenerController) {
+    acabamentoListenerController.abort();
+  }
+  acabamentoListenerController = new AbortController();
+  const signal = acabamentoListenerController.signal;
+
+  // Reset visual
+  editProdutoAcabamento.value = "";
+  editProdutoAcabamento.disabled = false;
+  editProdutoAcabamento.readOnly = true;
+  editProdutoAcabamento.style.cursor = "pointer";
+  editProdutoAcabamento.placeholder = "Selecione o acabamento...";
+  if (clearBtn) clearBtn.classList.add("d-none");
+  ddAcabamento.classList.remove("show");
+  ddAcabamento.innerHTML = "";
+
+  const listaAcabamentos = acabamentosParaEstaEspessura.map(a => ({
+    display: a.type,
+    value: a.type,
+    price: a.price_per_m2
+  }));
+
+  function abrirDropdown(e) {
+    e.stopPropagation();
+    closeAllDropdowns();
+    ddAcabamento.innerHTML = "";
+
+    listaAcabamentos.forEach(a => {
+      const div = document.createElement("div");
+      div.className = "autocomplete-item";
+      div.textContent = a.display;
+      div.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        editProdutoAcabamento.value = a.display;
+        if (clearBtn) clearBtn.classList.remove("d-none");
+        calcularValoresEdit();
+        ddAcabamento.classList.remove("show");
+        ddAcabamento.innerHTML = "";
+      });
+      ddAcabamento.appendChild(div);
+    });
+
+    ddAcabamento.classList.add("show");
+  }
+
+  editProdutoAcabamento.addEventListener("click", abrirDropdown, { signal });
+  editProdutoAcabamento.addEventListener("focus", abrirDropdown, { signal });
+  editProdutoAcabamento.addEventListener("blur", () => {
+    setTimeout(() => {
+      ddAcabamento.classList.remove("show");
+      ddAcabamento.innerHTML = "";
+    }, 150);
+  }, { signal });
+
+  // Se só há um acabamento, seleccionar automaticamente
+  if (listaAcabamentos.length === 1) {
+    editProdutoAcabamento.value = listaAcabamentos[0].display;
+    if (clearBtn) clearBtn.classList.remove("d-none");
+    calcularValoresEdit();
+  }
+}
 
   // =====================================================
   // ✅ RESETAR CAMPOS DEPENDENTES
@@ -664,6 +741,7 @@ editProdutoLargura.addEventListener("input", function() {
   const colEspessura = editProdutoEspessura.closest(".col-md-3");
   const colComprimento = editProdutoComprimento.closest(".col-md-2");
   const colLargura = editProdutoLargura.closest(".col-md-2");
+const colAcabamento = editProdutoAcabamento.closest(".col-md-2");
 
   if (ativo) {
     editProdutoDescricao.disabled = false;
@@ -674,6 +752,9 @@ editProdutoLargura.addEventListener("input", function() {
     if (colEspessura) colEspessura.classList.add("d-none");
     if (colComprimento) colComprimento.classList.add("d-none");
     if (colLargura) colLargura.classList.add("d-none");
+if (colAcabamento) colAcabamento.classList.add("d-none");
+editProdutoAcabamento.value = "";
+editProdutoAcabamento.disabled = true;
 
     editProdutoBrand.value = "";
     editProdutoBrandKey.value = "diversos";
@@ -689,6 +770,8 @@ editProdutoLargura.addEventListener("input", function() {
     if (colEspessura) colEspessura.classList.remove("d-none");
     if (colComprimento) colComprimento.classList.remove("d-none");
     if (colLargura) colLargura.classList.remove("d-none");
+if (colAcabamento) colAcabamento.classList.remove("d-none");
+
 
 
     editProdutoBrand.disabled = false;
@@ -785,29 +868,42 @@ editProdutoLargura.addEventListener("input", function() {
   });
 
   function abrirPrecarioEdit() {
-    const produtoId = editProdutoDescricaoId.value;
-    if (!produtoId || !precosPorProduto[produtoId]) {
-      showMessage("⚠️ Seleciona uma descrição primeiro", "warning");
-      return;
-    }
-    const descricaoTexto = editProdutoDescricao.value;
-    precarioTituloEdit.textContent = descricaoTexto;
-    precarioTableBodyEdit.innerHTML = "";
-    const precos = precosPorProduto[produtoId];
-    Object.keys(precos).sort((a, b) => a - b).forEach(thickness => {
-      const preco = precos[thickness];
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${thickness}mm</strong></td>
-        <td class="text-end">${parseFloat(preco).toFixed(2)} €</td>
-      `;
-      precarioTableBodyEdit.appendChild(tr);
-    });
-    precarioModalEdit.classList.remove("d-none");
-    precarioEditAberto = true;
-    btnVerPrecarioEdit.innerHTML = '<i class="bi bi-x-circle me-2"></i>Fechar Preçário';
-    btnVerPrecarioEdit.style.backgroundColor = "#dc3545";
+  const produtoId = editProdutoDescricaoId.value;
+  
+  if (!produtoId || !window.dadosDestaEspessura || window.dadosDestaEspessura.length === 0) {
+    showMessage("⚠️ Seleciona uma descrição primeiro", "warning");
+    return;
   }
+
+  const descricaoTexto = editProdutoDescricao.value;
+  precarioTituloEdit.textContent = descricaoTexto;
+  precarioTableBodyEdit.innerHTML = "";
+
+  // Agrupar por espessura
+  const agrupado = {};
+  window.dadosDestaEspessura.forEach(t => {
+    if (!agrupado[t.thickness]) agrupado[t.thickness] = [];
+    agrupado[t.thickness].push({ type: t.type, price: t.price_per_m2 });
+  });
+
+  Object.keys(agrupado)
+    .sort((a, b) => a - b)
+    .forEach(thickness => {
+      agrupado[thickness].forEach(item => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${thickness}mm</strong> ${item.type ? `${item.type}` : ""}</td>
+          <td class="text-end">${parseFloat(item.price).toFixed(2)} €</td>
+        `;
+        precarioTableBodyEdit.appendChild(tr);
+      });
+    });
+
+  precarioModalEdit.classList.remove("d-none");
+  precarioEditAberto = true;
+  btnVerPrecarioEdit.innerHTML = '<i class="bi bi-x-circle me-2"></i>Fechar Preçário';
+  btnVerPrecarioEdit.style.backgroundColor = "#dc3545";
+}
 
   function fecharPrecarioEdit() {
     precarioModalEdit.classList.add("closing");
@@ -960,7 +1056,8 @@ editProdutoLargura.addEventListener("input", function() {
       return `<span class="produto-badge">${item.descricao}</span>`;
     }
     const brandName = brandMap[item.brand] || formatBrand(item.brand);
-    return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}</span>`;
+   const acabamento = item.type ? ` ${item.type}` : "";
+return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${acabamento}</span>`;
   })
   .join(" ");
       } else {
@@ -1089,7 +1186,9 @@ if (cliente) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td>${tipoNome}</td>
-    <td>${isDiversos ? item.descricao : brandName + " - " + item.descricao}</td>
+    <td>${isDiversos ? item.descricao : brandName + " - " + item.descricao + (item.type ? " " + item.type : "")}</td>
+
+
     <td>${item.quantidade}</td>
     <td>${isDiversos ? "" : item.comprimento.toFixed(4)}</td>
     <td>${isDiversos ? "" : item.largura.toFixed(4)}</td>
@@ -1157,6 +1256,7 @@ if (cliente) {
         desconto_percentagem: item.desconto_percentagem || 0,
         subtotal: item.subtotal,
         total: item.total,
+        type: item.type || null,
         isNew: false
       };
     });
@@ -1232,7 +1332,9 @@ if (cliente) {
       tr.innerHTML = `
         <td>${produto.tipoNome}</td>  
         <td>${produto.isDiversos ? "" : produto.brandNome}</td>
-        <td>${produto.descricao}</td>
+       <td>${produto.descricao}${produto.type ? ` ${produto.type}` : ""}</td>
+
+
         <td>${produto.quantidade}</td>
         <td>${produto.isDiversos ? "" : produto.comprimento.toFixed(4)}</td>
         <td>${produto.isDiversos ? "" : produto.largura.toFixed(4)}</td>
@@ -1322,18 +1424,32 @@ if (isDiversos) {
   editProdutoDescricaoId.value = "";
   toggleClearButton(editProdutoDescricao, editClearDescricao);
 
+
   const produtoWebsite = produtosWebsite.find(p =>
-    p.Brand === produto.brand && p.Title_pt === produto.descricao
-  );
+  p.Brand === produto.brand && p.Title_pt === produto.descricao
+);
 
-  if (produtoWebsite) {
-    editProdutoDescricaoId.value = produtoWebsite.id;
-    await carregarEspessuras(produtoWebsite.id);
-  }
+if (produtoWebsite) {
+  editProdutoDescricaoId.value = produtoWebsite.id;
+  await carregarEspessuras(produtoWebsite.id);
+}
 
-  editProdutoEspessura.value = `${produto.espessura}mm`;
-  editProdutoEspessuraValue.value = produto.espessura;
-  toggleClearButton(editProdutoEspessura, editClearEspessura);
+editProdutoEspessura.value = `${produto.espessura}mm`;
+editProdutoEspessuraValue.value = produto.espessura;
+toggleClearButton(editProdutoEspessura, editClearEspessura);
+
+// ─── Chamar prepararAcabamentos com a espessura do produto ───
+prepararAcabamentos(produto.espessura);
+
+// ─── Preencher acabamento APÓS prepararAcabamentos ───
+if (produto.type) {
+  editProdutoAcabamento.value = produto.type;
+  editProdutoAcabamento.disabled = false;
+  const clearAcab = document.getElementById("editClearAcabamento");
+  if (clearAcab) clearAcab.classList.remove("d-none");
+}
+
+
 }
     
     // Preencher campos numéricos
@@ -1413,6 +1529,7 @@ if (isDiversosEdit) {
   comprimento: isDiversosEdit ? 1 : compM,
   largura: isDiversosEdit ? 1 : largM,
   espessura: isDiversosEdit ? null : parseInt(editProdutoEspessuraValue.value),
+type: isDiversosEdit ? null : (editProdutoAcabamento.value || null),
   mt2: parseFloat(editProdutoMt2.value),
   preco_mt2: parseFloat(editProdutoPrecoMt2.value),
   desconto_percentagem: parseFloat(editProdutoDesconto.value) || 0,
@@ -1462,6 +1579,9 @@ if (isDiversosEdit) {
     editClearEspessura.classList.add("d-none");
     espessurasDisponiveis = [];
     
+    editProdutoAcabamento.value = "";
+editProdutoAcabamento.disabled = true;
+
     editProdutoQuantidade.value = 1;
     editProdutoComprimento.value = "";
     editProdutoLargura.value = "";
@@ -1527,6 +1647,7 @@ if (isDiversosEdit) {
         comprimento: p.comprimento,
         largura: p.largura,
         espessura: p.espessura ?? 0,
+type: p.type || null,
         preco_mt2: p.preco_mt2,
         desconto_percentagem: p.desconto_percentagem
       }));

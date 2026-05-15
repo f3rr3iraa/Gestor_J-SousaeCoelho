@@ -16,14 +16,22 @@ window.initWebsiteForm = function () {
 
   const titleEnWrapper = document.getElementById("titleEnWrapper");
   const textsWrapper = document.getElementById("textsWrapper");
-  const pricesWrapper = document.getElementById("pricesWrapper");
-  const priceInputs = document.getElementById("priceInputs");
+
 
   const newBrandWrapper = document.getElementById("newBrandWrapper");
   const newBrandInput = document.getElementById("new_brand");
   const addNewBrandBtn = document.getElementById("addNewBrand");
 
-  const thicknessCheckboxes = document.querySelectorAll(".thickness-check");
+  // =========================
+  // COMBINAÇÕES (espessura + tipo + preço)
+  // =========================
+  let combinations = [];
+
+  const addCombinationBtn = document.getElementById("addCombinationBtn");
+  const combinationsContainer = document.getElementById("combinationsContainer");
+
+  const THICKNESS_OPTIONS = [6, 8, 12, 20, 30];
+  const TYPE_OPTIONS = ['Polido','Matte', 'Velvet', 'Feel'];
 
   // =========================
   // CARREGAR MARCAS
@@ -95,45 +103,70 @@ window.initWebsiteForm = function () {
   });
 
   // =========================
-  // ESPESSURAS - MOSTRAR PREÇOS
-  // =========================
-  thicknessCheckboxes.forEach(checkbox => {
-    checkbox.addEventListener("change", updatePriceInputs);
+// RENDER COMBINAÇÕES
+// =========================
+function renderCombinations() {
+  combinationsContainer.innerHTML = "";
+
+  combinations.forEach((combo, index) => {
+    const div = document.createElement("div");
+    div.className = "d-flex align-items-center gap-3 mb-2";
+    div.innerHTML = `
+      <div class="coolinput">
+        <label class="text">Espessura:</label>
+        <select class="input combo-thickness" data-index="${index}">
+          <option value="" disabled ${!combo.thickness ? 'selected' : ''}>Seleciona...</option>
+          ${THICKNESS_OPTIONS.map(t => `<option value="${t}" ${combo.thickness == t ? 'selected' : ''}>${t}mm</option>`).join('')}
+        </select>
+      </div>
+      <div class="coolinput">
+        <label class="text">Acabamento:</label>
+        <select class="input combo-type" data-index="${index}">
+          <option value="" disabled ${!combo.type ? 'selected' : ''}>Seleciona...</option>
+          ${TYPE_OPTIONS.map(t => `<option value="${t}" ${combo.type === t ? 'selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="coolinput">
+        <label class="text">Preço (€/m²):</label>
+        <input type="number" step="0.01" min="0"
+          class="input combo-price" data-index="${index}"
+          value="${combo.price || ''}" placeholder="Preço por m²">
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger remove-combo align-self-end" data-index="${index}">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    `;
+    combinationsContainer.appendChild(div);
   });
 
-  function updatePriceInputs() {
-    const selectedThicknesses = Array.from(thicknessCheckboxes)
-      .filter(cb => cb.checked)
-      .map(cb => cb.value);
-
-    if (selectedThicknesses.length === 0) {
-      pricesWrapper.classList.add("d-none");
-      priceInputs.innerHTML = "";
-      return;
-    }
-
-    pricesWrapper.classList.remove("d-none");
-    priceInputs.innerHTML = "";
-
-    selectedThicknesses.forEach(thickness => {
-      const div = document.createElement("div");
-      div.className = "coolinput col-2 price-input-group";
-      div.innerHTML = `
-        <label for="price_${thickness}" class="text">Preço ${thickness}mm (€/m²):</label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          name="price_${thickness}"
-          id="price_${thickness}"
-          class="input price-input"
-          placeholder="Preço por m²"
-          required
-        />
-      `;
-      priceInputs.appendChild(div);
+  // Eventos
+  combinationsContainer.querySelectorAll('.combo-thickness').forEach(el => {
+    el.addEventListener('change', e => {
+      combinations[e.target.dataset.index].thickness = parseInt(e.target.value);
     });
-  }
+  });
+  combinationsContainer.querySelectorAll('.combo-type').forEach(el => {
+    el.addEventListener('change', e => {
+      combinations[e.target.dataset.index].type = e.target.value;
+    });
+  });
+  combinationsContainer.querySelectorAll('.combo-price').forEach(el => {
+    el.addEventListener('input', e => {
+      combinations[e.target.dataset.index].price = parseFloat(e.target.value);
+    });
+  });
+  combinationsContainer.querySelectorAll('.remove-combo').forEach(el => {
+    el.addEventListener('click', e => {
+      combinations.splice(parseInt(e.target.closest('button').dataset.index), 1);
+      renderCombinations();
+    });
+  });
+}
+
+addCombinationBtn.addEventListener("click", () => {
+  combinations.push({ thickness: '', type: '', price: '' });
+  renderCombinations();
+});
 
   // =========================
   // ADICIONAR NOVA MARCA
@@ -176,27 +209,25 @@ window.initWebsiteForm = function () {
     try {
       showMessage("⏳ A guardar ...", "info");
 
-      // Validar espessuras selecionadas
-      const selectedThicknesses = Array.from(thicknessCheckboxes)
-        .filter(cb => cb.checked)
-        .map(cb => cb.value);
+    // Validar combinações
+    if (combinations.length === 0) {
+      throw new Error("Adiciona pelo menos uma espessura/tipo");
+    }
 
-      if (selectedThicknesses.length === 0) {
-        throw new Error("Seleciona pelo menos uma espessura");
+    const thicknessPrices = [];
+    for (const combo of combinations) {
+      if (!combo.type) {
+        throw new Error(`Seleciona o acabamento para ${combo.thickness}mm`);
       }
-
-      // Validar preços
-      const thicknessPrices = [];
-      for (const thickness of selectedThicknesses) {
-        const priceInput = document.getElementById(`price_${thickness}`);
-        const price = parseFloat(priceInput.value);
-        
-        if (!price || price <= 0) {
-          throw new Error(`Preço inválido para espessura ${thickness}mm`);
-        }
-        
-        thicknessPrices.push({ thickness: parseInt(thickness), price });
+      if (!combo.price || combo.price <= 0) {
+        throw new Error(`Preço inválido para ${combo.thickness}mm ${combo.type}`);
       }
+      const key = `${combo.thickness}_${combo.type}`;
+      if (thicknessPrices.some(t => `${t.thickness}_${t.type}` === key)) {
+        throw new Error(`Combinação duplicada: ${combo.thickness}mm ${combo.type}`);
+      }
+      thicknessPrices.push({ thickness: combo.thickness, type: combo.type, price: combo.price });
+    }
 
       
       const { data: existingProducts, error: checkError } = await supabase
@@ -258,6 +289,7 @@ window.initWebsiteForm = function () {
       const thicknessInserts = thicknessPrices.map(tp => ({
         website_item_id: websiteItemId,
         thickness: tp.thickness,
+        type: tp.type,
         price_per_m2: tp.price
       }));
 
@@ -273,8 +305,8 @@ window.initWebsiteForm = function () {
       titleEnWrapper.classList.add("d-none");
       textsWrapper.classList.add("d-none");
       newBrandWrapper.classList.add("d-none");
-      pricesWrapper.classList.add("d-none");
-      priceInputs.innerHTML = "";
+      combinations = [];
+renderCombinations();
 
     } catch (err) {
       showMessage((err.message || err), "danger");

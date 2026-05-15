@@ -54,6 +54,11 @@ window.initOrcamentoForm = function () {
   const clearBrand = document.getElementById("clearBrand");
   const clearDescricao = document.getElementById("clearDescricao");
   const clearEspessura = document.getElementById("clearEspessura");
+
+  const produtoTipoAcabamento = document.getElementById("produtoTipoAcabamento");
+  const produtoTipoAcabamentoValue = document.getElementById("produtoTipoAcabamentoValue");
+  const tipoAcabamentoDropdown = document.getElementById("tipoAcabamentoDropdown");
+  const clearTipoAcabamento = document.getElementById("clearTipoAcabamento");
   
   // Botões
   const btnAdicionarProduto = document.getElementById("btnAdicionarProduto");
@@ -252,10 +257,31 @@ window.initOrcamentoForm = function () {
     produtoEspessura.value = "";
     produtoEspessuraValue.value = "";
     clearEspessura.classList.add("d-none");
+    produtoTipoAcabamento.value = "";
+    produtoTipoAcabamentoValue.value = "";
+    produtoTipoAcabamento.disabled = true;
+    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
+    clearTipoAcabamento.classList.add("d-none");
     produtoPrecoMt2.value = "";
     calcularValores();
     produtoEspessura.focus();
   });
+  // =====================================================
+// ✅ EVENTOS CLEAR - ACABAMENTO
+// =====================================================
+produtoTipoAcabamento.addEventListener("input", () => {
+  toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+});
+
+clearTipoAcabamento.addEventListener("click", (e) => {
+  e.stopPropagation();
+  produtoTipoAcabamento.value = "";
+  produtoTipoAcabamentoValue.value = "";
+  clearTipoAcabamento.classList.add("d-none");
+  produtoPrecoMt2.value = "";
+  calcularValores();
+  produtoTipoAcabamento.focus();
+});
 
   // =====================================================
   // ✅ FUNÇÃO PARA VERIFICAR SE HÁ DADOS NO FORMULÁRIO
@@ -657,7 +683,7 @@ clearCliente.addEventListener("click", (e) => {
     try {
       const { data: thicknesses, error } = await supabase
         .from("product_thicknesses")
-        .select("thickness, price_per_m2")
+        .select("thickness, type, price_per_m2")
         .eq("website_item_id", produtoId)
         .order("thickness", { ascending: true });
 
@@ -670,16 +696,25 @@ clearCliente.addEventListener("click", (e) => {
         return;
       }
 
+      // Guardar como { thickness: [ { type, price_per_m2 }, ... ] }
       precosPorProduto[produtoId] = {};
       thicknesses.forEach(t => {
-        precosPorProduto[produtoId][t.thickness] = t.price_per_m2;
+        if (!precosPorProduto[produtoId][t.thickness]) {
+          precosPorProduto[produtoId][t.thickness] = [];
+        }
+        precosPorProduto[produtoId][t.thickness].push({
+          type: t.type,
+          price_per_m2: t.price_per_m2
+        });
       });
 
-      espessurasDisponiveis = thicknesses.map(t => ({
-        display: `${t.thickness}mm`,
-        value: t.thickness,
-        thickness: t.thickness,
-        price: t.price_per_m2
+      // Agrupar por espessura (pode haver vários tipos para a mesma espessura)
+      const espessurasUnicas = [...new Set(thicknesses.map(t => t.thickness))];
+
+      espessurasDisponiveis = espessurasUnicas.map(thickness => ({
+        display: `${thickness}mm`,
+        value: thickness,
+        thickness: thickness
       }));
 
       setupAutocomplete(
@@ -688,6 +723,14 @@ clearCliente.addEventListener("click", (e) => {
         espessurasDisponiveis,
         (item) => {
           produtoEspessuraValue.value = item.thickness;
+          // Resetar acabamento
+          produtoTipoAcabamento.value = "";
+          produtoTipoAcabamentoValue.value = "";
+          produtoTipoAcabamento.disabled = false;
+          produtoTipoAcabamento.placeholder = "Seleciona...";
+          clearTipoAcabamento.classList.add("d-none");
+          produtoPrecoMt2.value = "";
+          carregarTiposAcabamento(produtoId, item.thickness);
           calcularValores();
         }
       );
@@ -699,6 +742,46 @@ clearCliente.addEventListener("click", (e) => {
       showMessage("Erro ao carregar espessuras: " + err.message, "danger");
       produtoEspessura.disabled = true;
     }
+  }
+
+  // =====================================================
+  // ✅ CARREGAR TIPOS DE ACABAMENTO PARA ESPESSURA
+  // =====================================================
+  function carregarTiposAcabamento(produtoId, thickness) {
+    const tiposParaEspessura = (precosPorProduto[produtoId]?.[thickness] || []);
+
+    const tiposData = tiposParaEspessura.map(t => ({
+      display: t.type.charAt(0).toUpperCase() + t.type.slice(1),
+      value: t.type,
+      price: t.price_per_m2
+    }));
+
+    if (tiposData.length === 0) {
+      produtoTipoAcabamento.disabled = true;
+      produtoTipoAcabamento.placeholder = "Sem tipos disponíveis";
+      return;
+    }
+
+    // Auto-selecionar se só houver um tipo
+    // Auto-selecionar o tipo se só houver um, mas sem preencher o preço
+    if (tiposData.length === 1) {
+  produtoTipoAcabamento.value = tiposData[0].display;
+  produtoTipoAcabamentoValue.value = tiposData[0].value;
+  produtoPrecoMt2.value = tiposData[0].price;
+  clearTipoAcabamento.classList.remove("d-none");
+  calcularValores();
+  return;
+}
+
+    setupAutocomplete(
+  produtoTipoAcabamento,
+  tipoAcabamentoDropdown,
+  tiposData,
+  (item) => {
+    produtoTipoAcabamentoValue.value = item.value;
+    calcularValores();
+  }
+);
   }
 
   // =====================================================
@@ -725,7 +808,8 @@ clearCliente.addEventListener("click", (e) => {
 
   // Wrappers das colunas (col-md-X que envolvem os campos)
   const colMarca = produtoBrand.closest(".col-md-3");
-  const colEspessura = produtoEspessura.closest(".col-md-3");
+  const colEspessura = document.getElementById("colEspessura");
+  const colAcabamento = document.getElementById("colAcabamento");
   const colComprimento = produtoComprimento.closest(".col-md-2");
   const colLargura = produtoLargura.closest(".col-md-2");
 
@@ -739,6 +823,7 @@ clearCliente.addEventListener("click", (e) => {
     // ESCONDE colunas que não se usam
     if (colMarca) colMarca.classList.add("d-none");
     if (colEspessura) colEspessura.classList.add("d-none");
+    if (colAcabamento) colAcabamento.classList.add("d-none");
     if (colComprimento) colComprimento.classList.add("d-none");
     if (colLargura) colLargura.classList.add("d-none");
 
@@ -754,29 +839,19 @@ clearCliente.addEventListener("click", (e) => {
     if (modoDiversosBadge) modoDiversosBadge.classList.remove("d-none");
 
   } else {
-    // MOSTRA todas as colunas novamente
     if (colMarca) colMarca.classList.remove("d-none");
     if (colEspessura) colEspessura.classList.remove("d-none");
+    if (colAcabamento) colAcabamento.classList.remove("d-none");
     if (colComprimento) colComprimento.classList.remove("d-none");
     if (colLargura) colLargura.classList.remove("d-none");
 
-
-    // Restaura estado normal
     produtoBrand.disabled = false;
-    produtoDescricao.disabled = true;
-    produtoDescricao.placeholder = "Primeiro seleciona a marca...";
-    produtoDescricaoId.value = "";
-    produtoBrand.value = "";
-    produtoBrandKey.value = "";
 
-    produtoEspessura.disabled = true;
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "";
-
-    produtoComprimento.disabled = false;
-    produtoComprimento.value = "";
-    produtoLargura.disabled = false;
-    produtoLargura.value = "";
+    // Só desativa descrição se não houver marca selecionada
+    if (!produtoBrandKey.value) {
+      produtoDescricao.disabled = true;
+      produtoDescricao.placeholder = "Primeiro seleciona a marca...";
+    }
 
     if (modoDiversosBadge) modoDiversosBadge.classList.add("d-none");
   }
@@ -920,13 +995,16 @@ clearCliente.addEventListener("click", (e) => {
     const precos = precosPorProduto[produtoId];
     
     Object.keys(precos).sort((a, b) => a - b).forEach(thickness => {
-      const preco = precos[thickness];
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${thickness}mm</strong></td>
-        <td class="text-end">${parseFloat(preco).toFixed(2)} €</td>
-      `;
-      precarioTableBody.appendChild(tr);
+      const tipos = precos[thickness];
+      tipos.forEach(t => {
+        const tr = document.createElement("tr");
+        const tipoLabel = t.type.charAt(0).toUpperCase() + t.type.slice(1);
+        tr.innerHTML = `
+          <td><strong>${thickness}mm ${tipoLabel}</strong></td>
+          <td class="text-end">${parseFloat(t.price_per_m2).toFixed(2)} €</td>
+        `;
+        precarioTableBody.appendChild(tr);
+      });
     });
 
     precarioModal.classList.remove("d-none");
@@ -978,6 +1056,10 @@ clearCliente.addEventListener("click", (e) => {
       showMessage("⚠️ Seleciona a espessura", "warning");
       return;
     }
+    if (!produtoTipoAcabamentoValue.value) {
+      showMessage("⚠️ Seleciona o acabamento", "warning");
+      return;
+    }
     const compM = parseFloat(normalizeDecimalInput(produtoComprimento.value));
     const largM = parseFloat(normalizeDecimalInput(produtoLargura.value));
     if (!compM || compM <= 0) {
@@ -1014,6 +1096,7 @@ clearCliente.addEventListener("click", (e) => {
     comprimento: compM,
     largura: largM,
     espessura: isDiversos ? null : parseInt(produtoEspessuraValue.value),
+    tipoAcabamento: isDiversos ? null : produtoTipoAcabamentoValue.value,
     mt2: parseFloat(produtoMt2.value),
     preco_mt2: parseFloat(produtoPrecoMt2.value),
     desconto_percentagem: parseFloat(produtoDesconto.value) || 0,
@@ -1063,7 +1146,7 @@ clearCliente.addEventListener("click", (e) => {
       tr.innerHTML = `
         <td>${produto.tipoNome}</td>
         <td>${produto.isDiversos ? "" : produto.brandNome}</td>
-        <td class="text-start">${produto.descricao}</td>
+        <td class="text-start">${produto.descricao}${!produto.isDiversos && produto.tipoAcabamento ? ' ' + produto.tipoAcabamento.charAt(0).toUpperCase() + produto.tipoAcabamento.slice(1) : ''}</td>
         <td>${produto.quantidade}</td>
         <td>${produto.isDiversos ? "" : produto.comprimento.toFixed(4)}</td>
         <td>${produto.isDiversos ? "" : produto.largura.toFixed(4)}</td>
@@ -1132,6 +1215,13 @@ clearCliente.addEventListener("click", (e) => {
     produtoSubtotal.value = "";
     produtoTotal.value = "";
     
+    produtoTipoAcabamento.value = "";
+    produtoTipoAcabamento.disabled = true;
+    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
+    produtoTipoAcabamentoValue.value = "";
+    clearTipoAcabamento.classList.add("d-none");
+
+
     btnVerPrecario.classList.add("d-none");
     if (precarioAberto) {
       fecharPrecario();
@@ -1219,17 +1309,18 @@ clearCliente.addEventListener("click", (e) => {
       const orcamentoId = orcamentoData[0].id;
 
       const itensParaInserir = produtosAdicionados.map(p => ({
-        orcamento_id: orcamentoId,
-        tipo_id: p.tipo_id,
-        brand: p.brand,
-        descricao: p.descricao,
-        quantidade: p.quantidade,
-        comprimento: p.comprimento,
-        largura: p.largura,
-        espessura: p.espessura ?? 0,        // ✅ Se null (Diversos), guarda 0
-        preco_mt2: p.preco_mt2,
-        desconto_percentagem: p.desconto_percentagem
-      }));
+  orcamento_id: orcamentoId,
+  tipo_id: p.tipo_id,
+  brand: p.brand,
+  descricao: p.descricao,
+  quantidade: p.quantidade,
+  comprimento: p.comprimento,
+  largura: p.largura,
+  espessura: p.espessura ?? 0,
+  type: p.tipoAcabamento || null,
+  preco_mt2: p.preco_mt2,
+  desconto_percentagem: p.desconto_percentagem
+}));
 
       const { error: itensError } = await supabase
         .from("orcamento_itens")

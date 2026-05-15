@@ -129,7 +129,7 @@
     </div>
 
     <!-- ESPESSURA -->
-    <div class="col-md-3">
+     <div class="col-md-1" id="colEspessura">
       <div class="coolinput autocomplete-wrapper">
         <label for="produtoEspessura" class="text">Espessura (mm):</label>
         <div class="input-with-clear">
@@ -137,7 +137,7 @@
             type="text"
             id="produtoEspessura"
             class="input autocomplete-input"
-            placeholder="Primeiro seleciona a descrição..."
+            placeholder="Seleciona..."
             autocomplete="off"
             disabled
             readonly
@@ -150,7 +150,29 @@
         <div id="espessuraDropdown" class="autocomplete-dropdown"></div>
       </div>
     </div>
-  </div>
+
+    <!-- TIPO DE ACABAMENTO -->
+    <div class="col-md-2" id="colAcabamento">
+      <div class="coolinput autocomplete-wrapper">
+        <label for="produtoTipoAcabamento" class="text">Acabamento:</label>
+        <div class="input-with-clear">
+          <input
+            type="text"
+            id="produtoTipoAcabamento"
+            class="input autocomplete-input"
+            placeholder="Primeiro seleciona espessura..."
+            autocomplete="off"
+            disabled
+            readonly
+          />
+          <button type="button" class="input-clear-btn d-none" id="clearTipoAcabamento">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+        <input type="hidden" id="produtoTipoAcabamentoValue" />
+        <div id="tipoAcabamentoDropdown" class="autocomplete-dropdown"></div>
+      </div>
+    </div>
 
       <div class="row g-3 mb-3">
         <!-- QUANTIDADE -->

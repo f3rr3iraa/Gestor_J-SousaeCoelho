@@ -112,44 +112,17 @@
 
     <br />
 
-    <!-- ================= ESPESSURAS ================= -->
+    <!-- ================= ESPESSURAS + TIPO + PREÇO ================= -->
     <fieldset>
-      <legend>Espessuras Disponíveis</legend>
-      <div class="row">
+      <legend>Espessuras, Acabamento e Preços</legend>
+      <div class="row mb-3">
         <div class="col-12">
-          <label class="text mb-2">Seleciona as espessuras disponíveis:</label>
-          <div class="thickness-checkboxes">
-            <label class="checkbox-label">
-              <input type="checkbox" name="thickness" value="6" class="thickness-check" />
-              6mm
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" name="thickness" value="8" class="thickness-check" />
-              8mm
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" name="thickness" value="12" class="thickness-check" />
-              12mm
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" name="thickness" value="20" class="thickness-check" />
-              20mm
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" name="thickness" value="30" class="thickness-check" />
-              30mm
-            </label>
-          </div>
+          <button type="button" id="addCombinationBtn" class="btn-form" style="font-size: 14px; padding: 8px 12px;">
+            <i class="bi bi-plus-square me-2"></i>Adicionar Espessura / Tipo
+          </button>
         </div>
       </div>
-    </fieldset>
-
-    <br />
-
-    <!-- ================= PREÇOS POR ESPESSURA ================= -->
-    <fieldset id="pricesWrapper" class="d-none">
-      <legend>Preços por m² (cada espessura)</legend>
-      <div id="priceInputs" class="row"></div>
+      <div id="combinationsContainer"></div>
     </fieldset>
 
     <br />

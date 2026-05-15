@@ -125,7 +125,7 @@ window.initWebsiteList = async function () {
         (data || []).map(async (item) => {
           const { data: thicknesses } = await supabase
             .from("product_thicknesses")
-            .select("thickness, price_per_m2")
+            .select("thickness, type, price_per_m2")
             .eq("website_item_id", item.id)
             .order("thickness", { ascending: true });
 
@@ -193,7 +193,7 @@ window.initWebsiteList = async function () {
         (data || []).map(async (item) => {
           const { data: thicknesses } = await supabase
             .from("product_thicknesses")
-            .select("thickness, price_per_m2")
+            .select("thickness, type, price_per_m2")
             .eq("website_item_id", item.id)
             .order("thickness", { ascending: true });
 
@@ -245,7 +245,7 @@ window.initWebsiteList = async function () {
         thicknessHtml = item.thicknesses
           .map(
             (t) =>
-              `<span class="thickness-badge">${t.thickness}mm: <strong>${parseFloat(t.price_per_m2).toFixed(2)}€</strong></span>`
+              `<span class="thickness-badge">${t.thickness}mm ${t.type}: <strong>${parseFloat(t.price_per_m2).toFixed(2)}€</strong></span>`
           )
           .join(" ");
       } else {
@@ -368,9 +368,7 @@ window.initWebsiteList = async function () {
   const websiteEditTextEn = document.getElementById("websiteEditTextEn");
   const websiteEditFotoAtual = document.getElementById("websiteEditFotoAtual");
   const websiteFotoPreview = document.getElementById("websiteFotoPreview");
-  const editPricesWrapper = document.getElementById("editPricesWrapper");
-  const editPriceInputs = document.getElementById("editPriceInputs");
-  const editThicknessCheckboxes = document.querySelectorAll(".edit-thickness-check");
+
 
   // Tradução automática Texto PT -> EN
   websiteEditTextPt.addEventListener("input", () => {
@@ -385,55 +383,78 @@ window.initWebsiteList = async function () {
   });
 
   // ================================
-  // ESPESSURAS - ATUALIZAR INPUTS DE PREÇOS (EDIT)
-  // ================================
-  editThicknessCheckboxes.forEach(checkbox => {
-    checkbox.addEventListener("change", updateEditPriceInputs);
+// COMBINAÇÕES EDITAR (espessura + tipo + preço)
+// ================================
+let editCombinations = [];
+
+const editAddCombinationBtn = document.getElementById("editAddCombinationBtn");
+const editCombinationsContainer = document.getElementById("editCombinationsContainer");
+
+const THICKNESS_OPTIONS = [6, 8, 12, 20, 30];
+const TYPE_OPTIONS = ['Polido','Matte', 'Velvet', 'Feel'];
+
+function renderEditCombinations() {
+  editCombinationsContainer.innerHTML = "";
+
+  editCombinations.forEach((combo, index) => {
+    const div = document.createElement("div");
+    div.className = "d-flex align-items-center gap-3 mb-2";
+    div.innerHTML = `
+      <div class="coolinput">
+        <label class="text">Espessura:</label>
+        <select class="input edit-combo-thickness" data-index="${index}">
+          <option value="" disabled ${!combo.thickness ? 'selected' : ''}>Seleciona...</option>
+          ${THICKNESS_OPTIONS.map(t => `<option value="${t}" ${combo.thickness == t ? 'selected' : ''}>${t}mm</option>`).join('')}
+        </select>
+      </div>
+      <div class="coolinput">
+        <label class="text">Acabamento:</label>
+        <select class="input edit-combo-type" data-index="${index}">
+          <option value="" disabled ${!combo.type ? 'selected' : ''}>Seleciona...</option>
+          ${TYPE_OPTIONS.map(t => `<option value="${t}" ${combo.type === t ? 'selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="coolinput">
+        <label class="text">Preço (€/m²):</label>
+        <input type="number" step="0.01" min="0"
+          class="input edit-combo-price" data-index="${index}"
+          value="${combo.price || ''}" placeholder="Preço por m²">
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger edit-remove-combo align-self-center" data-index="${index}">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    `;
+    editCombinationsContainer.appendChild(div);
   });
 
-  function updateEditPriceInputs() {
-    const selectedThicknesses = Array.from(editThicknessCheckboxes)
-      .filter(cb => cb.checked)
-      .map(cb => cb.value);
-
-    if (selectedThicknesses.length === 0) {
-      editPricesWrapper.classList.add("d-none");
-      editPriceInputs.innerHTML = "";
-      return;
-    }
-
-    editPricesWrapper.classList.remove("d-none");
-    
-    // Preservar valores existentes
-    const currentPrices = {};
-    editPriceInputs.querySelectorAll('.edit-price-input').forEach(input => {
-      const thickness = input.dataset.thickness;
-      currentPrices[thickness] = input.value;
+  // Eventos — atualizam o array diretamente
+  editCombinationsContainer.querySelectorAll('.edit-combo-thickness').forEach(el => {
+    el.addEventListener('change', e => {
+      editCombinations[parseInt(e.target.dataset.index)].thickness = parseInt(e.target.value);
     });
-
-    editPriceInputs.innerHTML = "";
-
-    selectedThicknesses.forEach(thickness => {
-      const div = document.createElement("div");
-      div.className = "coolinput col-4 edit-price-input-group";
-      div.innerHTML = `
-        <label for="edit_price_${thickness}" class="text">Preço ${thickness}mm (€/m²):</label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          name="edit_price_${thickness}"
-          id="edit_price_${thickness}"
-          class="input edit-price-input"
-          data-thickness="${thickness}"
-          placeholder="Preço por m²"
-          value="${currentPrices[thickness] || ''}"
-          required
-        />
-      `;
-      editPriceInputs.appendChild(div);
+  });
+  editCombinationsContainer.querySelectorAll('.edit-combo-type').forEach(el => {
+    el.addEventListener('change', e => {
+      editCombinations[parseInt(e.target.dataset.index)].type = e.target.value;
     });
-  }
+  });
+  editCombinationsContainer.querySelectorAll('.edit-combo-price').forEach(el => {
+    el.addEventListener('input', e => {
+      editCombinations[parseInt(e.target.dataset.index)].price = parseFloat(e.target.value);
+    });
+  });
+  editCombinationsContainer.querySelectorAll('.edit-remove-combo').forEach(el => {
+    el.addEventListener('click', e => {
+      editCombinations.splice(parseInt(e.target.closest('button').dataset.index), 1);
+      renderEditCombinations();
+    });
+  });
+}
+
+editAddCombinationBtn.addEventListener("click", () => {
+  editCombinations.push({ thickness: '', type: '', price: '' });
+  renderEditCombinations();
+});
 
   // ================================
   // ABRIR OFFCANVAS DE EDIÇÃO
@@ -469,43 +490,27 @@ window.initWebsiteList = async function () {
         .classList.toggle("d-none", !isMarbles);
 
       // Carregar espessuras existentes
-      try {
-        const { data: thicknesses, error } = await supabase
-          .from("product_thicknesses")
-          .select("thickness, price_per_m2")
-          .eq("website_item_id", itemId);
+      // Carregar espessuras existentes
+try {
+  const { data: thicknesses, error } = await supabase
+    .from("product_thicknesses")
+    .select("thickness, type, price_per_m2")
+    .eq("website_item_id", itemId)
+    .order("thickness", { ascending: true });
 
-        if (error) throw error;
+  if (error) throw error;
 
-        // Limpar checkboxes
-        editThicknessCheckboxes.forEach(cb => cb.checked = false);
+  editCombinations = (thicknesses || []).map(t => ({
+    thickness: t.thickness,
+    type: t.type,
+    price: parseFloat(t.price_per_m2)
+  }));
 
-        // Marcar checkboxes e preencher preços
-        if (thicknesses && thicknesses.length > 0) {
-          thicknesses.forEach(t => {
-            const checkbox = document.querySelector(`.edit-thickness-check[value="${t.thickness}"]`);
-            if (checkbox) {
-              checkbox.checked = true;
-            }
-          });
+  renderEditCombinations();
 
-          updateEditPriceInputs();
-
-          // Preencher preços
-          thicknesses.forEach(t => {
-            const priceInput = document.getElementById(`edit_price_${t.thickness}`);
-            if (priceInput) {
-              priceInput.value = parseFloat(t.price_per_m2).toFixed(2);
-            }
-          });
-        } else {
-          editPricesWrapper.classList.add("d-none");
-          editPriceInputs.innerHTML = "";
-        }
-
-      } catch (err) {
-        console.error("Erro ao carregar espessuras:", err);
-      }
+} catch (err) {
+  console.error("Erro ao carregar espessuras:", err);
+}
 
       editOffcanvas.show();
     }
@@ -594,27 +599,40 @@ window.initWebsiteList = async function () {
       const id = websiteEditId.value;
       let imageURL = websiteEditFotoAtual.value;
 
-      // Validar espessuras
-      const selectedThicknesses = Array.from(editThicknessCheckboxes)
-        .filter(cb => cb.checked)
-        .map(cb => cb.value);
+      // Validar combinações
+// Sincronizar estado com os inputs antes de validar
+editCombinationsContainer.querySelectorAll('.edit-combo-thickness').forEach(el => {
+  editCombinations[parseInt(el.dataset.index)].thickness = parseInt(el.value) || '';
+});
+editCombinationsContainer.querySelectorAll('.edit-combo-type').forEach(el => {
+  editCombinations[parseInt(el.dataset.index)].type = el.value || '';
+});
+editCombinationsContainer.querySelectorAll('.edit-combo-price').forEach(el => {
+  editCombinations[parseInt(el.dataset.index)].price = parseFloat(el.value) || 0;
+});
 
-      if (selectedThicknesses.length === 0) {
-        throw new Error("Seleciona pelo menos uma espessura");
-      }
+// Validar combinações
+if (editCombinations.length === 0) {
+  throw new Error("Adiciona pelo menos uma espessura/tipo");
+}
 
-      // Validar preços
-      const thicknessPrices = [];
-      for (const thickness of selectedThicknesses) {
-        const priceInput = document.getElementById(`edit_price_${thickness}`);
-        const price = parseFloat(priceInput.value);
-        
-        if (!price || price <= 0) {
-          throw new Error(`Preço inválido para espessura ${thickness}mm`);
-        }
-        
-        thicknessPrices.push({ thickness: parseInt(thickness), price });
-      }
+const thicknessPrices = [];
+for (const combo of editCombinations) {
+  if (!combo.thickness) {
+    throw new Error("Seleciona a espessura em todas as linhas");
+  }
+  if (!combo.type) {
+    throw new Error(`Seleciona o acabamento para ${combo.thickness}mm`);
+  }
+  if (!combo.price || combo.price <= 0) {
+    throw new Error(`Preço inválido para ${combo.thickness}mm ${combo.type}`);
+  }
+  const key = `${combo.thickness}_${combo.type}`;
+  if (thicknessPrices.some(t => `${t.thickness}_${t.type}` === key)) {
+    throw new Error(`Combinação duplicada: ${combo.thickness}mm ${combo.type}`);
+  }
+  thicknessPrices.push({ thickness: combo.thickness, type: combo.type, price: combo.price });
+}
 
 
       
@@ -699,10 +717,11 @@ window.initWebsiteList = async function () {
 
       // Inserir novas espessuras
       const thicknessInserts = thicknessPrices.map(tp => ({
-        website_item_id: parseInt(id),
-        thickness: tp.thickness,
-        price_per_m2: tp.price
-      }));
+  website_item_id: parseInt(id),
+  thickness: tp.thickness,
+  type: tp.type,
+  price_per_m2: tp.price
+}));
 
       const { error: thicknessError } = await supabase
         .from("product_thicknesses")

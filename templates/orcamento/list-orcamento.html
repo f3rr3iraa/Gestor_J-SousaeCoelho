@@ -162,7 +162,8 @@
             <th style="width:6%">Tipo</th>
             <th style="width:16%">Marca</th>
             <th style="width:22%">Descrição</th>
-            <th style="width:10%">Espessura</th>
+            <th style="width:5%">Espessura</th>
+            <th style="width:5%">Acabamento</th>
             <th style="width:4%">Qt</th>
             <th style="width:6%">Comp.</th>
             <th style="width:6%">Larg.</th>
@@ -524,28 +525,50 @@
           </div>
 
           <!-- ESPESSURA -->
-          <div class="col-md-3">
-            <div class="coolinput autocomplete-wrapper">
-              <label for="editProdutoEspessura" class="text">Espessura (mm):</label>
-              <div class="input-with-clear">
-                <input
-                  type="text"
-                  id="editProdutoEspessura"
-                  class="input autocomplete-input"
-                  placeholder="Primeiro seleciona a descrição..."
-                  autocomplete="off"
-                  disabled
-                  readonly
-                />
-                <button type="button" class="input-clear-btn d-none" id="editClearEspessura">
-                  <i class="bi bi-x"></i>
-                </button>
-              </div>
-              <input type="hidden" id="editProdutoEspessuraValue" />
-              <div id="editEspessuraDropdown" class="autocomplete-dropdown"></div>
-            </div>
-          </div>
-        </div>
+<div class="col-md-1">
+  <div class="coolinput autocomplete-wrapper">
+    <label for="editProdutoEspessura" class="text">Espessura:</label>
+    <div class="input-with-clear">
+      <input
+        type="text"
+        id="editProdutoEspessura"
+        class="input autocomplete-input"
+        placeholder="Esp..."
+        autocomplete="off"
+        disabled
+        readonly
+      />
+      <button type="button" class="input-clear-btn d-none" id="editClearEspessura">
+        <i class="bi bi-x"></i>
+      </button>
+    </div>
+    <input type="hidden" id="editProdutoEspessuraValue" />
+    <div id="editEspessuraDropdown" class="autocomplete-dropdown"></div>
+  </div>
+</div>
+
+<!-- ACABAMENTO -->
+<div class="col-md-2" id="colAcabamentoEdit">
+  <div class="coolinput autocomplete-wrapper">
+    <label for="editProdutoAcabamento" class="text">Acabamento:</label>
+    <div class="input-with-clear">
+      <input
+        type="text"
+        id="editProdutoAcabamento"
+        class="input autocomplete-input"
+        placeholder="Seleciona o acabamento..."
+        autocomplete="off"
+        disabled
+        readonly
+      />
+      <button type="button" class="input-clear-btn d-none" id="editClearAcabamento">
+        <i class="bi bi-x"></i>
+      </button>
+    </div>
+    <input type="hidden" id="editProdutoAcabamentoValue" />
+    <div id="editAcabamentoDropdown" class="autocomplete-dropdown"></div>
+  </div>
+</div>
 
         <div class="row g-3 mb-3">
           <!-- QUANTIDADE -->
