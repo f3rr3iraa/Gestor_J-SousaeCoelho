@@ -1635,7 +1635,7 @@ if (isDiversosEdit) {
       // 4. Aguardar renderização do DOM com texto truncado
       await new Promise(resolve => setTimeout(resolve, 250));
 
-      const filename = `Orcamento_${currentOrcamento.id}_${currentOrcamento.cliente_nome.replace(/\s+/g, '_')}.pdf`;
+      const filename = `Orcamento_${currentOrcamento.id}.pdf`;
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
       
