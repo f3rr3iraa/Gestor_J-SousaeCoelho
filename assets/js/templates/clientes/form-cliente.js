@@ -13,17 +13,88 @@ window.initClienteForm = function () {
   // =====================================================
   // ELEMENTOS DOM
   // =====================================================
-  const form = document.getElementById("clienteForm");
-  const clienteDescricao = document.getElementById("clienteDescricao");
-  const clienteDescricao2 = document.getElementById("clienteDescricao2");
-  const clienteContribuinte = document.getElementById("clienteContribuinte");
-  const clienteMorada = document.getElementById("clienteMorada");
-  const clienteMorada2 = document.getElementById("clienteMorada2");
-  const clienteCodpostal = document.getElementById("clienteCodpostal");
-  const clientePais = document.getElementById("clientePais");
-  const clienteTelefone = document.getElementById("clienteTelefone");
-  const clienteTelefone2 = document.getElementById("clienteTelefone2");
-  const btnLimpar = document.getElementById("btnLimparCliente");
+  const clienteDescricao    = document.getElementById("fld_a1x9k");
+  const clienteDescricao2   = document.getElementById("fld_b2y7m");
+  const clienteContribuinte = document.getElementById("fld_c3z5p");
+  const clienteMorada       = document.getElementById("fld_d4w3q");
+  const clienteMorada2      = document.getElementById("fld_e5v2r");
+  const clienteCodpostal    = document.getElementById("fld_f6u1j");
+  const clientePais         = document.getElementById("fld_g7t8n");
+  const clienteTelefone     = document.getElementById("fld_h8s6w");
+  const clienteTelefone2    = document.getElementById("fld_i9r4v");
+
+  // =====================================================
+  // RESTRIÇÃO: apenas números (bloqueia letras no input)
+  // =====================================================
+  function apenasNumeros(input) {
+    input.addEventListener("keypress", (e) => {
+      if (!/[0-9]/.test(e.key)) e.preventDefault();
+    });
+
+    input.addEventListener("paste", (e) => {
+      const texto = e.clipboardData.getData("text");
+      if (!/^\d+$/.test(texto)) e.preventDefault();
+    });
+
+    input.addEventListener("input", () => {
+      input.value = input.value.replace(/[^0-9\-]/g, "");
+    });
+  }
+
+  // Código Postal: apenas números (formato tratado abaixo)
+  // Código Postal: formato 0000-000
+  clienteCodpostal.setAttribute("maxlength", "8");
+  clienteCodpostal.addEventListener("keypress", (e) => {
+    if (!/[0-9]/.test(e.key)) e.preventDefault();
+  });
+  clienteCodpostal.addEventListener("paste", (e) => {
+    const texto = e.clipboardData.getData("text");
+    if (!/^\d+$/.test(texto)) e.preventDefault();
+  });
+  clienteCodpostal.addEventListener("input", () => {
+    let val = clienteCodpostal.value.replace(/\D/g, "");
+    if (val.length > 4) val = val.slice(0, 4) + "-" + val.slice(4, 7);
+    clienteCodpostal.value = val;
+  });
+
+  // Contribuinte: exatamente 9 dígitos
+  apenasNumeros(clienteContribuinte);
+  clienteContribuinte.setAttribute("maxlength", "9");
+  clienteContribuinte.addEventListener("blur", () => {
+    const val = clienteContribuinte.value.trim();
+    if (val && val.length !== 9) {
+      clienteContribuinte.setCustomValidity("O NIF/NIPC deve ter exatamente 9 dígitos.");
+      clienteContribuinte.reportValidity();
+    } else {
+      clienteContribuinte.setCustomValidity("");
+    }
+  });
+
+  // Telefone: exatamente 9 dígitos
+  apenasNumeros(clienteTelefone);
+  clienteTelefone.setAttribute("maxlength", "9");
+  clienteTelefone.addEventListener("blur", () => {
+    const val = clienteTelefone.value.trim();
+    if (val && val.length !== 9) {
+      clienteTelefone.setCustomValidity("O telefone deve ter exatamente 9 dígitos.");
+      clienteTelefone.reportValidity();
+    } else {
+      clienteTelefone.setCustomValidity("");
+    }
+  });
+
+  // Telefone 2: exatamente 9 dígitos
+  apenasNumeros(clienteTelefone2);
+  clienteTelefone2.setAttribute("maxlength", "9");
+  clienteTelefone2.addEventListener("blur", () => {
+    const val = clienteTelefone2.value.trim();
+    if (val && val.length !== 9) {
+      clienteTelefone2.setCustomValidity("O telefone 2 deve ter exatamente 9 dígitos.");
+      clienteTelefone2.reportValidity();
+    } else {
+      clienteTelefone2.setCustomValidity("");
+    }
+  });
 
   // =====================================================
   // LIMPAR FORMULÁRIO
