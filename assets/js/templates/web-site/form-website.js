@@ -31,7 +31,7 @@ window.initWebsiteForm = function () {
   const combinationsContainer = document.getElementById("combinationsContainer");
 
   const THICKNESS_OPTIONS = [3, 6, 8, 12, 20, 30];
-  const TYPE_OPTIONS = ['Polido','Matte', 'Velvet', 'Feel'];
+  const TYPE_OPTIONS = ['Polido','Matte', 'Velvet', 'Feel', 'Sat', 'U. Soft', 'Riv'];
 
   // =========================
   // CARREGAR MARCAS
