@@ -1773,3 +1773,15 @@ input[type="search"]::-webkit-search-results-decoration {
   box-shadow: none !important;
   outline: none !important;
 }
+
+
+/* Remove setas dos inputs number */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

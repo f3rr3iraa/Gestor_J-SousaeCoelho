@@ -313,7 +313,7 @@ editProdutoLargura.addEventListener("input", function() {
       dropdown.innerHTML = "";
       filtered.forEach((item, index) => {
         const div = document.createElement("div");
-        div.className = "autocomplete-item";
+        div.className = "autocomplete-item" + (index === 0 ? " autocomplete-active" : "");
         div.textContent = getDisplay(item);
         
         div.addEventListener("click", function(e) {
@@ -367,7 +367,9 @@ editProdutoLargura.addEventListener("input", function() {
         addActive(items);
       } else if (e.keyCode === 13) {
         e.preventDefault();
-        if (currentFocus > -1 && items[currentFocus]) {
+        if (currentFocus === -1 && items.length > 0) {
+          items[0].click();
+        } else if (currentFocus > -1 && items[currentFocus]) {
           items[currentFocus].click();
         }
       } else if (e.keyCode === 27) {
@@ -486,6 +488,7 @@ editProdutoLargura.addEventListener("input", function() {
         async (item) => {
           editProdutoBrandKey.value = item.website_key;
           await carregarDescricoesDaMarca(item.website_key);
+          setTimeout(() => editProdutoDescricao.focus(), 50);
         }
       );
       
@@ -522,6 +525,13 @@ editProdutoLargura.addEventListener("input", function() {
           editProdutoTipoId.value = item.id;
           const isDiversos = item.nome.trim().toLowerCase() === "diversos";
           activarModoDiversosEdit(isDiversos);
+          setTimeout(() => {
+            if (isDiversos) {
+              editProdutoDescricao.focus();
+            } else {
+              editProdutoBrand.focus();
+            }
+          }, 50);
         }
       );
       
@@ -581,6 +591,7 @@ editProdutoLargura.addEventListener("input", function() {
       async (item) => {
         editProdutoDescricaoId.value = item.id;
         await carregarEspessuras(item.id);
+        setTimeout(() => editProdutoEspessura.focus(), 50);
       }
     );
   }
@@ -633,8 +644,8 @@ async function carregarEspessuras(produtoId) {
       listaParaAutocomplete,
       (item) => {
         editProdutoEspessuraValue.value = item.value;
-        // Ao selecionar a espessura, carregamos os acabamentos
         prepararAcabamentos(item.value);
+        setTimeout(() => editProdutoAcabamento.focus(), 50);
       }
     );
 
@@ -665,8 +676,8 @@ function prepararAcabamentos(espessuraSelecionada) {
   // Reset visual
   editProdutoAcabamento.value = "";
   editProdutoAcabamento.disabled = false;
-  editProdutoAcabamento.readOnly = true;
-  editProdutoAcabamento.style.cursor = "pointer";
+  editProdutoAcabamento.readOnly = false;
+  editProdutoAcabamento.style.cursor = "text";
   editProdutoAcabamento.placeholder = "Selecione o acabamento...";
   if (clearBtn) clearBtn.classList.add("d-none");
   ddAcabamento.classList.remove("show");
@@ -681,11 +692,15 @@ function prepararAcabamentos(espessuraSelecionada) {
   function abrirDropdown(e) {
     e.stopPropagation();
     closeAllDropdowns();
+    const filterVal = editProdutoAcabamento.value.trim().toLowerCase();
+    const filtered = filterVal
+      ? listaAcabamentos.filter(a => a.display.toLowerCase().includes(filterVal))
+      : listaAcabamentos;
     ddAcabamento.innerHTML = "";
 
-    listaAcabamentos.forEach(a => {
+    filtered.forEach((a, idx) => {
       const div = document.createElement("div");
-      div.className = "autocomplete-item";
+      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
       div.textContent = a.display;
       div.addEventListener("mousedown", (ev) => {
         ev.preventDefault();
@@ -695,6 +710,7 @@ function prepararAcabamentos(espessuraSelecionada) {
         calcularValoresEdit();
         ddAcabamento.classList.remove("show");
         ddAcabamento.innerHTML = "";
+        setTimeout(() => editProdutoQuantidade.focus(), 50);
       });
       ddAcabamento.appendChild(div);
     });
@@ -704,18 +720,56 @@ function prepararAcabamentos(espessuraSelecionada) {
 
   editProdutoAcabamento.addEventListener("click", abrirDropdown, { signal });
   editProdutoAcabamento.addEventListener("focus", abrirDropdown, { signal });
-  editProdutoAcabamento.addEventListener("blur", () => {
-    setTimeout(() => {
+  editProdutoAcabamento.addEventListener("input", abrirDropdown, { signal });
+  editProdutoAcabamento.addEventListener("keydown", (e) => {
+    const items = ddAcabamento.querySelectorAll(".autocomplete-item");
+    if (!items.length) return;
+    const current = ddAcabamento.querySelector(".autocomplete-active");
+    let idx = Array.from(items).indexOf(current);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (idx < items.length - 1) idx++;
+      else idx = 0;
+      items.forEach(i => i.classList.remove("autocomplete-active"));
+      items[idx].classList.add("autocomplete-active");
+      items[idx].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (idx > 0) idx--;
+      else idx = items.length - 1;
+      items.forEach(i => i.classList.remove("autocomplete-active"));
+      items[idx].classList.add("autocomplete-active");
+      items[idx].scrollIntoView({ block: "nearest" });
+    }
+  }, { signal });
+  editProdutoAcabamento.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // Se há opção destacada no dropdown, selecionar primeiro
+      const activeItem = ddAcabamento.querySelector(".autocomplete-active");
+      if (activeItem) {
+        activeItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        return;
+      }
+      // Se só há um item visível, selecionar esse
+      const items = ddAcabamento.querySelectorAll(".autocomplete-item");
+      if (items.length === 1) {
+        items[0].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        return;
+      }
+      // Sem dropdown aberto — avançar direto para quantidade
       ddAcabamento.classList.remove("show");
       ddAcabamento.innerHTML = "";
-    }, 150);
+      setTimeout(() => editProdutoQuantidade.focus(), 50);
+    }
   }, { signal });
 
-  // Se só há um acabamento, seleccionar automaticamente
+  // Se só há um acabamento, seleccionar automaticamente e avançar
   if (listaAcabamentos.length === 1) {
     editProdutoAcabamento.value = listaAcabamentos[0].display;
     if (clearBtn) clearBtn.classList.remove("d-none");
     calcularValoresEdit();
+    setTimeout(() => editProdutoQuantidade.focus(), 50);
   }
 }
 
@@ -738,10 +792,10 @@ function prepararAcabamentos(espessuraSelecionada) {
   editDescricaoDropdown.innerHTML = "";
 
   const colMarca = editProdutoBrand.closest(".col-md-3");
-  const colEspessura = editProdutoEspessura.closest(".col-md-3");
+  const colEspessura = editProdutoEspessura.closest("[class*='col-']");
   const colComprimento = editProdutoComprimento.closest(".col-md-2");
   const colLargura = editProdutoLargura.closest(".col-md-2");
-const colAcabamento = editProdutoAcabamento.closest(".col-md-2");
+  const colAcabamento = editProdutoAcabamento.closest(".col-md-2");
 
   if (ativo) {
     editProdutoDescricao.disabled = false;
@@ -770,11 +824,17 @@ editProdutoAcabamento.disabled = true;
     if (colEspessura) colEspessura.classList.remove("d-none");
     if (colComprimento) colComprimento.classList.remove("d-none");
     if (colLargura) colLargura.classList.remove("d-none");
-if (colAcabamento) colAcabamento.classList.remove("d-none");
+  if (colAcabamento) colAcabamento.classList.remove("d-none");
 
 
 
     editProdutoBrand.disabled = false;
+
+    // ✅ ADICIONAR ESTAS LINHAS
+    editProdutoDescricao.value = "";
+    editProdutoDescricaoId.value = "";
+    editClearDescricao.classList.add("d-none");
+
     editProdutoDescricao.disabled = true;
     editProdutoDescricao.placeholder = "Primeiro seleciona a marca...";
     editProdutoDescricaoId.value = "";
@@ -853,6 +913,42 @@ if (colAcabamento) colAcabamento.classList.remove("d-none");
   editProdutoPrecoMt2.addEventListener("input", calcularValoresEdit);
   editProdutoDesconto.addEventListener("focus", function() {
     this.select();
+  });
+
+  editProdutoQuantidade.addEventListener("focus", function() {
+    this.select();
+  });
+
+  editProdutoDescricao.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && modoAtualDiversosEdit) {
+      e.preventDefault();
+      setTimeout(() => editProdutoQuantidade.focus(), 50);
+    }
+  });
+
+  // Navegação por Enter
+  // Navegação por Enter
+  editProdutoQuantidade.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (modoAtualDiversosEdit) {
+        editProdutoPrecoMt2.focus();
+      } else {
+        editProdutoComprimento.focus();
+      }
+    }
+  });
+  editProdutoComprimento.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); editProdutoLargura.focus(); }
+  });
+  editProdutoLargura.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); editProdutoPrecoMt2.focus(); }
+  });
+  editProdutoPrecoMt2.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); editProdutoDesconto.focus(); }
+  });
+  editProdutoDesconto.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); btnAdicionarProdutoEdit.click(); }
   });
 
   btnVerPrecarioEdit.addEventListener("click", () => {

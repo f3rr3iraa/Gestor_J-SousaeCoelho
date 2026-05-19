@@ -3,6 +3,9 @@
 // ✅ Aceita entrada com vírgula ou ponto (1,2324 ou 1.2324)
 // ✅ Exibe sempre 4 casas decimais na tabela
 // ✅ Valida e formata automaticamente
+// ✅ Preço/m² NÃO assumido automaticamente
+// ✅ Quantidade e Desconto: seleciona tudo ao focar
+// ✅ Enter no Desconto abre modal de confirmação
 // =====================================================
 
 window.initOrcamentoForm = function () {
@@ -85,7 +88,7 @@ window.initOrcamentoForm = function () {
   const clienteDropdown = document.getElementById("clienteDropdown");
   const clearCliente = document.getElementById("clearCliente");
   const clienteDetalhes = document.getElementById("clienteDetalhes");
-  let clientesData = []; // Cache local para pesquisa
+  let clientesData = [];
   let modoAtualDiversos = false;
 
   console.log("✅ Elementos DOM carregados com sucesso");
@@ -95,7 +98,6 @@ window.initOrcamentoForm = function () {
   // =====================================================
   function normalizeDecimalInput(value) {
     if (!value || value.trim() === "") return "";
-    // Substituir vírgula por ponto
     return value.replace(",", ".");
   }
 
@@ -105,14 +107,8 @@ window.initOrcamentoForm = function () {
   function formatarComprimentoLargura(input) {
     let valor = input.value.trim();
     if (!valor) return;
-    
-    // Substituir vírgula por ponto
     valor = normalizeDecimalInput(valor);
-    
-    // Converter para número
     const numero = parseFloat(valor);
-    
-    // Se for um número válido, formatar com 4 casas decimais
     if (!isNaN(numero) && numero >= 0) {
       input.value = numero.toFixed(4);
     }
@@ -131,15 +127,23 @@ window.initOrcamentoForm = function () {
     calcularValores();
   });
 
-  // Permitir entrada com vírgula durante digitação
   produtoComprimento.addEventListener("input", function() {
-    // Só recalcular, não formatar ainda (espera o blur)
     calcularValores();
   });
 
   produtoLargura.addEventListener("input", function() {
-    // Só recalcular, não formatar ainda (espera o blur)
     calcularValores();
+  });
+
+  // =====================================================
+  // ✅ [ALTERAÇÃO 2] SELECIONAR TUDO AO FOCAR - QUANTIDADE E DESCONTO
+  // =====================================================
+  produtoQuantidade.addEventListener("focus", function() {
+    this.select();
+  });
+
+  produtoDesconto.addEventListener("focus", function() {
+    this.select();
   });
 
   // =====================================================
@@ -149,7 +153,6 @@ window.initOrcamentoForm = function () {
   let produtosWebsite = [];
   let precosPorProduto = {};
   
-  // Dados para autocomplete
   let tiposData = [];
   let brandsData = [];
   let produtosDaMarca = [];
@@ -160,7 +163,6 @@ window.initOrcamentoForm = function () {
   // =====================================================
   function toggleClearButton(input, clearBtn) {
     if (!clearBtn) return;
-    
     if (input.value.trim() !== "") {
       clearBtn.classList.remove("d-none");
     } else {
@@ -182,15 +184,12 @@ window.initOrcamentoForm = function () {
     clearTipo.classList.add("d-none");
     newTipoWrapper.classList.add("d-none");
     newTipoInput.value = "";
-
-    // ✅ Reset modo diversos
     activarModoDiversos(false);
-
     produtoTipo.focus();
   });
 
   // =====================================================
-  // ✅ EVENTOS CLEAR - MARCA (CORRIGIDO)
+  // ✅ EVENTOS CLEAR - MARCA
   // =====================================================
   produtoBrand.addEventListener("input", () => {
     toggleClearButton(produtoBrand, clearBrand);
@@ -201,9 +200,6 @@ window.initOrcamentoForm = function () {
     produtoBrand.value = "";
     produtoBrandKey.value = "";
     clearBrand.classList.add("d-none");
-    
-    newBrandWrapper.classList.add("d-none");
-    newBrandInput.value = "";
     
     produtoDescricao.value = "";
     produtoDescricaoId.value = "";
@@ -216,14 +212,19 @@ window.initOrcamentoForm = function () {
     produtoEspessura.disabled = true;
     produtoEspessura.placeholder = "Primeiro seleciona a descrição...";
     clearEspessura.classList.add("d-none");
+
+    produtoTipoAcabamento.value = "";
+    produtoTipoAcabamentoValue.value = "";
+    produtoTipoAcabamento.disabled = true;
+    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
+    clearTipoAcabamento.classList.add("d-none");
     
     resetCamposDependentes();
-    
     produtoBrand.focus();
   });
 
   // =====================================================
-  // ✅ EVENTOS CLEAR - DESCRIÇÃO (CORRIGIDO)
+  // ✅ EVENTOS CLEAR - DESCRIÇÃO
   // =====================================================
   produtoDescricao.addEventListener("input", () => {
     toggleClearButton(produtoDescricao, clearDescricao);
@@ -240,6 +241,12 @@ window.initOrcamentoForm = function () {
     produtoEspessura.disabled = true;
     produtoEspessura.placeholder = "Primeiro seleciona a descrição...";
     clearEspessura.classList.add("d-none");
+
+    produtoTipoAcabamento.value = "";
+    produtoTipoAcabamentoValue.value = "";
+    produtoTipoAcabamento.disabled = true;
+    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
+    clearTipoAcabamento.classList.add("d-none");
     
     resetCamposDependentes();
     produtoDescricao.focus();
@@ -266,22 +273,23 @@ window.initOrcamentoForm = function () {
     calcularValores();
     produtoEspessura.focus();
   });
-  // =====================================================
-// ✅ EVENTOS CLEAR - ACABAMENTO
-// =====================================================
-produtoTipoAcabamento.addEventListener("input", () => {
-  toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
-});
 
-clearTipoAcabamento.addEventListener("click", (e) => {
-  e.stopPropagation();
-  produtoTipoAcabamento.value = "";
-  produtoTipoAcabamentoValue.value = "";
-  clearTipoAcabamento.classList.add("d-none");
-  produtoPrecoMt2.value = "";
-  calcularValores();
-  produtoTipoAcabamento.focus();
-});
+  // =====================================================
+  // ✅ EVENTOS CLEAR - ACABAMENTO
+  // =====================================================
+  produtoTipoAcabamento.addEventListener("input", () => {
+    toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+  });
+
+  clearTipoAcabamento.addEventListener("click", (e) => {
+    e.stopPropagation();
+    produtoTipoAcabamento.value = "";
+    produtoTipoAcabamentoValue.value = "";
+    clearTipoAcabamento.classList.add("d-none");
+    produtoPrecoMt2.value = "";
+    calcularValores();
+    produtoTipoAcabamento.focus();
+  });
 
   // =====================================================
   // ✅ FUNÇÃO PARA VERIFICAR SE HÁ DADOS NO FORMULÁRIO
@@ -310,7 +318,7 @@ clearTipoAcabamento.addEventListener("click", (e) => {
   }
 
   // =====================================================
-  // FUNÇÃO AUTOCOMPLETE GENÉRICA - MOSTRA TUDO AO CLICAR
+  // FUNÇÃO AUTOCOMPLETE GENÉRICA
   // =====================================================
   function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value) {
     let currentFocus = -1;
@@ -337,45 +345,36 @@ clearTipoAcabamento.addEventListener("click", (e) => {
       dropdown.innerHTML = "";
       filtered.forEach((item, index) => {
         const div = document.createElement("div");
-        div.className = "autocomplete-item";
+        div.className = "autocomplete-item" + (index === 0 ? " autocomplete-active" : "");
         div.textContent = getDisplay(item);
-        
+
         div.addEventListener("click", function(e) {
           e.stopPropagation();
           input.value = getDisplay(item);
           onSelect(item);
           closeAllLists();
-          
-          if (clearBtn) {
-            clearBtn.classList.remove("d-none");
-          }
+          if (clearBtn) clearBtn.classList.remove("d-none");
         });
-        
+
         dropdown.appendChild(div);
       });
-      
+
+      currentFocus = 0;
       dropdown.classList.add("show");
-      currentFocus = -1;
     }
     
-    // No evento click do input:
     input.addEventListener("click", function(e) {
       e.stopPropagation();
-      // ✅ ADICIONADO: Se for o campo descrição em modo Diversos, não mostra dropdown
       if (input === produtoDescricao && modoAtualDiversos) return;
       showOptions(this.value.trim());
     });
 
-    // No evento focus do input:
     input.addEventListener("focus", function(e) {
-      // ✅ ADICIONADO: Se for o campo descrição em modo Diversos, não mostra dropdown
       if (input === produtoDescricao && modoAtualDiversos) return;
       showOptions(this.value.trim());
     });
 
-    // No evento input do input:
     input.addEventListener("input", function() {
-      // ✅ ADICIONADO: Se for o campo descrição em modo Diversos, não mostra dropdown
       if (input === produtoDescricao && modoAtualDiversos) return;
       const val = this.value.trim();
       showOptions(val);
@@ -386,7 +385,7 @@ clearTipoAcabamento.addEventListener("click", (e) => {
     
     input.addEventListener("keydown", function(e) {
       let items = dropdown.getElementsByClassName("autocomplete-item");
-      
+
       if (e.keyCode === 40) {
         e.preventDefault();
         currentFocus++;
@@ -397,7 +396,9 @@ clearTipoAcabamento.addEventListener("click", (e) => {
         addActive(items);
       } else if (e.keyCode === 13) {
         e.preventDefault();
-        if (currentFocus > -1 && items[currentFocus]) {
+        if (currentFocus === -1 && items.length > 0) {
+          items[0].click();
+        } else if (currentFocus > -1 && items[currentFocus]) {
           items[currentFocus].click();
         }
       } else if (e.keyCode === 27) {
@@ -408,10 +409,8 @@ clearTipoAcabamento.addEventListener("click", (e) => {
     function addActive(items) {
       if (!items || items.length === 0) return;
       removeActive(items);
-      
       if (currentFocus >= items.length) currentFocus = 0;
       if (currentFocus < 0) currentFocus = items.length - 1;
-      
       items[currentFocus].classList.add("autocomplete-active");
       items[currentFocus].scrollIntoView({ block: "nearest" });
     }
@@ -436,65 +435,58 @@ clearTipoAcabamento.addEventListener("click", (e) => {
   }
 
   async function loadClientes() {
-  try {
-    const { data, error } = await supabase
-      .from("clientes")
-      .select("*")
-      .order("descricao", { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("*")
+        .order("descricao", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Formatamos os dados para mostrar as duas descrições no dropdown
-    clientesData = data.map(c => ({
-      display: c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao,
-      search: `${c.descricao} ${c.descricao2 || ""}`.toLowerCase(),
-      value: c.id,
-      original: c
-    }));
+      clientesData = data.map(c => ({
+        display: c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao,
+        search: `${c.descricao} ${c.descricao2 || ""}`.toLowerCase(),
+        value: c.id,
+        original: c
+      }));
 
-    setupAutocomplete(
-      clienteNome,
-      clienteDropdown,
-      clientesData,
-      (item) => {
-        // Ao selecionar o cliente:
-        clienteId.value = item.value;
-        clienteNome.value = item.original.descricao; // Define o nome principal no input
-        
-        // Preenche info extra para o orçamento (opcional mostrar no ecrã)
-        clienteDetalhes.innerHTML = `
+      setupAutocomplete(
+        clienteNome,
+        clienteDropdown,
+        clientesData,
+        (item) => {
+          clienteId.value = item.value;
+          clienteNome.value = item.original.descricao;
+          clienteDetalhes.innerHTML = `
             ${item.original.contribuinte || '---'} | 
             <strong>Telefone:</strong> ${item.original.telefone || '---'}<br>
             <small>${item.original.morada || ''}</small>
-        `;
-        
-        // Aqui podes guardar outros campos no teu objeto de orçamento final
-        window.selectedClienteData = item.original; 
-      },
-      item => item.display
-    );
+          `;
+          window.selectedClienteData = item.original;
+          setTimeout(() => produtoTipo.focus(), 50);
+        },
+        item => item.display
+      );
 
-  } catch (err) {
-    console.error("Erro ao carregar clientes:", err);
+    } catch (err) {
+      console.error("Erro ao carregar clientes:", err);
+    }
   }
-}
 
-// Chamar a função no final do init
+  clienteNome.addEventListener("input", () => {
+    toggleClearButton(clienteNome, clearCliente);
+  });
 
+  clearCliente.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clienteNome.value = "";
+    clienteId.value = "";
+    clienteDetalhes.innerHTML = "";
+    window.selectedClienteData = null;
+    clearCliente.classList.add("d-none");
+    clienteNome.focus();
+  });
 
-clienteNome.addEventListener("input", () => {
-  toggleClearButton(clienteNome, clearCliente);
-});
-
-clearCliente.addEventListener("click", (e) => {
-  e.stopPropagation();
-  clienteNome.value = "";
-  clienteId.value = "";
-  clienteDetalhes.innerHTML = "";
-  window.selectedClienteData = null;
-  clearCliente.classList.add("d-none");
-  clienteNome.focus();
-});
   // =====================================================
   // CARREGAR TIPOS DE PRODUTO
   // =====================================================
@@ -543,10 +535,15 @@ clearCliente.addEventListener("click", (e) => {
             produtoTipoId.value = item.id;
             newTipoWrapper.classList.add("d-none");
             newTipoInput.value = "";
-
-            // ✅ Verifica se é "Diversos"
             const isDiversos = item.nome.trim().toLowerCase() === "diversos";
             activarModoDiversos(isDiversos);
+            setTimeout(() => {
+              if (isDiversos) {
+                produtoDescricao.focus();
+              } else {
+                produtoBrand.focus();
+              }
+            }, 50);
           }
         }
       );
@@ -586,8 +583,6 @@ clearCliente.addEventListener("click", (e) => {
         website_key: brand.website_key,
         display_name: brand.display_name
       }));
-      
-
 
       setupAutocomplete(
         produtoBrand,
@@ -596,6 +591,7 @@ clearCliente.addEventListener("click", (e) => {
         async (item) => {
           produtoBrandKey.value = item.website_key;
           await carregarDescricoesDaMarca(item.website_key);
+          setTimeout(() => produtoDescricao.focus(), 50);
         }
       );
 
@@ -625,7 +621,7 @@ clearCliente.addEventListener("click", (e) => {
   }
 
   // =====================================================
-  // ✅ CARREGAR DESCRIÇÕES DA MARCA SELECIONADA (CORRIGIDO)
+  // CARREGAR DESCRIÇÕES DA MARCA SELECIONADA
   // =====================================================
   async function carregarDescricoesDaMarca(brandKey) {
     produtoDescricao.value = "";
@@ -663,12 +659,13 @@ clearCliente.addEventListener("click", (e) => {
       async (item) => {
         produtoDescricaoId.value = item.id;
         await carregarEspessuras(item.id);
+        setTimeout(() => produtoEspessura.focus(), 50);
       }
     );
   }
 
   // =====================================================
-  // ✅ CARREGAR ESPESSURAS DISPONÍVEIS (AUTOCOMPLETE) (CORRIGIDO)
+  // CARREGAR ESPESSURAS DISPONÍVEIS (AUTOCOMPLETE)
   // =====================================================
   async function carregarEspessuras(produtoId) {
     produtoEspessura.value = "";
@@ -696,7 +693,6 @@ clearCliente.addEventListener("click", (e) => {
         return;
       }
 
-      // Guardar como { thickness: [ { type, price_per_m2 }, ... ] }
       precosPorProduto[produtoId] = {};
       thicknesses.forEach(t => {
         if (!precosPorProduto[produtoId][t.thickness]) {
@@ -708,7 +704,6 @@ clearCliente.addEventListener("click", (e) => {
         });
       });
 
-      // Agrupar por espessura (pode haver vários tipos para a mesma espessura)
       const espessurasUnicas = [...new Set(thicknesses.map(t => t.thickness))];
 
       espessurasDisponiveis = espessurasUnicas.map(thickness => ({
@@ -723,7 +718,6 @@ clearCliente.addEventListener("click", (e) => {
         espessurasDisponiveis,
         (item) => {
           produtoEspessuraValue.value = item.thickness;
-          // Resetar acabamento
           produtoTipoAcabamento.value = "";
           produtoTipoAcabamentoValue.value = "";
           produtoTipoAcabamento.disabled = false;
@@ -745,43 +739,52 @@ clearCliente.addEventListener("click", (e) => {
   }
 
   // =====================================================
-  // ✅ CARREGAR TIPOS DE ACABAMENTO PARA ESPESSURA
+  // ✅ [ALTERAÇÃO 1] CARREGAR TIPOS DE ACABAMENTO
+  // Preço/m² NÃO é preenchido automaticamente,
+  // mesmo quando só existe 1 acabamento disponível.
+  // O utilizador tem sempre de confirmar/ver o preço.
   // =====================================================
   function carregarTiposAcabamento(produtoId, thickness) {
     const tiposParaEspessura = (precosPorProduto[produtoId]?.[thickness] || []);
 
-    const tiposData = tiposParaEspessura.map(t => ({
+    const tiposAcabamentoData = tiposParaEspessura.map(t => ({
       display: t.type.charAt(0).toUpperCase() + t.type.slice(1),
       value: t.type,
       price: t.price_per_m2
     }));
 
-    if (tiposData.length === 0) {
+    if (tiposAcabamentoData.length === 0) {
       produtoTipoAcabamento.disabled = true;
       produtoTipoAcabamento.placeholder = "Sem tipos disponíveis";
       return;
     }
 
-    // Auto-selecionar se só houver um tipo
-    // Auto-selecionar o tipo se só houver um, mas sem preencher o preço
-    if (tiposData.length === 1) {
-  produtoTipoAcabamento.value = tiposData[0].display;
-  produtoTipoAcabamentoValue.value = tiposData[0].value;
-  produtoPrecoMt2.value = tiposData[0].price;
-  clearTipoAcabamento.classList.remove("d-none");
-  calcularValores();
-  return;
-}
+    if (tiposAcabamentoData.length === 1) {
+      // ✅ Preenche o texto do campo e o valor hidden,
+      // mas NÃO preenche o Preço/m² automaticamente.
+      produtoTipoAcabamento.value = tiposAcabamentoData[0].display;
+      produtoTipoAcabamentoValue.value = tiposAcabamentoData[0].value;
+      clearTipoAcabamento.classList.remove("d-none");
+      // produtoPrecoMt2 fica vazio — utilizador preenche manualmente
+      calcularValores();
+      // Foco vai para Quantidade para o utilizador confirmar e avançar
+      setTimeout(() => produtoQuantidade.focus(), 50);
+      return;
+    }
 
     setupAutocomplete(
-  produtoTipoAcabamento,
-  tipoAcabamentoDropdown,
-  tiposData,
-  (item) => {
-    produtoTipoAcabamentoValue.value = item.value;
-    calcularValores();
-  }
-);
+      produtoTipoAcabamento,
+      tipoAcabamentoDropdown,
+      tiposAcabamentoData,
+      (item) => {
+        produtoTipoAcabamentoValue.value = item.value;
+        // ✅ Preço/m² também NÃO é preenchido aqui automaticamente
+        calcularValores();
+        setTimeout(() => produtoQuantidade.focus(), 50);
+      }
+    );
+
+    setTimeout(() => produtoTipoAcabamento.focus(), 50);
   }
 
   // =====================================================
@@ -797,66 +800,66 @@ clearCliente.addEventListener("click", (e) => {
   }
 
   // =====================================================
-  // ✅ MODO DIVERSOS - Ativa/desativa campos especiais
+  // ✅ MODO DIVERSOS
   // =====================================================
   function activarModoDiversos(ativo) {
     modoAtualDiversos = ativo;
 
     descricaoDropdown.classList.remove("show");
-  descricaoDropdown.innerHTML = "";
-  const modoDiversosBadge = document.getElementById("modoDiversosBadge");
+    descricaoDropdown.innerHTML = "";
+    const modoDiversosBadge = document.getElementById("modoDiversosBadge");
 
-  // Wrappers das colunas (col-md-X que envolvem os campos)
-  const colMarca = produtoBrand.closest(".col-md-3");
-  const colEspessura = document.getElementById("colEspessura");
-  const colAcabamento = document.getElementById("colAcabamento");
-  const colComprimento = produtoComprimento.closest(".col-md-2");
-  const colLargura = produtoLargura.closest(".col-md-2");
+    const colMarca = produtoBrand.closest(".col-md-3");
+    const colEspessura = document.getElementById("colEspessura");
+    const colAcabamento = document.getElementById("colAcabamento");
+    const colComprimento = produtoComprimento.closest(".col-md-2");
+    const colLargura = produtoLargura.closest(".col-md-2");
 
-  if (ativo) {
-    // Descrição livre
-    produtoDescricao.value = "";
-    produtoDescricao.disabled = false;
-    produtoDescricao.placeholder = "Descreve o artigo...";
-    produtoDescricaoId.value = "diversos";
+    if (ativo) {
+      produtoDescricao.value = "";
+      produtoDescricao.disabled = false;
+      produtoDescricao.placeholder = "Descreve o artigo...";
+      produtoDescricaoId.value = "diversos";
 
-    // ESCONDE colunas que não se usam
-    if (colMarca) colMarca.classList.add("d-none");
-    if (colEspessura) colEspessura.classList.add("d-none");
-    if (colAcabamento) colAcabamento.classList.add("d-none");
-    if (colComprimento) colComprimento.classList.add("d-none");
-    if (colLargura) colLargura.classList.add("d-none");
+      if (colMarca) colMarca.classList.add("d-none");
+      if (colEspessura) colEspessura.classList.add("d-none");
+      if (colAcabamento) colAcabamento.classList.add("d-none");
+      if (colComprimento) colComprimento.classList.add("d-none");
+      if (colLargura) colLargura.classList.add("d-none");
 
-    // Limpa valores internos
-    produtoBrand.value = "";
-    produtoBrandKey.value = "diversos";
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "0";
-    produtoComprimento.value = "";
-    produtoLargura.value = "";
+      produtoBrand.value = "";
+      produtoBrandKey.value = "diversos";
+      produtoEspessura.value = "";
+      produtoEspessuraValue.value = "0";
+      produtoComprimento.value = "";
+      produtoLargura.value = "";
 
-    btnVerPrecario.classList.add("d-none");
-    if (modoDiversosBadge) modoDiversosBadge.classList.remove("d-none");
+      btnVerPrecario.classList.add("d-none");
+      if (modoDiversosBadge) modoDiversosBadge.classList.remove("d-none");
 
-  } else {
-    if (colMarca) colMarca.classList.remove("d-none");
-    if (colEspessura) colEspessura.classList.remove("d-none");
-    if (colAcabamento) colAcabamento.classList.remove("d-none");
-    if (colComprimento) colComprimento.classList.remove("d-none");
-    if (colLargura) colLargura.classList.remove("d-none");
+    } else {
+      if (colMarca) colMarca.classList.remove("d-none");
+      if (colEspessura) colEspessura.classList.remove("d-none");
+      if (colAcabamento) colAcabamento.classList.remove("d-none");
+      if (colComprimento) colComprimento.classList.remove("d-none");
+      if (colLargura) colLargura.classList.remove("d-none");
 
-    produtoBrand.disabled = false;
+      produtoBrand.disabled = false;
 
-    // Só desativa descrição se não houver marca selecionada
-    if (!produtoBrandKey.value) {
-      produtoDescricao.disabled = true;
-      produtoDescricao.placeholder = "Primeiro seleciona a marca...";
+      // ✅ ADICIONAR ESTAS LINHAS — limpar descrição ao sair do modo diversos
+      produtoDescricao.value = "";
+      produtoDescricaoId.value = "";
+      clearDescricao.classList.add("d-none");
+
+      if (!produtoBrandKey.value) {
+        produtoDescricao.disabled = true;
+        produtoDescricao.placeholder = "Primeiro seleciona a marca...";
+      }
+
+      if (modoDiversosBadge) modoDiversosBadge.classList.add("d-none");
     }
-
-    if (modoDiversosBadge) modoDiversosBadge.classList.add("d-none");
+    calcularValores();
   }
-  calcularValores();
-}
 
   // =====================================================
   // ADICIONAR NOVO TIPO
@@ -897,8 +900,6 @@ clearCliente.addEventListener("click", (e) => {
     }
   });
 
-
-
   // =====================================================
   // VALIDAÇÃO DO CAMPO DESCONTO
   // =====================================================
@@ -924,45 +925,88 @@ clearCliente.addEventListener("click", (e) => {
   });
 
   // =====================================================
-  // ✅ CALCULAR M², SUBTOTAL E TOTAL (COM NORMALIZAÇÃO)
+  // ✅ CALCULAR M², SUBTOTAL E TOTAL
   // =====================================================
   function calcularValores() {
-  const qtd = parseInt(produtoQuantidade.value) || 0;
-  const isDiversos = produtoTipoId.value !== "" &&
-    produtoTipo.value.trim().toLowerCase() === "diversos";
+    const qtd = parseInt(produtoQuantidade.value) || 0;
+    const isDiversos = produtoTipoId.value !== "" &&
+      produtoTipo.value.trim().toLowerCase() === "diversos";
 
-  let compM, largM;
+    let compM, largM;
 
-  if (isDiversos) {
-    // m² = quantidade (comprimento e largura = 1)
-    compM = 1;
-    largM = 1;
-  } else {
-    compM = parseFloat(normalizeDecimalInput(produtoComprimento.value)) || 0;
-    largM = parseFloat(normalizeDecimalInput(produtoLargura.value)) || 0;
+    if (isDiversos) {
+      compM = 1;
+      largM = 1;
+    } else {
+      compM = parseFloat(normalizeDecimalInput(produtoComprimento.value)) || 0;
+      largM = parseFloat(normalizeDecimalInput(produtoLargura.value)) || 0;
+    }
+
+    const precoMt2 = parseFloat(produtoPrecoMt2.value) || 0;
+    let desconto = parseFloat(produtoDesconto.value) || 0;
+    if (desconto < 0) desconto = 0;
+    if (desconto > 100) desconto = 100;
+
+    const mt2 = qtd * compM * largM;
+    produtoMt2.value = mt2.toFixed(4);
+
+    const fatorDesconto = 1 - (desconto / 100);
+    const subtotal = compM * largM * precoMt2 * fatorDesconto;
+    produtoSubtotal.value = subtotal > 0 ? subtotal.toFixed(2) : "0.00";
+
+    const total = subtotal * qtd;
+    produtoTotal.value = total > 0 ? total.toFixed(2) : "0.00";
   }
 
-  const precoMt2 = parseFloat(produtoPrecoMt2.value) || 0;
-  let desconto = parseFloat(produtoDesconto.value) || 0;
-  if (desconto < 0) desconto = 0;
-  if (desconto > 100) desconto = 100;
+  // =====================================================
+  // ✅ [ALTERAÇÃO 3] NAVEGAÇÃO POR ENTER + MODAL CONFIRMAÇÃO
+  // =====================================================
 
-  const mt2 = qtd * compM * largM;
-  produtoMt2.value = mt2.toFixed(4);
+  // Definir a função que abre o modal de confirmação
+  function abrirModalConfirmarProduto() {
+    const modal = new bootstrap.Modal(document.getElementById('confirmarProdutoModal'));
+    modal.show();
+  }
 
-  const fatorDesconto = 1 - (desconto / 100);
-  const subtotal = compM * largM * precoMt2 * fatorDesconto;
-  produtoSubtotal.value = subtotal > 0 ? subtotal.toFixed(2) : "0.00";
+  // Ligar o botão de confirmação do modal ao btnAdicionarProduto
+  const confirmarAdicionarProdutoBtn = document.getElementById("confirmarAdicionarProdutoBtn");
+  if (confirmarAdicionarProdutoBtn) {
+    confirmarAdicionarProdutoBtn.addEventListener("click", () => {
+      // Fechar o modal
+      const modalEl = document.getElementById('confirmarProdutoModal');
+      const modalInstance = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstance) modalInstance.hide();
+      // Acionar o clique no botão de adicionar
+      btnAdicionarProduto.click();
+    });
+  }
 
-  const total = subtotal * qtd;
-  produtoTotal.value = total > 0 ? total.toFixed(2) : "0.00";
-}
-
-  produtoQuantidade.addEventListener("input", calcularValores);
-  produtoPrecoMt2.addEventListener("input", calcularValores);
-
-  produtoDesconto.addEventListener("focus", function() {
-    this.select();
+  // Navegação Enter nos campos numéricos
+  // Navegação Enter nos campos numéricos
+  produtoQuantidade.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (modoAtualDiversos) {
+        produtoPrecoMt2.focus();
+      } else {
+        produtoComprimento.focus();
+      }
+    }
+  });
+  produtoComprimento.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); produtoLargura.focus(); }
+  });
+  produtoLargura.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); produtoPrecoMt2.focus(); }
+  });
+  produtoPrecoMt2.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); produtoDesconto.focus(); }
+  });
+  produtoDesconto.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      btnAdicionarProduto.click();
+    }
   });
 
   // =====================================================
@@ -1028,86 +1072,86 @@ clearCliente.addEventListener("click", (e) => {
   }
 
   // =====================================================
-  // ✅ ADICIONAR PRODUTO À TABELA (COM NORMALIZAÇÃO)
+  // ✅ ADICIONAR PRODUTO À TABELA
   // =====================================================
   btnAdicionarProduto.addEventListener("click", () => {
-  const isDiversos = produtoTipo.value.trim().toLowerCase() === "diversos";
+    const isDiversos = produtoTipo.value.trim().toLowerCase() === "diversos";
 
-  if (!produtoTipoId.value) {
-    showMessage("⚠️ Seleciona o tipo", "warning");
-    return;
-  }
+    if (!produtoTipoId.value) {
+      showMessage("⚠️ Seleciona o tipo", "warning");
+      return;
+    }
 
-  if (isDiversos) {
-    if (!produtoDescricao.value.trim()) {
-      showMessage("⚠️ Escreve a descrição do artigo", "warning");
-      return;
+    if (isDiversos) {
+      if (!produtoDescricao.value.trim()) {
+        showMessage("⚠️ Escreve a descrição do artigo", "warning");
+        return;
+      }
+    } else {
+      if (!produtoBrandKey.value) {
+        showMessage("⚠️ Seleciona a marca", "warning");
+        return;
+      }
+      if (!produtoDescricaoId.value) {
+        showMessage("⚠️ Seleciona a descrição", "warning");
+        return;
+      }
+      if (!produtoEspessuraValue.value) {
+        showMessage("⚠️ Seleciona a espessura", "warning");
+        return;
+      }
+      if (!produtoTipoAcabamentoValue.value) {
+        showMessage("⚠️ Seleciona o acabamento", "warning");
+        return;
+      }
+      const compM = parseFloat(normalizeDecimalInput(produtoComprimento.value));
+      const largM = parseFloat(normalizeDecimalInput(produtoLargura.value));
+      if (!compM || compM <= 0) {
+        showMessage("⚠️ Comprimento deve ser maior que zero", "warning");
+        return;
+      }
+      if (!largM || largM <= 0) {
+        showMessage("⚠️ Largura deve ser maior que zero", "warning");
+        return;
+      }
     }
-  } else {
-    if (!produtoBrandKey.value) {
-      showMessage("⚠️ Seleciona a marca", "warning");
-      return;
-    }
-    if (!produtoDescricaoId.value) {
-      showMessage("⚠️ Seleciona a descrição", "warning");
-      return;
-    }
-    if (!produtoEspessuraValue.value) {
-      showMessage("⚠️ Seleciona a espessura", "warning");
-      return;
-    }
-    if (!produtoTipoAcabamentoValue.value) {
-      showMessage("⚠️ Seleciona o acabamento", "warning");
-      return;
-    }
-    const compM = parseFloat(normalizeDecimalInput(produtoComprimento.value));
-    const largM = parseFloat(normalizeDecimalInput(produtoLargura.value));
-    if (!compM || compM <= 0) {
-      showMessage("⚠️ Comprimento deve ser maior que zero", "warning");
-      return;
-    }
-    if (!largM || largM <= 0) {
-      showMessage("⚠️ Largura deve ser maior que zero", "warning");
-      return;
-    }
-  }
 
-  if (!produtoQuantidade.value || produtoQuantidade.value <= 0) {
-    showMessage("⚠️ Quantidade deve ser maior que zero", "warning");
-    return;
-  }
-  if (!produtoPrecoMt2.value || produtoPrecoMt2.value <= 0) {
-    showMessage("⚠️ Preço/m² deve ser maior que zero", "warning");
-    return;
-  }
+    if (!produtoQuantidade.value || produtoQuantidade.value <= 0) {
+      showMessage("⚠️ Quantidade deve ser maior que zero", "warning");
+      return;
+    }
+    if (!produtoPrecoMt2.value || produtoPrecoMt2.value <= 0) {
+      showMessage("⚠️ Preço/m² deve ser maior que zero", "warning");
+      return;
+    }
 
-  const compM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoComprimento.value));
-  const largM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoLargura.value));
+    const compM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoComprimento.value));
+    const largM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoLargura.value));
 
-  const produto = {
-    id: Date.now(),
-    isDiversos: isDiversos,
-    tipo_id: parseInt(produtoTipoId.value),
-    tipoNome: produtoTipo.value,
-    brand: isDiversos ? "" : produtoBrandKey.value,
-    brandNome: isDiversos ? "" : produtoBrand.value,
-    descricao: produtoDescricao.value,
-    quantidade: parseInt(produtoQuantidade.value),
-    comprimento: compM,
-    largura: largM,
-    espessura: isDiversos ? null : parseInt(produtoEspessuraValue.value),
-    tipoAcabamento: isDiversos ? null : produtoTipoAcabamentoValue.value,
-    mt2: parseFloat(produtoMt2.value),
-    preco_mt2: parseFloat(produtoPrecoMt2.value),
-    desconto_percentagem: parseFloat(produtoDesconto.value) || 0,
-    subtotal: parseFloat(produtoSubtotal.value),
-    total: parseFloat(produtoTotal.value)
-  };
+    const produto = {
+      id: Date.now(),
+      isDiversos: isDiversos,
+      tipo_id: parseInt(produtoTipoId.value),
+      tipoNome: produtoTipo.value,
+      brand: isDiversos ? "" : produtoBrandKey.value,
+      brandNome: isDiversos ? "" : produtoBrand.value,
+      descricao: produtoDescricao.value,
+      quantidade: parseInt(produtoQuantidade.value),
+      comprimento: compM,
+      largura: largM,
+      espessura: isDiversos ? null : parseInt(produtoEspessuraValue.value),
+      tipoAcabamento: isDiversos ? null : produtoTipoAcabamentoValue.value,
+      mt2: parseFloat(produtoMt2.value),
+      preco_mt2: parseFloat(produtoPrecoMt2.value),
+      desconto_percentagem: parseFloat(produtoDesconto.value) || 0,
+      subtotal: parseFloat(produtoSubtotal.value),
+      total: parseFloat(produtoTotal.value)
+    };
 
-  produtosAdicionados.push(produto);
-  renderProdutosTable();
-  limparCamposProduto();
-});
+    produtosAdicionados.push(produto);
+    renderProdutosTable();
+    limparCamposProduto();
+  });
 
   // =====================================================
   // ✅ BOTÃO LIMPAR PRODUTO
@@ -1122,7 +1166,7 @@ clearCliente.addEventListener("click", (e) => {
   });
 
   // =====================================================
-  // ✅ RENDERIZAR TABELA DE PRODUTOS (EXIBIR 4 DECIMAIS)
+  // ✅ RENDERIZAR TABELA DE PRODUTOS
   // =====================================================
   function renderProdutosTable() {
     if (produtosAdicionados.length === 0) {
@@ -1181,7 +1225,7 @@ clearCliente.addEventListener("click", (e) => {
   });
 
   // =====================================================
-  // ✅ LIMPAR CAMPOS DO PRODUTO (CORRIGIDO)
+  // ✅ LIMPAR CAMPOS DO PRODUTO
   // =====================================================
   function limparCamposProduto() {
     produtoTipo.value = "";
@@ -1221,13 +1265,11 @@ clearCliente.addEventListener("click", (e) => {
     produtoTipoAcabamentoValue.value = "";
     clearTipoAcabamento.classList.add("d-none");
 
-
     btnVerPrecario.classList.add("d-none");
     if (precarioAberto) {
       fecharPrecario();
     }
 
-    // ✅ Restaura todos os campos visíveis após adicionar produto
     activarModoDiversos(false);
   }
 
@@ -1260,7 +1302,7 @@ clearCliente.addEventListener("click", (e) => {
   });
 
   // =====================================================
-  // ✅ SUBMIT DO FORMULÁRIO (COM NORMALIZAÇÃO)
+  // ✅ SUBMIT DO FORMULÁRIO
   // =====================================================
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1286,41 +1328,37 @@ clearCliente.addEventListener("click", (e) => {
 
       const totalGeral = produtosAdicionados.reduce((sum, p) => sum + p.total, 0);
 
-      // Dentro do form.addEventListener("submit", ...)
       const dadosParaInserir = {
-          cliente_nome: clienteNome.value.trim(),
-          cliente_id: clienteId.value ? parseInt(clienteId.value) : null,
-          total_geral: totalGeral,
-          data_criacao: new Date().toISOString()
+        cliente_nome: clienteNome.value.trim(),
+        cliente_id: clienteId.value ? parseInt(clienteId.value) : null,
+        total_geral: totalGeral,
+        data_criacao: new Date().toISOString()
       };
 
-      // Se tiveres uma coluna orcamento_json ou similar para guardar tudo:
-      // dadosParaInserir.detalhes_json = JSON.stringify(items); 
-
       const { data: orcamentoData, error: orcamentoError } = await supabase
-          .from("orcamentos")
-          .insert([dadosParaInserir])
-          .select();
+        .from("orcamentos")
+        .insert([dadosParaInserir])
+        .select();
 
       if (orcamentoError) {
-          console.error("Erro detalhado do Supabase:", orcamentoError);
-          throw new Error(orcamentoError.message);
+        console.error("Erro detalhado do Supabase:", orcamentoError);
+        throw new Error(orcamentoError.message);
       }
       const orcamentoId = orcamentoData[0].id;
 
       const itensParaInserir = produtosAdicionados.map(p => ({
-  orcamento_id: orcamentoId,
-  tipo_id: p.tipo_id,
-  brand: p.brand,
-  descricao: p.descricao,
-  quantidade: p.quantidade,
-  comprimento: p.comprimento,
-  largura: p.largura,
-  espessura: p.espessura ?? 0,
-  type: p.tipoAcabamento || null,
-  preco_mt2: p.preco_mt2,
-  desconto_percentagem: p.desconto_percentagem
-}));
+        orcamento_id: orcamentoId,
+        tipo_id: p.tipo_id,
+        brand: p.brand,
+        descricao: p.descricao,
+        quantidade: p.quantidade,
+        comprimento: p.comprimento,
+        largura: p.largura,
+        espessura: p.espessura ?? 0,
+        type: p.tipoAcabamento || null,
+        preco_mt2: p.preco_mt2,
+        desconto_percentagem: p.desconto_percentagem
+      }));
 
       const { error: itensError } = await supabase
         .from("orcamento_itens")
@@ -1355,6 +1393,13 @@ clearCliente.addEventListener("click", (e) => {
     }
   });
 
+  produtoDescricao.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && modoAtualDiversos) {
+      e.preventDefault();
+      setTimeout(() => produtoQuantidade.focus(), 50);
+    }
+  });
+
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.key === "Enter") {
       e.preventDefault();
@@ -1370,5 +1415,5 @@ clearCliente.addEventListener("click", (e) => {
   loadProdutosWebsite();
   loadClientes();
 
-  console.log("✅ Formulário de Orçamento inicializado - Versão com Comprimento/Largura 4 Decimais");
+  console.log("✅ Formulário de Orçamento inicializado");
 };

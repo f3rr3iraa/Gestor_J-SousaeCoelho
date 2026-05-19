@@ -416,11 +416,11 @@ function renderEditCombinations() {
       </div>
       <div class="coolinput">
         <label class="text">Preço (€/m²):</label>
-        <input type="number" step="0.01" min="0"
+        <input type="number" z min="0"
           class="input edit-combo-price" data-index="${index}"
           value="${combo.price || ''}" placeholder="Preço por m²">
       </div>
-      <button type="button" class="btn btn-sm btn-outline-danger edit-remove-combo align-self-center" data-index="${index}">
+      <button type="button" class="btn btn-sm btn-outline-danger edit-remove-combo align-self-end mb-2" data-index="${index}">
         <i class="bi bi-x-lg"></i>
       </button>
     `;

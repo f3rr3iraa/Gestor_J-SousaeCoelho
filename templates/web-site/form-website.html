@@ -30,13 +30,30 @@
     <fieldset>
       <legend>Marca</legend>
       <div class="row">
-        <div class="coolinput col-4">
-          <label for="brand" class="text">Marca:</label>
-          <select name="brand" id="brand" class="input" required>
-            <option value="" disabled selected>Seleciona a marca...</option>
-          </select>
+        <!-- MARCA COM AUTOCOMPLETE (igual ao formulário de orçamento) -->
+        <div class="col-4">
+          <div class="coolinput autocomplete-wrapper">
+            <label for="brand" class="text">Marca:</label>
+            <div class="input-with-clear">
+              <input
+                type="text"
+                id="brand"
+                name="brand"
+                class="input autocomplete-input"
+                placeholder="Seleciona a marca..."
+                autocomplete="off"
+                required
+              />
+              <button type="button" class="input-clear-btn d-none" id="clearBrand">
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+            <input type="hidden" id="brandKey" />
+            <div id="brandDropdown" class="autocomplete-dropdown"></div>
+          </div>
         </div>
 
+        <!-- NOVA MARCA (aparece quando seleciona "+ Adicionar Nova Marca") -->
         <div class="coolinput col-4 d-none" id="newBrandWrapper">
           <label for="new_brand" class="text">Nova marca:</label>
           <input
@@ -46,7 +63,9 @@
             class="input"
             placeholder="Escrever as primeiras letras com maiúscula"
           />
-          <button type="button" id="addNewBrand" class="btn-form mt-2" style="font-size: 14px; padding: 8px 12px;"><i class="bi bi-plus-square me-2"></i>Adicionar Nova Marca</button>
+          <button type="button" id="addNewBrand" class="btn-form mt-2" style="font-size: 14px; padding: 8px 12px;">
+            <i class="bi bi-plus-square me-2"></i>Adicionar Nova Marca
+          </button>
         </div>
       </div>
     </fieldset>
@@ -133,4 +152,3 @@
     </div>
   </form>
 </div>
-
