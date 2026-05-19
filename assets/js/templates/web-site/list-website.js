@@ -416,7 +416,7 @@ function renderEditCombinations() {
       </div>
       <div class="coolinput">
         <label class="text">Preço (€/m²):</label>
-        <input type="number" z min="0"
+        <input type="number" min="0" step="0.01"
           class="input edit-combo-price" data-index="${index}"
           value="${combo.price || ''}" placeholder="Preço por m²">
       </div>
@@ -439,9 +439,8 @@ function renderEditCombinations() {
     });
   });
   editCombinationsContainer.querySelectorAll('.edit-combo-price').forEach(el => {
-    el.addEventListener('input', e => {
-      editCombinations[parseInt(e.target.dataset.index)].price = parseFloat(e.target.value);
-    });
+    const val = el.value.replace(',', '.');
+    editCombinations[parseInt(el.dataset.index)].price = parseFloat(val) || 0;
   });
   editCombinationsContainer.querySelectorAll('.edit-remove-combo').forEach(el => {
     el.addEventListener('click', e => {
