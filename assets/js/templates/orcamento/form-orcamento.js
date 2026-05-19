@@ -320,7 +320,7 @@ window.initOrcamentoForm = function () {
   // =====================================================
   // FUNÇÃO AUTOCOMPLETE GENÉRICA
   // =====================================================
-  function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value) {
+  function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value, customFilter = null) {
     let currentFocus = -1;
     
     if (!allDropdowns.includes(dropdown)) {
@@ -332,9 +332,11 @@ window.initOrcamentoForm = function () {
     function showOptions(filterValue = "") {
       closeAllDropdowns();
       
-      const filtered = filterValue 
-        ? data.filter(item => getDisplay(item).toLowerCase().includes(filterValue.toLowerCase()))
-        : data;
+      const filtered = filterValue
+      ? data.filter(item => customFilter
+          ? customFilter(item, filterValue)
+          : getDisplay(item).toLowerCase().includes(filterValue.toLowerCase()))
+      : data;
       
       if (filtered.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-item disabled">Nenhum resultado encontrado</div>';
@@ -726,6 +728,12 @@ window.initOrcamentoForm = function () {
           produtoPrecoMt2.value = "";
           carregarTiposAcabamento(produtoId, item.thickness);
           calcularValores();
+        },
+        item => item.display,
+        item => item.value,
+        (item, filter) => {
+          const num = filter.replace(/mm$/i, "").trim();
+          return item.display.toLowerCase().startsWith(num.toLowerCase());
         }
       );
 

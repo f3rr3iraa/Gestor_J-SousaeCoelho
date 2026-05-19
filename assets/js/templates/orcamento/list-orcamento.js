@@ -288,7 +288,7 @@ editProdutoLargura.addEventListener("input", function() {
   // =====================================================
   // FUNÇÃO AUTOCOMPLETE GENÉRICA
   // =====================================================
-  function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value) {
+  function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value, customFilter = null) {
     let currentFocus = -1;
     
     if (!allDropdowns.includes(dropdown)) {
@@ -300,9 +300,11 @@ editProdutoLargura.addEventListener("input", function() {
     function showOptions(filterValue = "") {
       closeAllDropdowns();
       
-      const filtered = filterValue 
-        ? data.filter(item => getDisplay(item).toLowerCase().includes(filterValue.toLowerCase()))
-        : data;
+      const filtered = filterValue
+  ? data.filter(item => customFilter
+      ? customFilter(item, filterValue)
+      : getDisplay(item).toLowerCase().includes(filterValue.toLowerCase()))
+  : data;
       
       if (filtered.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-item disabled">Nenhum resultado encontrado</div>';
@@ -646,6 +648,12 @@ async function carregarEspessuras(produtoId) {
         editProdutoEspessuraValue.value = item.value;
         prepararAcabamentos(item.value);
         setTimeout(() => editProdutoAcabamento.focus(), 50);
+      },
+      item => item.display,
+      item => item.value,
+      (item, filter) => {
+        const num = filter.replace(/mm$/i, "").trim();
+        return item.display.toLowerCase().startsWith(num.toLowerCase());
       }
     );
 
@@ -2427,7 +2435,9 @@ async function renderDuplicateTable() {
       <!-- DESCRIÇÃO -->
       <td>
         ${isDiversos
-          ? `<span class="small">${item.descricao}</span>`
+          ? `<input type="text" class="dup-diversos-desc"
+               data-index="${index}" value="${item.descricao}"
+               style="min-width:160px;font-size:12px;width:100%;border:1px solid #dee2e6;border-radius:0;outline:none;padding:4px 8px;background:#fff;">`
           : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:160px">
                <div class="input-with-clear">
                  <input type="text" class="input dup-desc-input" data-index="${index}"
@@ -2447,19 +2457,38 @@ async function renderDuplicateTable() {
         ${isDiversos
           ? `<span class="text-muted small">—</span>`
           : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:90px">
-               <div class="input-with-clear">
-                 <input type="text" class="input dup-esp-input" data-index="${index}"
-                   value="${item.espessura}mm" placeholder="Esp..." autocomplete="off"
-                   style="font-size:12px;padding:4px 28px 4px 8px;">
-                 <button type="button" class="input-clear-btn dup-clear-esp" data-index="${index}">
-                   <i class="bi bi-x"></i>
-                 </button>
-               </div>
-               <div class="autocomplete-dropdown" id="dup-esp-dd-${index}"></div>
-             </div>`
+              <div class="input-with-clear">
+                <input type="text" class="input dup-esp-input" data-index="${index}"
+                  value="${item.espessura}mm" placeholder="Esp..." autocomplete="off"
+                  style="font-size:12px;padding:4px 28px 4px 8px;">
+                <button type="button" class="input-clear-btn dup-clear-esp" data-index="${index}">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+              <div class="autocomplete-dropdown" id="dup-esp-dd-${index}"></div>
+            </div>`
         }
       </td>
 
+      <!-- ACABAMENTO -->
+      <td>
+        ${isDiversos
+          ? `<span class="text-muted small">—</span>`
+          : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:110px">
+              <div class="input-with-clear">
+                <input type="text" class="input dup-acab-input" data-index="${index}"
+                  value="${item.type || ''}" placeholder="Acab..." autocomplete="off"
+                  style="font-size:12px;padding:4px 28px 4px 8px;" disabled>
+                <button type="button" class="input-clear-btn ${item.type ? '' : 'd-none'} dup-clear-acab" data-index="${index}">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+              <div class="autocomplete-dropdown" id="dup-acab-dd-${index}"></div>
+            </div>`
+        }
+      </td>
+
+      
       <td class="text-center small">${item.quantidade}</td>
       <td class="text-center small">${isDiversos ? "—" : item.comprimento.toFixed(4)}</td>
       <td class="text-center small">${isDiversos ? "—" : item.largura.toFixed(4)}</td>
@@ -2493,23 +2522,52 @@ async function renderDuplicateTable() {
   }
 
   // Eventos preço / desconto
+  // DEPOIS
   document.getElementById("duplicateItensBody").addEventListener("input", (e) => {
     const index = parseInt(e.target.dataset.index);
     if (isNaN(index)) return;
 
+    // DEPOIS
     if (e.target.classList.contains("dup-preco")) {
       duplicateItens[index].preco_mt2 = parseFloat(e.target.value) || 0;
-      // Reset desconto ao mudar preço
       duplicateItens[index].desconto_percentagem = 0;
       const descInput = document.querySelector(`.dup-desconto[data-index="${index}"]`);
       if (descInput) descInput.value = 0;
     } else if (e.target.classList.contains("dup-desconto")) {
       duplicateItens[index].desconto_percentagem = parseFloat(e.target.value) || 0;
+    } else if (e.target.classList.contains("dup-diversos-desc")) {
+      duplicateItens[index].descricao = e.target.value;
     }
 
     const cell = document.getElementById(`dup-total-${index}`);
     if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
     recalcDuplicateTotal();
+  });
+
+  document.getElementById("duplicateItensBody").addEventListener("focusin", (e) => {
+    if (e.target.classList.contains("dup-preco") ||
+        e.target.classList.contains("dup-desconto")) {
+      e.target.select();
+    }
+  });
+
+  document.getElementById("duplicateItensBody").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const index = parseInt(e.target.dataset.index);
+    if (isNaN(index)) return;
+
+    if (e.target.classList.contains("dup-preco")) {
+      e.preventDefault();
+      const desc = document.querySelector(`.dup-desconto[data-index="${index}"]`);
+      if (desc) { desc.focus(); desc.select(); }
+    // DEPOIS
+    // DEPOIS
+    } else if (e.target.classList.contains("dup-desconto")) {
+      e.preventDefault();
+      const confirmBtn = document.getElementById("confirmDuplicateBtn");
+      confirmBtn.focus();
+      confirmBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   });
 }
 
@@ -2539,9 +2597,9 @@ async function initDupMarcaAutocomplete(index, item) {
       : brandsData;
 
     dd.innerHTML = "";
-    filtered.slice(0, 50).forEach(b => {
+    filtered.slice(0, 50).forEach((b, idx) => {
       const div = document.createElement("div");
-      div.className = "autocomplete-item";
+      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
       div.textContent = b.display;
       div.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -2550,8 +2608,6 @@ async function initDupMarcaAutocomplete(index, item) {
         duplicateItens[index]._brandDisplay = b.display;
         if (clearBtn) clearBtn.classList.remove("d-none");
         dd.classList.remove("show"); dd.innerHTML = "";
-
-        // Reset descrição e espessura desta linha
         duplicateItens[index].descricao = "";
         duplicateItens[index].espessura = null;
         duplicateItens[index].preco_mt2 = 0;
@@ -2559,8 +2615,11 @@ async function initDupMarcaAutocomplete(index, item) {
         const espInput = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
         if (descInput) { descInput.value = ""; descInput.disabled = false; }
         if (espInput) { espInput.value = ""; espInput.disabled = false; }
-
         await initDupDescAutocomplete(index, b.website_key);
+        setTimeout(() => {
+          const descInput2 = document.querySelector(`.dup-desc-input[data-index="${index}"]`);
+          if (descInput2) descInput2.focus();
+        }, 50);
       });
       dd.appendChild(div);
     });
@@ -2570,11 +2629,33 @@ async function initDupMarcaAutocomplete(index, item) {
     dd.classList.add("show");
   }
 
+  function moveDupFocus(dd, direction) {
+    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
+    if (!items.length) return;
+    const current = dd.querySelector(".autocomplete-active");
+    let idx = Array.from(items).indexOf(current);
+    items.forEach(i => i.classList.remove("autocomplete-active"));
+    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
+    else idx = (idx > 0) ? idx - 1 : items.length - 1;
+    items[idx].classList.add("autocomplete-active");
+    items[idx].scrollIntoView({ block: "nearest" });
+  }
+
   input.addEventListener("click", (e) => { e.stopPropagation(); showMarcaOptions(input.value); });
   input.addEventListener("focus", () => showMarcaOptions(input.value));
   input.addEventListener("input", () => {
     showMarcaOptions(input.value);
     if (clearBtn) clearBtn.classList.toggle("d-none", !input.value.trim());
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveDupFocus(dd, "down"); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupFocus(dd, "up"); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const active = dd.querySelector(".autocomplete-active");
+      if (active) active.click();
+      else { dd.classList.remove("show"); dd.innerHTML = ""; }
+    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
   });
 
   if (clearBtn) {
@@ -2625,9 +2706,9 @@ async function initDupDescAutocomplete(index, brandKey, currentDesc = "", curren
       : produtos;
 
     dd.innerHTML = "";
-    filtered.slice(0, 50).forEach(p => {
+    filtered.slice(0, 50).forEach((p, idx) => {
       const div = document.createElement("div");
-      div.className = "autocomplete-item";
+      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
       div.textContent = p.display;
       div.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -2636,8 +2717,11 @@ async function initDupDescAutocomplete(index, brandKey, currentDesc = "", curren
         duplicateItens[index]._produtoId = p.id;
         if (clearBtn) clearBtn.classList.remove("d-none");
         dd.classList.remove("show"); dd.innerHTML = "";
-
         await initDupEspAutocomplete(index, p.id);
+        setTimeout(() => {
+          const espInput2 = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
+          if (espInput2) espInput2.focus();
+        }, 50);
       });
       dd.appendChild(div);
     });
@@ -2647,11 +2731,33 @@ async function initDupDescAutocomplete(index, brandKey, currentDesc = "", curren
     dd.classList.add("show");
   }
 
+  function moveDupDescFocus(direction) {
+    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
+    if (!items.length) return;
+    const current = dd.querySelector(".autocomplete-active");
+    let idx = Array.from(items).indexOf(current);
+    items.forEach(i => i.classList.remove("autocomplete-active"));
+    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
+    else idx = (idx > 0) ? idx - 1 : items.length - 1;
+    items[idx].classList.add("autocomplete-active");
+    items[idx].scrollIntoView({ block: "nearest" });
+  }
+
   input.addEventListener("click", (e) => { e.stopPropagation(); showDescOptions(input.value); });
   input.addEventListener("focus", () => showDescOptions(input.value));
   input.addEventListener("input", () => {
     showDescOptions(input.value);
     if (clearBtn) clearBtn.classList.toggle("d-none", !input.value.trim());
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveDupDescFocus("down"); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupDescFocus("up"); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const active = dd.querySelector(".autocomplete-active");
+      if (active) active.click();
+      else { dd.classList.remove("show"); dd.innerHTML = ""; }
+    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
   });
 
   if (clearBtn) {
@@ -2717,21 +2823,34 @@ async function initDupEspAutocomplete(index, produtoId, currentEsp = null, curre
   function showEspOptions(filter = "") {
     closeAllDupDropdowns();
     const filtered = filter
-      ? espessuras.filter(e => e.display.toLowerCase().includes(filter.toLowerCase()))
+      ? espessuras.filter(e => {
+          const num = filter.replace(/mm$/i, "").trim();
+          return e.display.toLowerCase().startsWith(num.toLowerCase());
+        })
       : espessuras;
 
     dd.innerHTML = "";
-    filtered.forEach(e => {
+    filtered.forEach((e, idx) => {
       const div = document.createElement("div");
-      div.className = "autocomplete-item";
-      div.textContent = `${e.display} — ${parseFloat(e.price).toFixed(2)} €/m²`;
+      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
+      div.textContent = e.display;
       div.addEventListener("click", (ev) => {
         ev.stopPropagation();
         input.value = e.display;
         duplicateItens[index].espessura = e.thickness;
         if (clearBtn) clearBtn.classList.remove("d-none");
         dd.classList.remove("show"); dd.innerHTML = "";
-
+        // DEPOIS
+        initDupAcabAutocomplete(index, e.thickness).then(() => {
+          setTimeout(() => {
+            const acabInput2 = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
+            if (acabInput2 && !acabInput2.disabled) acabInput2.focus();
+            else {
+              const precoInput2 = document.querySelector(`.dup-preco[data-index="${index}"]`);
+              if (precoInput2) precoInput2.focus();
+            }
+          }, 50);
+        });
         const cell = document.getElementById(`dup-total-${index}`);
         if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
         recalcDuplicateTotal();
@@ -2744,11 +2863,33 @@ async function initDupEspAutocomplete(index, produtoId, currentEsp = null, curre
     dd.classList.add("show");
   }
 
+  function moveDupEspFocus(direction) {
+    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
+    if (!items.length) return;
+    const current = dd.querySelector(".autocomplete-active");
+    let idx = Array.from(items).indexOf(current);
+    items.forEach(i => i.classList.remove("autocomplete-active"));
+    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
+    else idx = (idx > 0) ? idx - 1 : items.length - 1;
+    items[idx].classList.add("autocomplete-active");
+    items[idx].scrollIntoView({ block: "nearest" });
+  }
+
   input.addEventListener("click", (e) => { e.stopPropagation(); showEspOptions(input.value); });
   input.addEventListener("focus", () => showEspOptions(input.value));
   input.addEventListener("input", () => {
     showEspOptions(input.value);
     if (clearBtn) clearBtn.classList.toggle("d-none", !input.value.trim());
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveDupEspFocus("down"); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupEspFocus("up"); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const active = dd.querySelector(".autocomplete-active");
+      if (active) active.click();
+      else { dd.classList.remove("show"); dd.innerHTML = ""; }
+    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
   });
 
   if (clearBtn) {
@@ -2757,9 +2898,15 @@ async function initDupEspAutocomplete(index, produtoId, currentEsp = null, curre
       input.value = "";
       clearBtn.classList.add("d-none");
       duplicateItens[index].espessura = null;
+      duplicateItens[index].type = null;
       duplicateItens[index].preco_mt2 = 0;
       duplicateItens[index].desconto_percentagem = 0;
       dd.classList.remove("show"); dd.innerHTML = "";
+      // Limpar e desabilitar acabamento
+      const acabInput = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
+      const acabClear = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
+      if (acabInput) { acabInput.value = ""; acabInput.disabled = true; }
+      if (acabClear) acabClear.classList.add("d-none");
       const precoInput = document.querySelector(`.dup-preco[data-index="${index}"]`);
       const descontoInput = document.querySelector(`.dup-desconto[data-index="${index}"]`);
       if (precoInput) precoInput.value = 0;
@@ -2774,9 +2921,144 @@ async function initDupEspAutocomplete(index, produtoId, currentEsp = null, curre
   if (currentEsp !== null) {
     input.value = `${currentEsp}mm`;
     if (clearBtn) clearBtn.classList.remove("d-none");
+    // Inicializar acabamentos com a espessura atual
+    initDupAcabAutocomplete(index, currentEsp, duplicateItens[index].type);
   }
   if (currentPreco !== null) {
     duplicateItens[index].preco_mt2 = currentPreco;
+  }
+}
+
+// ─── Autocomplete ACABAMENTO ─────────────────────────────────────
+async function initDupAcabAutocomplete(index, espessuraSelecionada, currentAcab = null) {
+  const input = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
+  const dd = document.getElementById(`dup-acab-dd-${index}`);
+  const clearBtn = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
+  if (!input || !dd) return;
+
+  const produtoId = duplicateItens[index]._produtoId;
+  if (!produtoId || !precosPorProduto[produtoId]) {
+    input.disabled = true;
+    return;
+  }
+
+  // Buscar acabamentos disponíveis para esta espessura
+  let acabamentosData = [];
+  try {
+    const { data, error } = await supabase
+      .from("product_thicknesses")
+      .select("type, price_per_m2")
+      .eq("website_item_id", produtoId)
+      .eq("thickness", espessuraSelecionada);
+    if (!error && data) {
+      acabamentosData = data.map(a => ({ display: a.type, value: a.type, price: a.price_per_m2 }));
+    }
+  } catch (err) { console.error(err); }
+
+  // Habilitar campo
+  input.disabled = false;
+  input.value = "";
+  if (clearBtn) clearBtn.classList.add("d-none");
+  duplicateItens[index].type = null;
+  dd.classList.remove("show"); dd.innerHTML = "";
+
+
+
+  // Preencher valor atual se passado
+  if (currentAcab) {
+    input.value = currentAcab;
+    duplicateItens[index].type = currentAcab;
+    if (clearBtn) clearBtn.classList.remove("d-none");
+  }
+
+  // Remover listeners anteriores clonando o input
+  const newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+  const inp = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
+
+  function showAcabOptions(filter = "") {
+    closeAllDupDropdowns();
+    const filtered = filter
+      ? acabamentosData.filter(a => a.display.toLowerCase().includes(filter.toLowerCase()))
+      : acabamentosData;
+
+    dd.innerHTML = "";
+    filtered.forEach((a, idx) => {
+      const div = document.createElement("div");
+      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
+      div.textContent = a.display;
+      const priceSpan = document.createElement("span");
+      priceSpan.textContent = ` — ${parseFloat(a.price).toFixed(2)} €/m²`;
+      priceSpan.style.fontSize = "11px";
+      priceSpan.style.opacity = "0.7";
+      div.appendChild(priceSpan);
+      div.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        inp.value = a.display;
+        duplicateItens[index].type = a.value;
+        if (clearBtn) clearBtn.classList.remove("d-none");
+        dd.classList.remove("show"); dd.innerHTML = "";
+        setTimeout(() => {
+          const precoInput2 = document.querySelector(`.dup-preco[data-index="${index}"]`);
+          if (precoInput2) precoInput2.focus();
+        }, 50);
+        const cell = document.getElementById(`dup-total-${index}`);
+        if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
+        recalcDuplicateTotal();
+      });
+      dd.appendChild(div);
+    });
+    if (filtered.length === 0) {
+      dd.innerHTML = '<div class="autocomplete-item disabled">Sem acabamentos</div>';
+    }
+    dd.classList.add("show");
+  }
+
+  function moveDupAcabFocus(direction) {
+    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
+    if (!items.length) return;
+    const current = dd.querySelector(".autocomplete-active");
+    let idx = Array.from(items).indexOf(current);
+    items.forEach(i => i.classList.remove("autocomplete-active"));
+    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
+    else idx = (idx > 0) ? idx - 1 : items.length - 1;
+    items[idx].classList.add("autocomplete-active");
+    items[idx].scrollIntoView({ block: "nearest" });
+  }
+
+  inp.addEventListener("click", (e) => { e.stopPropagation(); showAcabOptions(inp.value); });
+  inp.addEventListener("focus", () => showAcabOptions(inp.value));
+  inp.addEventListener("input", () => {
+    showAcabOptions(inp.value);
+    if (clearBtn) clearBtn.classList.toggle("d-none", !inp.value.trim());
+  });
+  inp.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveDupAcabFocus("down"); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupAcabFocus("up"); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const active = dd.querySelector(".autocomplete-active");
+      if (active) active.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      else { dd.classList.remove("show"); dd.innerHTML = ""; }
+    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
+  });
+
+  if (clearBtn) {
+    // Clonar para remover listeners antigos
+    const newClear = clearBtn.cloneNode(true);
+    clearBtn.parentNode.replaceChild(newClear, clearBtn);
+    const cb = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
+    cb.addEventListener("click", (e) => {
+      e.stopPropagation();
+      inp.value = "";
+      cb.classList.add("d-none");
+      duplicateItens[index].type = null;
+      dd.classList.remove("show"); dd.innerHTML = "";
+      const cell = document.getElementById(`dup-total-${index}`);
+      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
+      recalcDuplicateTotal();
+    });
   }
 }
 
@@ -2795,8 +3077,38 @@ document.addEventListener("click", (e) => {
 });
 
 // ─── Confirmar duplicação ────────────────────────────────────────
+// DEPOIS
 document.getElementById("confirmDuplicateBtn").addEventListener("click", async () => {
   if (!orcamentoToDuplicate || duplicateItens.length === 0) return;
+
+  for (let i = 0; i < duplicateItens.length; i++) {
+    const item = duplicateItens[i];
+    const isDiversos = item.brand === "diversos" || item.espessura === 0 || !item.brand;
+
+    if (isDiversos) {
+      if (!item.descricao || item.descricao.trim() === "") {
+        showMessage(`⚠️ Linha ${i + 1}: preenche a descrição`, "warning"); return;
+      }
+    } else {
+      if (!item.brand) {
+        showMessage(`⚠️ Linha ${i + 1}: seleciona a marca`, "warning"); return;
+      }
+      if (!item.descricao || item.descricao.trim() === "") {
+        showMessage(`⚠️ Linha ${i + 1}: seleciona a descrição`, "warning"); return;
+      }
+      // DEPOIS
+      if (!item.espessura) {
+        showMessage(`⚠️ Linha ${i + 1}: seleciona a espessura`, "warning"); return;
+      }
+      if (!item.type || item.type.trim() === "") {
+        showMessage(`⚠️ Linha ${i + 1}: seleciona o acabamento`, "warning"); return;
+      }
+    }
+
+    if (!item.preco_mt2 || item.preco_mt2 <= 0) {
+      showMessage(`⚠️ Linha ${i + 1}: preço/m² deve ser maior que zero`, "warning"); return;
+    }
+  }
 
   try {
     showMessage("⏳ A duplicar orçamento...", "info");
@@ -2822,6 +3134,7 @@ document.getElementById("confirmDuplicateBtn").addEventListener("click", async (
       comprimento: item.comprimento,
       largura: item.largura,
       espessura: item.espessura ?? 0,
+      type: item.type || null,
       preco_mt2: item.preco_mt2,
       desconto_percentagem: item.desconto_percentagem || 0
     }));
