@@ -557,72 +557,63 @@ window.initFolhaHoras = async function () {
   // =====================================================
   // BOTÃO EXPORTAR PDF (via jsPDF + html2canvas)
   // =====================================================
-btnGerarPDF.addEventListener("click", async () => {
-  const total = gerarFolhas();
-  if (!total) return;
+  btnGerarPDF.addEventListener("click", async () => {
+    const total = gerarFolhas();
+    if (!total) return;
 
-  try {
-    showMessage("⏳ A gerar PDF...", "info");
+    try {
+      showMessage("⏳ A gerar PDF...", "info");
 
-    // Recolher o CSS da página necessário para renderizar a folha
-    const estilos = Array.from(document.styleSheets)
-      .map(ss => {
-        try {
-          return Array.from(ss.cssRules).map(r => r.cssText).join("\n");
-        } catch { return ""; }
-      }).join("\n");
+      if (!window.jspdf) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+      if (!window.html2canvas) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
 
-    const baseUrl = window.location.origin;
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
 
-const htmlCompleto = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <base href="${baseUrl}/">
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #fff; font-family: Arial, Helvetica, sans-serif; }
-      ${document.getElementById("fh-print-style") ? "" : ""}
-      ${Array.from(document.querySelectorAll("style")).map(s => s.textContent).join("\n")}
-    </style>
-  </head>
-  <body>
-    ${areaImpressao.innerHTML}
-  </body>
-  </html>
-`;
+      for (let i = 0; i < paginas.length; i++) {
+        const canvas = await html2canvas(paginas[i], {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          width: 794
+        });
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgH = (canvas.height * pageW) / canvas.width;
 
-    const response = await fetch("/.netlify/functions/gerar-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ html: htmlCompleto }),
-    });
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
+      }
 
-    if (!response.ok) throw new Error("Erro na função: " + response.status);
+      const nomeMesInicio = MESES_PT[mesInicioSelecionado];
+      const nomeMesFim    = MESES_PT[mesFimSelecionado];
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+      let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
+      if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
+      nomeArquivo += `_${anoSelecionado}.pdf`;
 
-    const nomeMesInicio = MESES_PT[mesInicioSelecionado];
-    const nomeMesFim    = MESES_PT[mesFimSelecionado];
-    let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
-    if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
-    nomeArquivo += `_${anoSelecionado}.pdf`;
+      pdf.save(nomeArquivo);
+      showMessage("✅ PDF exportado com sucesso!", "success");
 
-    a.href = url;
-    a.download = nomeArquivo;
-    a.click();
-    URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
+    }
+  });
 
-    showMessage("✅ PDF exportado com sucesso!", "success");
-
-  } catch (err) {
-    console.error(err);
-    showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
-  }
-});
   // =====================================================
   // ESTILOS DE IMPRESSÃO
   // =====================================================
@@ -631,22 +622,17 @@ const htmlCompleto = `
     style.id = "fh-print-style";
     style.textContent = `
       @media print {
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  body > *:not(#content) { display: none !important; }
-  #content > *:not(#areaImpressao) { display: none !important; }
-  #areaImpressao { display: block !important; }
-  .folha-hora-page {
-    border: none !important;
-    margin: 0 !important;
-    padding: 12mm 12mm 8mm 12mm !important;
-    page-break-after: always;
-    box-shadow: none !important;
-    width: 100% !important;
-  }
-  .folha-hora-page:last-child { page-break-after: auto; }
-  .fh-table { border-collapse: collapse !important; }
-  .fh-table th, .fh-table td { border: 0.5px solid #666 !important; }
-}
+        body > *:not(#content) { display: none !important; }
+        #content > *:not(#areaImpressao) { display: none !important; }
+        #areaImpressao { display: block !important; }
+        .folha-hora-page {
+          border: none !important;
+          margin: 0 !important;
+          padding: 12mm 12mm 8mm 12mm !important;
+          page-break-after: always;
+        }
+        .folha-hora-page:last-child { page-break-after: auto; }
+      }
     `;
     document.head.appendChild(style);
   }
