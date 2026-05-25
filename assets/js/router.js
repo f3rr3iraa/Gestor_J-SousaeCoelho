@@ -59,6 +59,11 @@ const routes = {
     title: "our-reservations",
     description: "List Our Reservations Page",
   },
+  "/list-folha-horas": {
+    template: "/templates/folha-horas/folha-horas.html",
+    title: "folha-horas",
+    description: "Folha de Horas"
+  },
   
   
 
@@ -130,6 +135,9 @@ const locationHandler = async () => {
   if (window.initClienteForm && location === "/form-cliente") initClienteForm();
   if (window.initClienteList && location === "/list-cliente") initClienteList();
 
+  if (window.initFolhaHoras && location === "/list-folha-horas") initFolhaHoras();
+
+  
   if (
     window.initHomeSpaceSupabase &&
     (location === "/" || location === "/home")

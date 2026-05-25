@@ -5,12 +5,12 @@
   functions = "netlify/functions"
 
 [dev]
-  command = ""
   port = 9000
   targetPort = 9000
   publish = "."
   autoLaunch = false
   framework = "#static"
+  command = "netlify functions:serve"
 
 [[redirects]]
   from = "/api/*"
@@ -21,3 +21,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions]
+  node_bundler = "esbuild"
