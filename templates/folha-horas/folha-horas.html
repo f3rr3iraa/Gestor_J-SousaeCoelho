@@ -122,10 +122,7 @@
 </div>
 
 <!-- ================= ÁREA DE IMPRESSÃO ================= -->
-<div id="areaImpressao" class="d-none">
-  <!-- Folhas geradas dinamicamente via JS -->
-</div>
-
+<div id="areaImpressao" style="position:fixed; top:0; left:0; width:100%; opacity:0; z-index:-9999; pointer-events:none;"></div>
 <!-- Offcanvas Editar Funcionário -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="editFuncionarioOffcanvas" aria-labelledby="editFuncionarioOffcanvasLabel">
   <div class="offcanvas-header">
@@ -151,6 +148,10 @@
 
 <!-- Estilos específicos da folha de horas para impressão/PDF -->
 <style>
+/* =====================================================
+   FOLHA DE HORAS — ESTILOS
+   ===================================================== */
+
 .folha-hora-page {
   background: #fff;
   width: 210mm;
@@ -237,29 +238,30 @@
 /* Tabela de dias */
 .fh-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 10px;
+  border-top: 0.5px solid #666;
+  border-left: 0.5px solid #666;
 }
 
 .fh-table th,
 .fh-table td {
-  border: 0.5px solid #666;
+  border-right: 0.5px solid #666;
+  border-bottom: 0.5px solid #666;
   padding: 3px 4px;
   text-align: center;
   white-space: nowrap;
 }
 
-.fh-table thead tr:first-child th {
+.fh-table thead th {
   background-color: #fff;
   color: #000;
   font-size: 10px;
   font-weight: 700;
-  border-bottom: 0.5px solid #666;
 }
 
 .fh-table thead tr:last-child th {
-  background-color: #fff;
-  color: #000;
   font-size: 9px;
   font-weight: 600;
 }
@@ -322,7 +324,6 @@
   flex: 1;
 }
 
-
 .footer-description {
   font-size: 9.5px;
   color: #444;
@@ -330,11 +331,13 @@
   line-height: 1.5;
 }
 
+/* Dropdowns multi-seleção */
 .autocomplete-item-check {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .multi-check-icon {
   display: inline-flex;
   align-items: center;
@@ -349,6 +352,7 @@
   flex-shrink: 0;
   background: #fff;
 }
+
 .autocomplete-multi {
   max-height: 220px;
   overflow-y: auto;

@@ -2295,7 +2295,20 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
 
     // ✅ DIFERENÇA: Abre o diálogo de impressão em vez de fazer download
     pdf.autoPrint();
-    window.open(pdf.output('bloburl'), '_blank');
+    const blob = pdf.output("blob");
+    const url = URL.createObjectURL(blob);
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(url);
+      }, 1000);
+    };
 
     showMessage("✅ PDF pronto para imprimir!", "success");
 
