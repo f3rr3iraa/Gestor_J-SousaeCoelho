@@ -174,8 +174,8 @@ window.initFolhaHoras = async function () {
       // Opção "Todos"
       const todosChecked = funcionarios.length > 0 && funcionarios.every(f => funcionariosSelecionados.has(f.id));
       const divTodos = document.createElement("div");
-      divTodos.className = "autocomplete-item autocomplete-item-check";
-      divTodos.innerHTML = `<span class="multi-check-icon">${todosChecked ? "✓" : ""}</span><strong>Todos</strong>`;
+      divTodos.className = "autocomplete-item fh-autocomplete-item-check";
+      divTodos.innerHTML = `<span class="fh-multi-check-icon">${todosChecked ? "✓" : ""}</span><strong>Todos</strong>`;
       divTodos.addEventListener("click", (e) => {
         e.stopPropagation();
         if (todosChecked) {
@@ -197,8 +197,8 @@ window.initFolhaHoras = async function () {
       funcionarios.forEach(f => {
         const checked = funcionariosSelecionados.has(f.id);
         const div = document.createElement("div");
-        div.className = "autocomplete-item autocomplete-item-check";
-        div.innerHTML = `<span class="multi-check-icon">${checked ? "✓" : ""}</span>${f.nome}`;
+        div.className = "autocomplete-item fh-autocomplete-item-check";
+        div.innerHTML = `<span class="fh-multi-check-icon">${checked ? "✓" : ""}</span>${f.nome}`;
         div.addEventListener("click", (e) => {
           e.stopPropagation();
           if (funcionariosSelecionados.has(f.id)) {
@@ -499,13 +499,13 @@ window.initFolhaHoras = async function () {
       </table>
 
       <div class="fh-page-footer">
-        <hr class="pdf-divider-legal">
-        <div class="pdf-footer">
-          <div class="pdf-footer-logo">
+        <hr class="fh-pdf-divider-legal">
+        <div class="fh-pdf-footer">
+          <div class="fh-pdf-footer-logo">
             <img src="assets/images/jsousacoelho_logo.png" alt="J Sousa &amp; Coelho">
           </div>
-          <div class="pdf-footer-divider"></div>
-          <div class="pdf-footer-info">
+          <div class="fh-pdf-footer-divider"></div>
+          <div class="fh-pdf-footer-info">
             <p class="footer-description">Telef: 255 862 343 &nbsp;|&nbsp; Fax: 255 866 206 <br>E-mail: jscoelho@sapo.pt</p>
           </div>
         </div>
