@@ -50,6 +50,65 @@ window.initFolhaHoras = async function () {
   const HORA_TARDE_SAIDA   = "18:00";
 
   // =====================================================
+  // FERIADOS NACIONAIS DE PORTUGAL (fixos + móveis)
+  // =====================================================
+  function calcularPascoa(ano) {
+    // Algoritmo de Meeus/Jones/Butcher
+    const a = ano % 19;
+    const b = Math.floor(ano / 100);
+    const c = ano % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const mes = Math.floor((h + l - 7 * m + 114) / 31);
+    const dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(ano, mes - 1, dia);
+  }
+
+  function getFeriadosPortugal(ano) {
+    const pascoa = calcularPascoa(ano);
+
+    // Sexta-feira Santa (2 dias antes da Páscoa)
+    const sextaSanta = new Date(pascoa);
+    sextaSanta.setDate(pascoa.getDate() - 2);
+
+    // Corpo de Deus (60 dias após a Páscoa)
+    const corpoDeus = new Date(pascoa);
+    corpoDeus.setDate(pascoa.getDate() + 60);
+
+    const feriados = new Set();
+
+    const adicionar = (d) => {
+      feriados.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    };
+
+    // Fixos
+    adicionar(new Date(ano, 0, 1));   // Ano Novo
+    adicionar(new Date(ano, 3, 25));  // Dia da Liberdade
+    adicionar(new Date(ano, 4, 1));   // Dia do Trabalhador
+    adicionar(new Date(ano, 5, 10));  // Dia de Portugal
+    adicionar(new Date(ano, 7, 15));  // Assunção de Nossa Senhora
+    adicionar(new Date(ano, 9, 5));   // Implantação da República
+    adicionar(new Date(ano, 10, 1));  // Dia de Todos os Santos
+    adicionar(new Date(ano, 10, 11)); // Dia de São Martinho / Restauração
+    adicionar(new Date(ano, 11, 8));  // Imaculada Conceição
+    adicionar(new Date(ano, 11, 25)); // Natal
+
+    // Móveis
+    adicionar(sextaSanta);
+    adicionar(pascoa);
+    adicionar(corpoDeus);
+
+    return feriados;
+  }
+
+  // =====================================================
   // ESTADO DOS DROPDOWNS DE PERÍODO
   // =====================================================
   const hoje = new Date();
@@ -70,10 +129,11 @@ window.initFolhaHoras = async function () {
   // =====================================================
   // SETUP DROPDOWN SIMPLES
   // =====================================================
-  function setupSimpleDropdown(inputEl, dropdownEl, data, valorInicial, onSelect) {
+  function setupSimpleDropdown(inputEl, dropdownEl, getData, valorInicial, onSelect) {
     let estadoAtual = valorInicial;
     let currentFocus = -1;
 
+    const data = typeof getData === "function" ? getData() : getData;
     const inicial = data.find(d => d.value === estadoAtual);
     if (inicial) inputEl.value = inicial.display;
 
@@ -84,8 +144,9 @@ window.initFolhaHoras = async function () {
     }
 
     function openDropdown() {
+      const currentData = typeof getData === "function" ? getData() : getData;
       dropdownEl.innerHTML = "";
-      data.forEach((item) => {
+      currentData.forEach((item) => {
         const div = document.createElement("div");
         div.className = "autocomplete-item";
         if (item.value === estadoAtual) div.classList.add("autocomplete-active");
@@ -145,21 +206,49 @@ window.initFolhaHoras = async function () {
     document.addEventListener("click", (e) => {
       if (!dropdownEl.contains(e.target) && e.target !== inputEl) closeDropdown();
     });
+
+    // Retorna função para forçar atualização do valor exibido
+    return {
+      setValue(val) {
+        estadoAtual = val;
+        const currentData = typeof getData === "function" ? getData() : getData;
+        const item = currentData.find(d => d.value === val);
+        if (item) inputEl.value = item.display;
+      }
+    };
   }
 
-  setupSimpleDropdown(inputMesInicio, mesInicioDropdown, MESES_DATA, mesInicioSelecionado, (v) => { mesInicioSelecionado = v; });
-  setupSimpleDropdown(inputMesFim,    mesFimDropdown,    MESES_DATA, mesFimSelecionado,    (v) => { mesFimSelecionado = v; });
-  setupSimpleDropdown(inputAno,       anoDropdown,       anosData,   anoSelecionado,       (v) => { anoSelecionado = v; });
+  // Mês início: todos os meses disponíveis
+  const ctrlMesInicio = setupSimpleDropdown(
+    inputMesInicio, mesInicioDropdown,
+    MESES_DATA,
+    mesInicioSelecionado,
+    (v) => {
+      mesInicioSelecionado = v;
+      // Se mesFim ficou antes do novo início, corrige
+      if (mesFimSelecionado < v) {
+        mesFimSelecionado = v;
+        ctrlMesFim.setValue(v);
+      }
+    }
+  );
+
+  // Mês fim: só meses >= mesInicioSelecionado
+  const ctrlMesFim = setupSimpleDropdown(
+    inputMesFim, mesFimDropdown,
+    () => MESES_DATA.filter(m => m.value >= mesInicioSelecionado),
+    mesFimSelecionado,
+    (v) => { mesFimSelecionado = v; }
+  );
+
+  setupSimpleDropdown(inputAno, anoDropdown, anosData, anoSelecionado, (v) => { anoSelecionado = v; });
 
   // =====================================================
   // SETUP DROPDOWN MULTI-SELEÇÃO (FUNCIONÁRIOS)
-  // Registado UMA só vez — openDropdown lê sempre os
-  // dados actuais através do closure sobre `funcionarios`
   // =====================================================
   let multiDropdownInitialized = false;
 
   function setupMultiDropdown() {
-    // Garante que os listeners só são registados uma vez
     if (multiDropdownInitialized) return;
     multiDropdownInitialized = true;
 
@@ -171,7 +260,6 @@ window.initFolhaHoras = async function () {
     function openDropdown() {
       funcionariosDropdown.innerHTML = "";
 
-      // Opção "Todos"
       const todosChecked = funcionarios.length > 0 && funcionarios.every(f => funcionariosSelecionados.has(f.id));
       const divTodos = document.createElement("div");
       divTodos.className = "autocomplete-item fh-autocomplete-item-check";
@@ -188,12 +276,10 @@ window.initFolhaHoras = async function () {
       });
       funcionariosDropdown.appendChild(divTodos);
 
-      // Separador
       const sep = document.createElement("div");
       sep.style.cssText = "border-top: 1px solid #e0e0e0; margin: 2px 0;";
       funcionariosDropdown.appendChild(sep);
 
-      // Cada funcionário
       funcionarios.forEach(f => {
         const checked = funcionariosSelecionados.has(f.id);
         const div = document.createElement("div");
@@ -313,7 +399,6 @@ window.initFolhaHoras = async function () {
     });
   }
 
-
   // =====================================================
   // ADICIONAR FUNCIONÁRIO
   // =====================================================
@@ -327,13 +412,12 @@ window.initFolhaHoras = async function () {
       return;
     }
 
-    // ✅ Verificar se já existe um funcionário com o mesmo nome
-  const jaExiste = funcionarios.some(f => f.nome.toLowerCase() === nome.toLowerCase());
-  if (jaExiste) {
-    showMessage("⚠️ Já existe um funcionário com esse nome", "warning");
-    novoFuncionarioNome.focus();
-    return;
-  }
+    const jaExiste = funcionarios.some(f => f.nome.toLowerCase() === nome.toLowerCase());
+    if (jaExiste) {
+      showMessage("⚠️ Já existe um funcionário com esse nome", "warning");
+      novoFuncionarioNome.focus();
+      return;
+    }
 
     try {
       showMessage("⏳ A adicionar funcionário...", "info");
@@ -345,8 +429,6 @@ window.initFolhaHoras = async function () {
       showMessage("✅ Funcionário adicionado!", "success");
       novoFuncionarioNome.value = "";
       novoFuncionarioCargo.value = "";
-      // carregarFuncionarios() será chamado pelo realtime;
-      // chamamos também localmente para resposta imediata
       await carregarFuncionarios();
     } catch (err) {
       showMessage("❌ Erro: " + err.message, "danger");
@@ -363,12 +445,11 @@ window.initFolhaHoras = async function () {
       return;
     }
 
-    // ✅ Verificar se já existe outro funcionário com o mesmo nome
-  const jaExiste = funcionarios.some(f => f.nome.toLowerCase() === nome.toLowerCase() && f.id !== id);
-  if (jaExiste) {
-    showMessage("⚠️ Já existe um funcionário com esse nome", "warning");
-    return;
-  }
+    const jaExiste = funcionarios.some(f => f.nome.toLowerCase() === nome.toLowerCase() && f.id !== id);
+    if (jaExiste) {
+      showMessage("⚠️ Já existe um funcionário com esse nome", "warning");
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -385,8 +466,9 @@ window.initFolhaHoras = async function () {
       showMessage("❌ Erro: " + err.message, "danger");
     }
   });
+
   // =====================================================
-  // AÇÕES NA TABELA (ATIVAR/DESATIVAR E ELIMINAR)
+  // AÇÕES NA TABELA
   // =====================================================
   funcionariosBody.addEventListener("click", async (e) => {
     const btn = e.target.closest("button");
@@ -424,6 +506,7 @@ window.initFolhaHoras = async function () {
   function gerarFolhaHTML(funcionario, mes, ano) {
     const nomeMes = MESES_PT[mes];
     const diasNoMes = new Date(ano, mes, 0).getDate();
+    const feriados = getFeriadosPortugal(ano);
 
     let linhas = "";
     for (let dia = 1; dia <= diasNoMes; dia++) {
@@ -432,24 +515,41 @@ window.initFolhaHoras = async function () {
       const nomeDiaSemana = DIAS_SEMANA[diaSemana];
       const ehFimDeSemana = diaSemana === 0 || diaSemana === 6;
 
-      let maEntr = "", maSaid = "", taEntr = "", taSaid = "";
-      if (!ehFimDeSemana) {
-        maEntr = HORA_MANHA_ENTRADA;
-        maSaid = HORA_MANHA_SAIDA;
-        taEntr = HORA_TARDE_ENTRADA;
-        taSaid = HORA_TARDE_SAIDA;
-      }
+      const chaveData = `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      const ehFeriado = feriados.has(chaveData);
 
-      const classRow = ehFimDeSemana ? "row-fim-semana" : "";
+      let maEntr = "", maSaid = "", taEntr = "", taSaid = "";
+      let classRow = "";
+      let celulaHoras = "";
+
+      if (ehFimDeSemana) {
+        classRow = "row-fim-semana";
+        celulaHoras = `
+          <td class="col-hora"></td>
+          <td class="col-hora"></td>
+          <td class="col-hora"></td>
+          <td class="col-hora"></td>
+        `;
+      } else if (ehFeriado) {
+        classRow = "row-feriado";
+        celulaHoras = `
+          <td colspan="4" class="col-feriado-label">Feriado</td>
+        `;
+      } else {
+        celulaHoras = `
+          <td class="col-hora">${HORA_MANHA_ENTRADA}</td>
+          <td class="col-hora">${HORA_MANHA_SAIDA}</td>
+          <td class="col-hora">${HORA_TARDE_ENTRADA}</td>
+          <td class="col-hora">${HORA_TARDE_SAIDA}</td>
+        `;
+      }
 
       linhas += `
         <tr class="${classRow}">
           <td class="col-dia"><strong>${String(dia).padStart(2, "0")}</strong></td>
           <td class="col-dia-semana">${nomeDiaSemana}</td>
-          <td class="col-hora">${maEntr}</td>
-          <td class="col-hora">${maSaid}</td>
-          <td class="col-hora">${taEntr}</td>
-          <td class="col-hora">${taSaid}</td>
+          ${celulaHoras}
+          <td class="col-faltas"></td>
           <td class="col-rubrica"></td>
         </tr>
       `;
@@ -484,6 +584,7 @@ window.initFolhaHoras = async function () {
             <th class="col-dia-semana" rowspan="2">Sem.</th>
             <th colspan="2">Manhã</th>
             <th colspan="2">Tarde</th>
+            <th class="col-faltas" rowspan="2">Faltas</th>
             <th class="col-rubrica" rowspan="2">Rubrica</th>
           </tr>
           <tr>
@@ -551,8 +652,6 @@ window.initFolhaHoras = async function () {
     areaImpressao.innerHTML = html;
     areaImpressao.classList.remove("d-none");
 
-
-
     const totalFolhas = selecionados.length * (mesFim - mesInicio + 1);
     showMessage(`✅ ${totalFolhas} folha(s) gerada(s)`, "success");
     return totalFolhas;
@@ -561,180 +660,167 @@ window.initFolhaHoras = async function () {
   // =====================================================
   // BOTÃO GERAR E IMPRIMIR
   // =====================================================
-// =====================================================
-// BOTÃO GERAR E IMPRIMIR
-// =====================================================
-btnGerarFolhas.addEventListener("click", async () => {
-  const total = gerarFolhas();
-  if (!total) return;
+  btnGerarFolhas.addEventListener("click", async () => {
+    const total = gerarFolhas();
+    if (!total) return;
 
-  try {
-    showMessage("⏳ A preparar impressão...", "info");
+    try {
+      showMessage("⏳ A preparar impressão...", "info");
 
-    if (!window.jspdf) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
+      if (!window.jspdf) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+      if (!window.html2canvas) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+
+      for (let i = 0; i < paginas.length; i++) {
+        const canvas = await html2canvas(paginas[i], {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          width: 794
+        });
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgH = (canvas.height * pageW) / canvas.width;
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
+      }
+
+      pdf.autoPrint();
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      };
+
+      areaImpressao.innerHTML = "";
+      areaImpressao.classList.add("d-none");
+
+      showMessage("✅ PDF pronto para imprimir!", "success");
+
+    } catch (err) {
+      console.error("Erro ao imprimir:", err);
+      showMessage("❌ Erro ao imprimir: " + err.message, "danger");
     }
-    if (!window.html2canvas) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
+  });
+
+  // =====================================================
+  // BOTÃO EXPORTAR PDF
+  // =====================================================
+  btnGerarPDF.addEventListener("click", async () => {
+    const total = gerarFolhas();
+    if (!total) return;
+
+    try {
+      showMessage("⏳ A gerar PDF...", "info");
+
+      if (!window.jspdf) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+      if (!window.html2canvas) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+
+      for (let i = 0; i < paginas.length; i++) {
+        const canvas = await html2canvas(paginas[i], {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          width: 794
+        });
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgH = (canvas.height * pageW) / canvas.width;
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
+      }
+
+      const nomeMesInicio = MESES_PT[mesInicioSelecionado];
+      const nomeMesFim    = MESES_PT[mesFimSelecionado];
+      let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
+      if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
+      nomeArquivo += `_${anoSelecionado}.pdf`;
+
+      pdf.save(nomeArquivo);
+
+      areaImpressao.innerHTML = "";
+      areaImpressao.classList.add("d-none");
+
+      showMessage("✅ PDF exportado com sucesso!", "success");
+
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
     }
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "mm", "a4");
-    const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
-
-    for (let i = 0; i < paginas.length; i++) {
-      const canvas = await html2canvas(paginas[i], {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        width: 794
-      });
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const imgH = (canvas.height * pageW) / canvas.width;
-      if (i > 0) pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
-    }
-
-    // Abre diálogo de impressão
-    pdf.autoPrint();
-    // Abre diálogo de impressão
-const blob = pdf.output("blob");
-const url = URL.createObjectURL(blob);
-const iframe = document.createElement("iframe");
-iframe.style.display = "none";
-iframe.src = url;
-document.body.appendChild(iframe);
-iframe.onload = () => {
-  iframe.contentWindow.focus();
-  iframe.contentWindow.print();
-  setTimeout(() => {
-    document.body.removeChild(iframe);
-    URL.revokeObjectURL(url);
-  }, 1000);
-};
-
-areaImpressao.innerHTML = "";
-areaImpressao.classList.add("d-none");
-
-    showMessage("✅ PDF pronto para imprimir!", "success");
-
-  } catch (err) {
-    console.error("Erro ao imprimir:", err);
-    showMessage("❌ Erro ao imprimir: " + err.message, "danger");
-  }
-});
-
-// =====================================================
-// BOTÃO EXPORTAR PDF
-// =====================================================
-btnGerarPDF.addEventListener("click", async () => {
-  const total = gerarFolhas();
-  if (!total) return;
-
-  try {
-    showMessage("⏳ A gerar PDF...", "info");
-
-    if (!window.jspdf) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
-    }
-    if (!window.html2canvas) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
-    }
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "mm", "a4");
-    const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
-
-    for (let i = 0; i < paginas.length; i++) {
-      const canvas = await html2canvas(paginas[i], {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        width: 794
-      });
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const imgH = (canvas.height * pageW) / canvas.width;
-      if (i > 0) pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
-    }
-
-    const nomeMesInicio = MESES_PT[mesInicioSelecionado];
-    const nomeMesFim    = MESES_PT[mesFimSelecionado];
-    let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
-    if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
-    nomeArquivo += `_${anoSelecionado}.pdf`;
-
-    pdf.save(nomeArquivo);
-
-    areaImpressao.innerHTML = "";
-areaImpressao.classList.add("d-none");
-
-    showMessage("✅ PDF exportado com sucesso!", "success");
-
-  } catch (err) {
-    console.error("Erro ao gerar PDF:", err);
-    showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
-  }
-});
+  });
 
   // =====================================================
   // ESTILOS DE IMPRESSÃO
   // =====================================================
   if (!document.getElementById("fh-print-style")) {
-  const style = document.createElement("style");
-  style.id = "fh-print-style";
-  style.textContent = `
-    @media print {
-      /* Esconde tudo no body */
-      body * { visibility: hidden !important; }
-      
-      /* Mostra apenas a área de impressão e tudo dentro dela */
-      #areaImpressao,
-      #areaImpressao * { visibility: visible !important; }
-      
-      /* Posiciona no topo da página */
-      #areaImpressao {
-        display: block !important;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
+    const style = document.createElement("style");
+    style.id = "fh-print-style";
+    style.textContent = `
+      @media print {
+        body * { visibility: hidden !important; }
+        #areaImpressao,
+        #areaImpressao * { visibility: visible !important; }
+        #areaImpressao {
+          display: block !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+        }
+        .folha-hora-page {
+          border: none !important;
+          margin: 0 !important;
+          padding: 12mm 12mm 8mm 12mm !important;
+          page-break-after: always;
+        }
+        .folha-hora-page:last-child { page-break-after: auto; }
       }
-      
-      .folha-hora-page {
-        border: none !important;
-        margin: 0 !important;
-        padding: 12mm 12mm 8mm 12mm !important;
-        page-break-after: always;
-      }
-      .folha-hora-page:last-child { page-break-after: auto; }
-    }
-  `;
-  document.head.appendChild(style);
-}
+    `;
+    document.head.appendChild(style);
+  }
 
   // =====================================================
-  // REGISTAR CALLBACK REALTIME
-  // Quando o Supabase Realtime detecta mudanças na tabela
-  // funcionarios, recarrega automaticamente os dados
+  // REALTIME
   // =====================================================
   window.folhaHorasRealtimeCallback = async (payload) => {
     await carregarFuncionarios();
@@ -745,7 +831,6 @@ areaImpressao.classList.add("d-none");
   // =====================================================
   await carregarFuncionarios();
 
-  // Ativar realtime se ainda não estiver ativo
   if (typeof window.ativarRealtimeFuncionarios === "function") {
     await window.ativarRealtimeFuncionarios();
   }

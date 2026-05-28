@@ -134,8 +134,8 @@ input:-webkit-autofill {
 
 
 .sidebar-content {
-  min-width: 240px;
-  max-width: 240px;
+  min-width: 250px;
+  max-width: 250px;
   background-color: #22333B !important;
   color: #fff;
   height: 100vh;

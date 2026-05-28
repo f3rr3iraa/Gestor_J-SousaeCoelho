@@ -266,29 +266,50 @@
   font-weight: 600;
 }
 
+/* --- Larguras das colunas --- */
 .fh-table .col-dia {
-  width: 34px;
+  width: 28px;        /* ligeiramente mais estreita */
   font-weight: 700;
 }
 
 .fh-table .col-dia-semana {
-  width: 38px;
-  font-size: 9px;
+  width: 26px;        /* bem mais pequena */
+  font-size: 8px;
   color: #444;
 }
 
 .fh-table .col-hora {
-  width: 52px;
+  width: 46px;        /* ligeiramente mais estreita */
+}
+
+.fh-table .col-faltas {
+  width: 46px;        /* coluna de faltas */
 }
 
 .fh-table .col-rubrica {
-  width: 80px;
+  width: 80px;        /* rubrica mantém-se */
 }
 
+/* Fim-de-semana */
 .fh-table .row-fim-semana td {
   background-color: #efefef !important;
   color: #999;
   font-style: italic;
+}
+
+/* Feriado */
+.fh-table .row-feriado td {
+  background-color: #c8c8c8 !important;
+  color: #333;
+  font-style: italic;
+}
+
+.fh-table .col-feriado-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-align: center;
+  color: #333;
 }
 
 /* Rodapé */

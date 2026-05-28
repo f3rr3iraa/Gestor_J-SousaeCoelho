@@ -11,9 +11,11 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@sparticuz/chromium@147",
         "npm:@supabase/supabase-js@^2.87.1",
         "npm:cors@^2.8.5",
-        "npm:express@^5.1.0"
+        "npm:express@^5.1.0",
+        "npm:puppeteer-core@^25.0.4"
       ]
     }
   }
