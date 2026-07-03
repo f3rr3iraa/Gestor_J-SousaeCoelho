@@ -627,167 +627,184 @@ window.initFolhaHoras = async function () {
   // GERAR FOLHAS
   // =====================================================
   function gerarFolhas() {
-    const mesInicio = mesInicioSelecionado;
-    const mesFim    = mesFimSelecionado;
-    const ano       = anoSelecionado;
+  const mesInicio = mesInicioSelecionado;
+  const mesFim    = mesFimSelecionado;
+  const ano       = anoSelecionado;
 
-    if (mesInicio > mesFim) {
-      showMessage("⚠️ O mês de início não pode ser posterior ao mês de fim", "warning");
-      return;
-    }
-
-    const selecionados = getFuncionariosSelecionados();
-    if (!selecionados.length) {
-      showMessage("⚠️ Seleciona pelo menos um funcionário", "warning");
-      return;
-    }
-
-    let html = "";
-    for (let mes = mesInicio; mes <= mesFim; mes++) {
-      selecionados.forEach(func => {
-        html += gerarFolhaHTML(func, mes, ano);
-      });
-    }
-
-    areaImpressao.innerHTML = html;
-    areaImpressao.classList.remove("d-none");
-
-    const totalFolhas = selecionados.length * (mesFim - mesInicio + 1);
-    showMessage(`✅ ${totalFolhas} folha(s) gerada(s)`, "success");
-    return totalFolhas;
+  if (mesInicio > mesFim) {
+    showMessage("⚠️ O mês de início não pode ser posterior ao mês de fim", "warning");
+    return;
   }
 
+  const selecionados = getFuncionariosSelecionados();
+  if (!selecionados.length) {
+    showMessage("⚠️ Seleciona pelo menos um funcionário", "warning");
+    return;
+  }
+
+  let html = "";
+  for (let mes = mesInicio; mes <= mesFim; mes++) {
+    selecionados.forEach(func => {
+      html += gerarFolhaHTML(func, mes, ano);
+    });
+  }
+
+  areaImpressao.innerHTML = html;
+  areaImpressao.classList.remove("d-none");
+
+  const totalFolhas = selecionados.length * (mesFim - mesInicio + 1);
+  return totalFolhas;
+}
+
+// =====================================================
+// CONVERTER PÁGINAS EM PDF (com progresso)
+// =====================================================
+async function converterParaPDF(paginas) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "mm", "a4");
+
+  for (let i = 0; i < paginas.length; i++) {
+    showMessage(`⏳ A gerar folha ${i + 1} de ${paginas.length}...`, "info");
+
+    const canvas = await html2canvas(paginas[i], {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      width: 794
+    });
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgH = (canvas.height * pageW) / canvas.width;
+    if (i > 0) pdf.addPage();
+    pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
+  }
+
+  return pdf;
+}
+
+function setBotoesGeracao(desativado) {
+  btnGerarFolhas.disabled = desativado;
+  btnGerarPDF.disabled = desativado;
+}
   // =====================================================
   // BOTÃO GERAR E IMPRIMIR
   // =====================================================
   btnGerarFolhas.addEventListener("click", async () => {
+  setBotoesGeracao(true);
+  try {
     const total = gerarFolhas();
     if (!total) return;
 
-    try {
-      showMessage("⏳ A preparar impressão...", "info");
+    showMessage(`⏳ A gerar ${total} folha(s), aguarde...`, "info");
 
-      if (!window.jspdf) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-      if (!window.html2canvas) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
+    if (!window.jspdf) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      document.head.appendChild(script);
+      await new Promise(resolve => { script.onload = resolve; });
+    }
+    if (!window.html2canvas) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      document.head.appendChild(script);
+      await new Promise(resolve => { script.onload = resolve; });
+    }
 
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+    const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+    const pdf = await converterParaPDF(paginas);
 
-      for (let i = 0; i < paginas.length; i++) {
-        const canvas = await html2canvas(paginas[i], {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          width: 794
-        });
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const imgH = (canvas.height * pageW) / canvas.width;
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
-      }
+    showMessage("⏳ A abrir diálogo de impressão...", "info");
 
-      pdf.autoPrint();
-      const blob = pdf.output("blob");
-      const url = URL.createObjectURL(blob);
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = url;
-      document.body.appendChild(iframe);
+    pdf.autoPrint();
+    const blob = pdf.output("blob");
+    const url = URL.createObjectURL(blob);
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    document.body.appendChild(iframe);
+
+    await new Promise((resolve) => {
+      let limpo = false;
+      const limpar = () => {
+        if (limpo) return;
+        limpo = true;
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+
       iframe.onload = () => {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-          URL.revokeObjectURL(url);
-        }, 1000);
+        // Só limpa quando o utilizador fechar o diálogo de impressão
+        iframe.contentWindow.addEventListener("afterprint", limpar);
+        // Rede de segurança, caso 'afterprint' não dispare (alguns browsers/mobile)
+        setTimeout(limpar, 60000);
       };
+    });
 
-      areaImpressao.innerHTML = "";
-      areaImpressao.classList.add("d-none");
+    areaImpressao.innerHTML = "";
+    areaImpressao.classList.add("d-none");
 
-      showMessage("✅ PDF pronto para imprimir!", "success");
+    showMessage("✅ Impressão concluída!", "success");
 
-    } catch (err) {
-      console.error("Erro ao imprimir:", err);
-      showMessage("❌ Erro ao imprimir: " + err.message, "danger");
-    }
-  });
+  } catch (err) {
+    console.error("Erro ao imprimir:", err);
+    showMessage("❌ Erro ao imprimir: " + err.message, "danger");
+  } finally {
+    setBotoesGeracao(false);
+  }
+});
 
   // =====================================================
   // BOTÃO EXPORTAR PDF
   // =====================================================
   btnGerarPDF.addEventListener("click", async () => {
+  setBotoesGeracao(true);
+  try {
     const total = gerarFolhas();
     if (!total) return;
 
-    try {
-      showMessage("⏳ A gerar PDF...", "info");
+    showMessage(`⏳ A gerar ${total} folha(s), aguarde...`, "info");
 
-      if (!window.jspdf) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-      if (!window.html2canvas) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
-
-      for (let i = 0; i < paginas.length; i++) {
-        const canvas = await html2canvas(paginas[i], {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          width: 794
-        });
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const imgH = (canvas.height * pageW) / canvas.width;
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
-      }
-
-      const nomeMesInicio = MESES_PT[mesInicioSelecionado];
-      const nomeMesFim    = MESES_PT[mesFimSelecionado];
-      let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
-      if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
-      nomeArquivo += `_${anoSelecionado}.pdf`;
-
-      pdf.save(nomeArquivo);
-
-      areaImpressao.innerHTML = "";
-      areaImpressao.classList.add("d-none");
-
-      showMessage("✅ PDF exportado com sucesso!", "success");
-
-    } catch (err) {
-      console.error("Erro ao gerar PDF:", err);
-      showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
+    if (!window.jspdf) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      document.head.appendChild(script);
+      await new Promise(resolve => { script.onload = resolve; });
     }
-  });
+    if (!window.html2canvas) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      document.head.appendChild(script);
+      await new Promise(resolve => { script.onload = resolve; });
+    }
+
+    const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+    const pdf = await converterParaPDF(paginas);
+
+    const nomeMesInicio = MESES_PT[mesInicioSelecionado];
+    const nomeMesFim    = MESES_PT[mesFimSelecionado];
+    let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
+    if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
+    nomeArquivo += `_${anoSelecionado}.pdf`;
+
+    pdf.save(nomeArquivo);
+
+    areaImpressao.innerHTML = "";
+    areaImpressao.classList.add("d-none");
+
+    showMessage("✅ PDF exportado com sucesso!", "success");
+
+  } catch (err) {
+    console.error("Erro ao gerar PDF:", err);
+    showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
+  } finally {
+    setBotoesGeracao(false);
+  }
+});
 
   // =====================================================
   // ESTILOS DE IMPRESSÃO
