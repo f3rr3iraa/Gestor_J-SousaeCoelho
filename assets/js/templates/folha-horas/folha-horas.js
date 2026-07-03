@@ -732,18 +732,24 @@ function setBotoesGeracao(desativado) {
       const limpar = () => {
         if (limpo) return;
         limpo = true;
-        document.body.removeChild(iframe);
+        clearTimeout(timeoutSeguranca);
+        iframe.remove();
         URL.revokeObjectURL(url);
         resolve();
       };
 
+      // Rede de segurança INDEPENDENTE do onload — garante que nunca fica preso
+      const timeoutSeguranca = setTimeout(limpar, 15000);
+
       iframe.onload = () => {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        // Só limpa quando o utilizador fechar o diálogo de impressão
-        iframe.contentWindow.addEventListener("afterprint", limpar);
-        // Rede de segurança, caso 'afterprint' não dispare (alguns browsers/mobile)
-        setTimeout(limpar, 60000);
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          iframe.contentWindow.addEventListener("afterprint", limpar);
+        } catch (e) {
+          console.error("Erro ao imprimir iframe:", e);
+          limpar();
+        }
       };
     });
 
