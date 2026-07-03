@@ -204,6 +204,49 @@ function showMessage(message, type = "info") {
   setTimeout(() => toast.remove(), 6000);
 }
 
+// =========================
+// TOAST DE PROGRESSO (reutilizável)
+// =========================
+function showProgressToast(id, message, type = "info") {
+  const containerId = "toast-container";
+  let container = document.getElementById(containerId);
+
+  if (!container) {
+    container = document.createElement("div");
+    container.id = containerId;
+    container.className = "toast-container position-fixed bottom-0 end-0 p-3";
+    document.body.appendChild(container);
+  }
+
+  let toast = document.getElementById(id);
+
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = id;
+    toast.role = "alert";
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    container.appendChild(toast);
+  }
+
+  clearTimeout(toast._timeoutId);
+
+  toast.className = `toast align-items-center text-bg-${type} border-0 show mb-2`;
+  toast.querySelector(".toast-body").textContent = message;
+
+  return toast;
+}
+
+function fecharProgressToast(id, delay = 4000) {
+  const toast = document.getElementById(id);
+  if (!toast) return;
+  toast._timeoutId = setTimeout(() => toast.remove(), delay);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("itemForm")) {
     initFormSupabase();

@@ -37,6 +37,8 @@ window.initFolhaHoras = async function () {
   let funcionarios = [];
   let funcionariosSelecionados = new Set();
 
+  const TOAST_PROGRESSO_ID = "toast-progresso-geracao";
+
   const MESES_PT = [
     "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -664,7 +666,7 @@ async function converterParaPDF(paginas) {
   const pdf = new jsPDF("p", "mm", "a4");
 
   for (let i = 0; i < paginas.length; i++) {
-    showMessage(`⏳ A gerar folha ${i + 1} de ${paginas.length}...`, "info");
+    showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar folha ${i + 1} de ${paginas.length}...`, "info");
 
     const canvas = await html2canvas(paginas[i], {
       scale: 2,
@@ -697,7 +699,7 @@ function setBotoesGeracao(desativado) {
     const total = gerarFolhas();
     if (!total) return;
 
-    showMessage(`⏳ A gerar ${total} folha(s), aguarde...`, "info");
+    showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} folha(s), aguarde...`, "info");
 
     if (!window.jspdf) {
       const script = document.createElement("script");
@@ -715,7 +717,7 @@ function setBotoesGeracao(desativado) {
     const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
     const pdf = await converterParaPDF(paginas);
 
-    showMessage("⏳ A abrir diálogo de impressão...", "info");
+    showProgressToast(TOAST_PROGRESSO_ID, "⏳ A abrir diálogo de impressão...", "info");
 
     pdf.autoPrint();
     const blob = pdf.output("blob");
@@ -748,11 +750,13 @@ function setBotoesGeracao(desativado) {
     areaImpressao.innerHTML = "";
     areaImpressao.classList.add("d-none");
 
-    showMessage("✅ Impressão concluída!", "success");
+    showProgressToast(TOAST_PROGRESSO_ID, "✅ Impressão concluída!", "success");
+    fecharProgressToast(TOAST_PROGRESSO_ID);
 
   } catch (err) {
     console.error("Erro ao imprimir:", err);
-    showMessage("❌ Erro ao imprimir: " + err.message, "danger");
+    showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao imprimir: " + err.message, "danger");
+    fecharProgressToast(TOAST_PROGRESSO_ID);
   } finally {
     setBotoesGeracao(false);
   }
@@ -767,7 +771,7 @@ function setBotoesGeracao(desativado) {
     const total = gerarFolhas();
     if (!total) return;
 
-    showMessage(`⏳ A gerar ${total} folha(s), aguarde...`, "info");
+    showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} folha(s), aguarde...`, "info");
 
     if (!window.jspdf) {
       const script = document.createElement("script");
@@ -796,11 +800,13 @@ function setBotoesGeracao(desativado) {
     areaImpressao.innerHTML = "";
     areaImpressao.classList.add("d-none");
 
-    showMessage("✅ PDF exportado com sucesso!", "success");
+    showProgressToast(TOAST_PROGRESSO_ID, "✅ PDF exportado com sucesso!", "success");
+    fecharProgressToast(TOAST_PROGRESSO_ID);
 
   } catch (err) {
     console.error("Erro ao gerar PDF:", err);
-    showMessage("❌ Erro ao gerar PDF: " + err.message, "danger");
+    showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao gerar PDF: " + err.message, "danger");
+    fecharProgressToast(TOAST_PROGRESSO_ID);
   } finally {
     setBotoesGeracao(false);
   }
