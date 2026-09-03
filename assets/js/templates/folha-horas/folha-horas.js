@@ -640,7 +640,9 @@ window.initFolhaHoras = async function () {
  if (dia === null) {
   linhas += `<td class="cal-vazio ${domingoClass}"></td>`;
 } else if (col === 6) {
-  linhas += `<td class="${domingoClass}"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></td>`;
+  linhas += `<td class="${domingoClass}">
+    <div class="cal-dia-top-domingo"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></div>
+  </td>`;
 } else {
   linhas += `<td class="${domingoClass}">
     <div class="cal-dia-top"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></div>
