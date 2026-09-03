@@ -182,13 +182,18 @@ input:-webkit-autofill {
 
 .sidebar-content .nav-link {
   color: #fff;
-  margin-bottom: 10px;
   padding: 10px 15px;
   border-radius: 6px;
-  display: block;
+  display: flex;
+  align-items: flex-start;
   text-decoration: none;
   transition: all 0.2s ease;
   cursor: pointer;
+}
+
+.sidebar-content .nav-link i {
+  flex-shrink: 0;
+  margin-top: 2px; /* alinha o ícone com a primeira linha do texto */
 }
 
 .sidebar-content .nav-link.active {
@@ -239,7 +244,6 @@ input:-webkit-autofill {
 .submenu-link {
   padding: 8px 15px 8px 25px !important;
   font-size: 0.9rem;
-  margin-bottom: 5px;
 }
 
 
@@ -425,6 +429,10 @@ legend {
   flex-direction: column;
   position: relative;
   margin-top: 15px;
+}
+
+.coolinput-tight {
+  margin-top: -4px;
 }
 
 .coolinput label.text {
@@ -1812,4 +1820,341 @@ input[type="number"]::-webkit-inner-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+
+
+
+
+
+
+.ne-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ne-btn-sm {
+  margin: 0 !important;
+  padding: 6px 14px !important;
+  font-size: 0.85rem;
+}
+
+.ne-toolbar-sep {
+  width: 1px;
+  height: 26px;
+  background: #ccc;
+  margin: 0 4px;
+}
+
+.ne-editor-wrap {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ne-sheet-scroll {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: auto;
+  background: #eef1f3;
+  padding: 16px;
+  border: 1px solid #d7dde1;
+}
+
+.ne-sheet-container {
+  width: 760px;
+  max-width: 100%;
+  aspect-ratio: 210 / 297;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  margin: 0 auto;
+}
+
+.ne-sheet-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.ne-shape {
+  transition: fill 0.1s ease;
+}
+
+.ne-handle {
+  touch-action: none;
+}
+
+.ne-panel {
+  flex: 0 0 260px;
+  max-width: 100%;
+  background: #f8f9fa;
+  border: 2px solid #2e4752;
+  padding: 14px;
+}
+
+.ne-panel-title {
+  color: #22333B;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.ne-panel-empty {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.ne-panel-hint {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.ne-poly-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #2e4752;
+  background: #eef4f6;
+  border: 1px solid #cfe0e6;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.ne-scale-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.ne-scale-select {
+  width: auto !important;
+  display: inline-block;
+  min-width: 220px;
+}
+
+.ne-scale-custom {
+  width: 90px !important;
+  display: inline-block;
+}
+
+.ne-scale-info {
+  color: #6c757d;
+  font-style: italic;
+  margin-left: 6px;
+}
+
+.ne-tool-active {
+  outline: 2px solid #c0392b;
+  outline-offset: 1px;
+}
+
+.ne-panel-multi {
+  font-size: 0.85rem;
+  color: #2e4752;
+  background: #eef4f6;
+  border: 1px solid #cfe0e6;
+  padding: 8px 10px;
+}
+
+.ne-corner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+
+.ne-thumb {
+  max-width: 90px;
+  max-height: 55px;
+  object-fit: contain;
+  border: 1px solid #d7dde1;
+  cursor: pointer;
+  background: #fff;
+}
+
+/* =====================================================
+   NOTAS / RECADOS — Calendário mensal
+   ===================================================== */
+.notas-calendar-wrapper {
+  max-width: 1500px;
+  margin: 30px auto 0;
+}
+
+.notas-nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.notas-mes-label {
+  font-size: 1.15rem;
+  min-width: 160px;
+  text-align: center;
+}
+
+.notas-calendar-table {
+  table-layout: fixed;
+}
+
+.notas-calendar-table th {
+  background: #f8f9fa;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+  text-transform: uppercase;
+  padding: 10px 4px;
+}
+
+.notas-calendar-table td {
+  height: 110px;
+  width: 14.28%;
+  vertical-align: top;
+  padding: 6px;
+}
+
+.notas-cell {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.notas-cell:hover {
+  background: #f1f3f5;
+}
+
+.notas-cell-outro-mes {
+  background: #fafafa;
+  color: #c2c7cc;
+}
+
+.notas-cell-outro-mes .notas-cell-numero {
+  color: #c2c7cc;
+}
+
+.notas-cell-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.notas-cell-numero {
+  font-weight: 600;
+}
+
+/* Destaque do dia de hoje: número dentro de um círculo azul escuro */
+.notas-cell-numero.notas-cell-hoje {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #22333b;
+  color: #fff;
+}
+
+.notas-day-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.notas-day-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.notas-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+/* Botão "Adicionar nota" em azul escuro */
+.btn-notas-add {
+  background-color: #22333b;
+  border-color: #22333b;
+  color: #fff;
+}
+
+.btn-notas-add:hover,
+.btn-notas-add:focus {
+  background-color: #1a262c;
+  border-color: #1a262c;
+  color: #fff;
+}
+
+.notas-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.notas-card-concluida {
+  background: #f4fbf6;
+  border-color: #bfe6c9;
+}
+
+.notas-card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.notas-card-texto {
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+
+.notas-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notas-replies {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #ddd;
+}
+
+.notas-reply {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+
+.notas-reply-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+/* Alinha o botão "Limpar Filtros" com a base dos inputs coolinput */
+.btn-filtro {
+  margin: 0 !important;
 }

@@ -64,6 +64,21 @@ const routes = {
     title: "folha-horas",
     description: "Folha de Horas"
   },
+  "/form-nota-encomenda": {
+    template: "/templates/notas-encomenda/form-nota-encomenda.html",
+    title: "form-nota-encomenda",
+    description: "Adicionar Nota de Encomenda",
+  },
+    "/list-nota-encomenda": {
+    template: "/templates/notas-encomenda/list-nota-encomenda.html",
+    title: "list-nota-encomenda",
+    description: "Lista de Notas de Encomenda",
+  },
+  "/list-notas": {
+    template: "/templates/notas/list-notas.html",
+    title: "list-notas",
+    description: "Notas / Recados",
+  },
   
   
 
@@ -100,9 +115,13 @@ const locationHandler = async () => {
     await initSupabaseClient();
   }
 
-  if (!window.realtimeItemsAtivo) {
+    if (!window.realtimeItemsAtivo) {
     await ativarRealtimeItems();
     window.realtimeItemsAtivo = true;
+  }
+
+  if (typeof window.ativarRealtimeNotas === "function") {
+    await window.ativarRealtimeNotas();
   }
   
 
@@ -137,7 +156,11 @@ const locationHandler = async () => {
 
   if (window.initFolhaHoras && location === "/list-folha-horas") initFolhaHoras();
 
-  
+  if (window.initNotaEncomendaForm && location === "/form-nota-encomenda") initNotaEncomendaForm();
+  if (window.initNotaEncomendaList && location === "/list-nota-encomenda") initNotaEncomendaList();
+
+  if (window.initNotas && location === "/list-notas") initNotas();
+
   if (
     window.initHomeSpaceSupabase &&
     (location === "/" || location === "/home")
@@ -187,6 +210,7 @@ function goToRoute(route) {
 // ===========================
 window.onpopstate = locationHandler;
 window.route = route;
+window.locationHandler = locationHandler;
 
 // Inicializa página atual
 locationHandler();

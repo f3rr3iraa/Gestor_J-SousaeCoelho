@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const accordions = ['collapseChapas', 'collapseCatalogo', 'collapseOrcamento', 'collapseClientes'];
-    
+    const accordions = ['collapseChapas', 'collapseCatalogo', 'collapseNotasEncomenda', 'collapseOrcamento', 'collapseClientes'];
+        
     // Restaurar estado guardado
     accordions.forEach(id => {
         const element = document.getElementById(id);

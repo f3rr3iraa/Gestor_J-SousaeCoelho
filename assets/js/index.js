@@ -8,22 +8,38 @@ const logoutBtn = document.getElementById("logoutBtn");
 
 
 
-// --- Gerar Token Simples ---
-function generateToken(username) {
-    return btoa(`${username}:no-exp`);
-}
-
-function getTokenData() {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
-    const decoded = atob(token);
-    if (decoded.endsWith(":no-exp")) return { username: decoded.split(":")[0], exp: Infinity };
-    return null;
-}
-
+// --- Sessão via Supabase Auth ---
+let currentSession = null;
 
 function isLogged() {
-    return getTokenData() !== null;
+    return currentSession !== null;
+}
+
+async function initAuth() {
+    const supabase = await initSupabaseClient();
+
+    const { data: { session } } = await supabase.auth.getSession();
+    currentSession = session;
+    updateUI();
+    if (typeof window.locationHandler === "function") {
+        window.locationHandler();
+    }
+
+        supabase.auth.onAuthStateChange((event, session) => {
+        currentSession = session;
+        updateUI();
+
+        // Só recarrega a rota atual quando o estado de autenticação
+        // realmente muda (login/logout). Eventos como TOKEN_REFRESHED ou
+        // USER_UPDATED disparam sozinhos quando se volta a dar foco à
+        // aba (ex: minimizar e voltar) e não devem recarregar a página
+        // atual, para não perder o que estava a ser preenchido/desenhado.
+        if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
+
+        if (typeof window.locationHandler === "function") {
+            window.locationHandler();
+        }
+    });
 }
 
 // --- Atualizar UI ---
@@ -32,6 +48,9 @@ function updateUI() {
         contentLogin.classList.add("d-none");
         contentDashboard.classList.remove("d-none");
         content.classList.remove("d-none");
+
+        const displayName = currentSession.user.user_metadata?.display_name || currentSession.user.email;
+        document.getElementById("userDisplayName").textContent = displayName;
     } else {
         contentLogin.classList.remove("d-none");
         contentDashboard.classList.add("d-none");
@@ -80,45 +99,35 @@ loginForm.addEventListener("submit", async (event) => {
     const pass = document.getElementById("password").value; // Pega a senha
 
     // Faz a requisição POST para o endpoint do Netlify Functions
-    try {
-        const response = await fetch('/.netlify/functions/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ username: user, password: pass }) // Envia o corpo com as credenciais
+        try {
+        const supabase = await initSupabaseClient();
+        const { error } = await supabase.auth.signInWithPassword({
+            email: user,
+            password: pass
         });
 
-        const data = await response.json(); // Converte a resposta para JSON
-
-        if (response.ok) {
-            // ✅ Login bem-sucedido
-            closeAllErrorToasts(); // Fecha qualquer mensagem de erro
-            localStorage.setItem("token", data.token); // Armazena o token no sessionStorage
-
-            // Limpar os inputs após login bem-sucedido
+        if (!error) {
+            closeAllErrorToasts();
             document.getElementById("username").value = "";
             document.getElementById("password").value = "";
 
-            updateUI(); // Atualiza a UI com o novo estado (usuário logado)
-            window.history.pushState({}, "", "/home"); // Muda a URL para /home
-            if (typeof locationHandler === "function") locationHandler(); // Chama a função de localização, se existir
+            window.history.pushState({}, "", "/home");
+            if (typeof locationHandler === "function") locationHandler();
         } else {
-            // ❌ Credenciais inválidas
-            showErrorToast(data.message || "❌ Ocorreu um erro no servidor", 60000);
+            showErrorToast(error.message || "❌ Ocorreu um erro no servidor", 60000);
         }
     } catch (error) {
-        console.error('Erro no login:', error); // Exibe erros no console
-        showErrorToast("❌ Ocorreu um erro inesperado!", 60000); // Exibe mensagem de erro
+        console.error('Erro no login:', error);
+        showErrorToast("❌ Ocorreu um erro inesperado!", 60000);
     }
 });
 
 
 
 // --- Logout ---
-logoutBtn.addEventListener("click", () => {
-    localStorage.removeItem("token");
-    updateUI();
+logoutBtn.addEventListener("click", async () => {
+    const supabase = await initSupabaseClient();
+    await supabase.auth.signOut();
     window.history.pushState({}, "", "/");
     if (typeof locationHandler === "function") locationHandler();
 });
@@ -166,7 +175,7 @@ updateIconColor();
 
 
 // --- Inicializa ---
-updateUI();
+initAuth();
 
 window.onload = () => {
     document.getElementById("content-login").classList.remove("preload-hidden");

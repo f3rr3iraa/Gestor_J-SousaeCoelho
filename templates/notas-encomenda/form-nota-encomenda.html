@@ -1,0 +1,563 @@
+<div class="form-container">
+  <h2 class="title-color" id="notaFormTitulo">Nova Nota de Encomenda</h2>
+
+  <form id="notaEncomendaForm" autocomplete="off">
+    <input type="hidden" id="notaId" value="">
+
+    <!-- ================= DADOS DA NOTA ================= -->
+    <fieldset>
+      <legend>Dados da Nota</legend>
+      <div class="row g-3">
+
+        <div class="col-2 d-none">
+          <div class="coolinput">
+            <label for="notaNumero" class="text">Nº (único)</label>
+            <input type="text" id="notaNumero" class="input w-100" value="Automático" disabled>
+          </div>
+        </div>
+
+        <div class="col-3">
+          <div class="coolinput autocomplete-wrapper">
+            <label for="notaCliente" class="text">Cliente</label>
+            <div class="input-with-clear">
+              <input
+                type="text"
+                id="notaCliente"
+                class="input autocomplete-input w-100"
+                placeholder="Nome do cliente"
+                autocomplete="off"
+                required
+              />
+              <button type="button" class="input-clear-btn d-none" id="clearNotaCliente">
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+            <div id="notaClienteDropdown" class="autocomplete-dropdown"></div>
+          </div>
+        </div>
+
+        <div class="col-3">
+          <div class="coolinput">
+            <label for="notaMaterial" class="text">Material</label>
+            <input type="text" id="notaMaterial" class="input w-100"
+                   placeholder="Material.">
+          </div>
+        </div>
+
+        <div class="col-2">
+          <div class="coolinput">
+            <label for="notaTipo" class="text">Gestão</label>
+            <select id="notaTipo" class="input w-100">
+              <option value="" disabled selected>Selecionar...</option>
+              <option value="chapa">Chapa</option>
+              <option value="sobra">Sobra</option>
+              <option value="entrega_material">Pedir Material</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="col-2">
+          <div class="coolinput">
+            <label for="notaDataCriacao" class="text">Data de criação</label>
+            <input type="date" id="notaDataCriacao" class="input w-100" required readonly title="Bloqueada na data de hoje">
+          </div>
+        </div>
+
+        <div class="col-2">
+          <div class="coolinput">
+            <label for="notaDataEntrega" class="text">Data de entrega</label>
+            <input type="date" id="notaDataEntrega" class="input w-100">
+          </div>
+        </div>
+
+      </div>
+
+            
+<div class="d-flex align-items-end" style="gap: 0.5rem; width: 100%;">
+  <div class="coolinput coolinput-tight" style="flex: 1 1 auto; min-width: 0;">
+    <label for="notaObservacoes" class="text" id="notaObservacoesLabel">Observações</label>
+    <textarea id="notaObservacoes" class="input w-100" rows="2" placeholder="Notas adicionais..."></textarea>
+  </div>
+  <div style="flex: 0 0 auto;">
+    <button type="button" id="btnLimparFormularioNota" class="btn-form ne-btn-sm" style="background-color: #6c757d;">
+      <i class="bi bi-eraser me-2"></i> Limpar Formulário
+    </button>
+  </div>
+</div>
+    </fieldset>
+
+    <br>
+
+    <!-- ================= EDITOR DE DESENHO ================= -->
+    <fieldset>
+      <legend>Desenho (folha A4)</legend>
+
+      <div class="ne-toolbar mb-2">
+        <button type="button" class="btn-form ne-btn-sm" id="neAddRect" title="Adicionar retângulo">
+          <i class="bi bi-square me-1"></i> Retângulo
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neAddCircle" title="Adicionar círculo">
+          <i class="bi bi-circle me-1"></i> Círculo
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neAddPolygon" title="Desenhar polígono ponto a ponto">
+          <i class="bi bi-pentagon me-1"></i> Polígono
+        </button>
+                <button type="button" class="btn-form ne-btn-sm" id="neAddArrow" title="Adicionar seta / cota">
+          <i class="bi bi-arrow-up-left me-1"></i> Seta
+        </button>
+        <div class="btn-group" role="group">
+  <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neAddLineBtn"
+          data-bs-toggle="dropdown" aria-expanded="false" title="Adicionar linha">
+    <i class="bi bi-slash-lg me-1"></i> Linha
+  </button>
+  <ul class="dropdown-menu" aria-labelledby="neAddLineBtn">
+    <li><a class="dropdown-item ne-line-style" href="#" data-style="solid">
+      <i class="bi bi-dash-lg me-2"></i>Linha normal
+    </a></li>
+    <li><a class="dropdown-item ne-line-style" href="#" data-style="dashed">
+      <i class="bi bi-dash me-2"></i>Linha tracejada
+    </a></li>
+  </ul>
+</div>
+<div class="btn-group" role="group">
+  <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neAddArrow90Btn"
+          data-bs-toggle="dropdown" aria-expanded="false" title="Adicionar seta em esquadria (90º)">
+    <i class="bi bi-arrow-90deg-up me-1"></i> Seta 90º
+  </button>
+  <ul class="dropdown-menu" aria-labelledby="neAddArrow90Btn">
+    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="up">
+      <i class="bi bi-arrow-90deg-up me-2"></i>Para cima
+    </a></li>
+    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="down">
+      <i class="bi bi-arrow-90deg-down me-2"></i>Para baixo
+    </a></li>
+    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="left">
+      <i class="bi bi-arrow-90deg-left me-2"></i>Para a esquerda
+    </a></li>
+    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="right">
+      <i class="bi bi-arrow-90deg-right me-2"></i>Para a direita
+    </a></li>
+  </ul>
+</div>
+                <button type="button" class="btn-form ne-btn-sm" id="neAddBrace" title="Adicionar chaveta { }">
+          <i class="bi bi-braces me-1"></i> Chaveta
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neAddText" title="Adicionar texto">
+          <i class="bi bi-fonts me-1"></i> Texto
+        </button>
+
+        <span class="ne-toolbar-sep"></span>
+
+        <button type="button" class="btn-form ne-btn-sm" id="neToggleEdgeMode" title="Selecionar uma linha para marcar polimento">
+          <i class="bi bi-vector-pen me-1"></i> Marcar polimento
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neToggleDimMode" title="Selecionar uma linha para escrever a medida">
+          <i class="bi bi-rulers me-1"></i> Cota manual
+        </button>
+
+        <span class="ne-toolbar-sep"></span>
+
+        <button type="button" class="btn-form ne-btn-sm" id="neBringForward" title="Trazer a peça selecionada para a frente">
+          <i class="bi bi-arrow-bar-up me-1"></i> Trazer para a frente
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neSendBackward" title="Enviar a peça selecionada para trás">
+          <i class="bi bi-arrow-bar-down me-1"></i> Enviar para trás
+        </button>
+
+                <span class="ne-toolbar-sep"></span>
+
+        <div class="btn-group" role="group">
+          <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neFlipBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false" title="Rodar / inverter a peça selecionada">
+            <i class="bi bi-arrow-repeat me-1"></i> Virar
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="neFlipBtn">
+            <li><a class="dropdown-item ne-flip-action" href="#" data-action="rotateRight">
+              <i class="bi bi-arrow-clockwise me-2"></i>Rodar 90º à direita
+            </a></li>
+            <li><a class="dropdown-item ne-flip-action" href="#" data-action="rotateLeft">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Rodar 90º à esquerda
+            </a></li>
+            <li><a class="dropdown-item ne-flip-action" href="#" data-action="flipH">
+              <i class="bi bi-symmetry-vertical me-2"></i>Inverter na horizontal
+            </a></li>
+            <li><a class="dropdown-item ne-flip-action" href="#" data-action="flipV">
+              <i class="bi bi-symmetry-horizontal me-2"></i>Inverter na vertical
+            </a></li>
+          </ul>
+        </div>
+
+        <span class="ne-toolbar-sep"></span>
+
+                <button type="button" class="btn-form ne-btn-sm" id="neUndo" title="Desfazer (Ctrl+Z)">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Desfazer
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neDeleteShape" style="background-color:#dc3545;">
+          <i class="bi bi-trash me-1"></i> Eliminar
+        </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neClearAll" style="background-color:#6c757d;">
+          <i class="bi bi-x-circle me-1"></i> Limpar tudo
+        </button>
+                <span class="ne-toolbar-sep"></span>
+        <button type="button" class="btn-form ne-btn-sm" id="neOpenPreview" style="background-color:#2e4752;">
+          <i class="bi bi-eye me-1"></i> Pré-visualizar
+        </button>
+        <div class="form-check ms-2 d-flex align-items-center">
+          <input class="form-check-input" type="checkbox" id="neMarcarPorAcabar" style="margin-top:0;">
+          <label class="form-check-label text ms-1 mb-0" for="neMarcarPorAcabar">Marcar como "Por acabar"</label>
+        </div>
+      </div>
+
+            <!-- Barra de desenho de linha (só aparece enquanto se desenha) -->
+      <div class="ne-poly-bar d-none" id="neLineBar">
+        <i class="bi bi-info-circle me-1"></i>
+        A desenhar linha: clica no primeiro ponto e depois no segundo ponto da folha.
+        <button type="button" class="btn-form ne-btn-sm" id="neLineCancel" style="background-color:#6c757d;">Cancelar</button>
+      </div>
+
+      <!-- Barra de desenho de seta (só aparece enquanto se desenha) -->
+      <div class="ne-poly-bar d-none" id="neArrowBar">
+        <i class="bi bi-info-circle me-1"></i>
+        A desenhar seta: clica no ponto inicial e depois no ponto final da folha.
+        <button type="button" class="btn-form ne-btn-sm" id="neArrowCancel" style="background-color:#6c757d;">Cancelar</button>
+      </div>
+
+            <!-- Barra de desenho de polígono (só aparece enquanto se desenha) -->
+      <div class="ne-poly-bar d-none" id="nePolyBar">
+        <i class="bi bi-info-circle me-1"></i>
+        A desenhar polígono: clica na folha para colocar cada ponto.
+        <button type="button" class="btn-form ne-btn-sm" id="nePolyCancel" style="background-color:#6c757d;">Cancelar</button>
+      </div>
+
+      <!-- Escala do desenho -->
+      <div class="ne-scale-bar mb-2">
+        <label class="text me-2">Escala:</label>
+        <select id="neScaleSelect" class="input ne-scale-select">
+          <option value="auto">Automática (ajusta à folha)</option>
+          <option value="10">1:10</option>
+          <option value="20">1:20</option>
+          <option value="25">1:25</option>
+          <option value="50">1:50</option>
+          <option value="75">1:75</option>
+          <option value="100">1:100</option>
+          <option value="200">1:200</option>
+          <option value="custom">Personalizada…</option>
+        </select>
+        <input type="number" min="1" step="1" id="neScaleCustom" class="input ne-scale-custom d-none" placeholder="Ex: 40">
+        <span class="ne-scale-info" id="neScaleInfo"></span>
+
+        <span class="ne-toolbar-sep"></span>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="neShowGrid" checked>
+          <label class="form-check-label text" for="neShowGrid">Mostrar grelha (só no ecrã, nunca imprime)</label>
+        </div>
+      </div>
+
+      <div class="ne-editor-wrap">
+
+        <!-- Folha A4 -->
+        <div class="ne-sheet-scroll">
+          <div id="neSheetContainer" class="ne-sheet-container"></div>
+        </div>
+
+        <!-- Painel de propriedades -->
+        <div class="ne-panel" id="nePanel">
+          <h6 class="ne-panel-title"><i class="bi bi-rulers me-1"></i> Propriedades</h6>
+
+                    <div id="neNoSelection" class="ne-panel-empty">
+            Seleciona ou adiciona uma forma para editar as suas propriedades.
+          </div>
+
+                    <div id="neDimPanel" class="d-none">
+            <h6 class="ne-panel-title"><i class="bi bi-rulers me-1"></i> Cota manual da linha</h6>
+            <div class="coolinput">
+              <label class="text">Medida</label>
+              <input type="text" id="neDimValue" class="input w-100" placeholder="Ex: 64.3 cm">
+            </div>
+            <div class="coolinput mt-2">
+              <label class="text">Posição da cota</label>
+              <select id="neDimPosition" class="input w-100">
+                <option value="auto">Automática</option>
+                <option value="outside">Por fora</option>
+                <option value="inside">Por dentro</option>
+              </select>
+            </div>
+            <div class="ne-panel-hint">
+              Esta medida é escrita por ti — não é calculada automaticamente a partir do desenho.
+            </div>
+          </div>
+
+          <!-- RETÂNGULO -->
+          <div id="neFieldsRect" class="d-none">
+            <div class="coolinput">
+              <label class="text">Largura</label>
+              <input type="text" id="neW" class="input w-100" placeholder="Ex: 64.3 cm">
+            </div>
+            <div class="coolinput">
+              <label class="text">Altura</label>
+              <input type="text" id="neH" class="input w-100" placeholder="Ex: 54 cm">
+            </div>
+
+                        <label class="text mt-3 mb-2 d-block">Raio dos cantos (mm)</label>
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="neRGroup">
+              <label class="form-check-label text" for="neRGroup">Todos em grupo</label>
+            </div>
+
+                        <div class="coolinput mt-1 d-none" id="neRAllWrap">
+              <label class="text">Todos os cantos</label>
+              <input type="number" step="1" min="0" id="neRAll" class="input w-100">
+            </div>
+
+                        <div class="ne-corner-grid mt-1" id="neRGridWrap">
+                            <div class="coolinput">
+                <label class="text">Sup. esq.</label>
+                <input type="number" step="1" min="0" id="neRTL" class="input w-100">
+              </div>
+              <div class="coolinput">
+                <label class="text">Sup. dir.</label>
+                <input type="number" step="1" min="0" id="neRTR" class="input w-100">
+              </div>
+              <div class="coolinput">
+                <label class="text">Inf. esq.</label>
+                <input type="number" step="1" min="0" id="neRBL" class="input w-100">
+              </div>
+              <div class="coolinput">
+                <label class="text">Inf. dir.</label>
+                <input type="number" step="1" min="0" id="neRBR" class="input w-100">
+              </div>
+            </div>
+
+            <div class="coolinput mt-2">
+              <label class="text">Etiqueta / referência</label>
+              <input type="text" id="neLabelRect" class="input w-100" placeholder="Ex: Peça 1">
+            </div>
+
+                        <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="neDimsInside">
+              <label class="form-check-label text" for="neDimsInside">Cotas por dentro da peça</label>
+            </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="neShowDims" checked>
+              <label class="form-check-label text" for="neShowDims">Mostrar medidas</label>
+            </div>
+          </div>
+
+          <!-- CÍRCULO -->
+          <div id="neFieldsCircle" class="d-none">
+            <div class="coolinput">
+              <label class="text">Raio</label>
+              <input type="text" id="neRadius" class="input w-100" placeholder="Ex: 15 cm">
+            </div>
+            <div class="coolinput">
+              <label class="text">Etiqueta simples</label>
+              <input type="text" id="neLabelCircle" class="input w-100" placeholder="Ex: Peça redonda">
+            </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="neCurved">
+              <label class="form-check-label text" for="neCurved">Texto curvo à volta da peça (rodado)</label>
+            </div>
+            <div class="coolinput">
+              <label class="text">Texto curvo</label>
+              <input type="text" id="neCurvedText" class="input w-100" placeholder="Ex: 1 redondo - Ø95x5x2">
+            </div>
+          </div>
+
+          <!-- POLÍGONO -->
+          <div id="neFieldsPolygon" class="d-none">
+            <div class="coolinput">
+              <label class="text">Etiqueta / referência</label>
+              <input type="text" id="neLabelPolygon" class="input w-100" placeholder="Ex: Peça 2">
+            </div>
+            <div class="ne-panel-hint">
+              Arrasta cada ponto (quadrado preto) individualmente para ajustar a forma do polígono.
+            </div>
+          </div>
+
+          <!-- SETA -->
+          <div id="neFieldsArrow" class="d-none">
+            <div class="coolinput">
+              <label class="text">Texto da seta</label>
+              <input type="text" id="neLabelArrow" class="input w-100" placeholder="Ex: 50 cm">
+            </div>
+            <div class="ne-panel-hint">Arrasta as duas pontas para posicionar a seta.</div>
+          </div>
+
+          <!-- SETA 90º -->
+                    <!-- LINHA -->
+          <div id="neFieldsLine" class="d-none">
+            <div class="coolinput">
+              <label class="text">Texto da linha</label>
+              <input type="text" id="neLabelLine" class="input w-100" placeholder="Ex: 50 cm">
+            </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="neDashedLine">
+              <label class="form-check-label text" for="neDashedLine">Linha tracejada</label>
+            </div>
+            <div class="ne-panel-hint">Arrasta as duas pontas para posicionar a linha.</div>
+          </div>
+
+                    <!-- CHAVETA -->
+          <div id="neFieldsBrace" class="d-none">
+            <div class="coolinput">
+              <label class="text">Texto da chaveta</label>
+              <input type="text" id="neLabelBrace" class="input w-100" placeholder="Ex: 3 peças">
+            </div>
+            <div class="coolinput">
+              <label class="text">Curvatura (mm)</label>
+              <input type="number" step="1" min="2" id="neBraceWidth" class="input w-100">
+            </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="neBraceFlip">
+              <label class="form-check-label text" for="neBraceFlip">Inverter lado</label>
+            </div>
+            <div class="ne-panel-hint">Arrasta as duas pontas para posicionar a chaveta.</div>
+          </div>
+
+          <!-- SETA 90º -->
+          <div id="neFieldsArrow90" class="d-none">
+            <div class="coolinput">
+              <label class="text">Texto da seta</label>
+              <input type="text" id="neLabelArrow90" class="input w-100" placeholder="Ex: 50 cm">
+            </div>
+            <div class="ne-panel-hint">Arrasta as três pontas (início, canto e fim) para ajustar o ângulo.</div>
+          </div>
+
+          <!-- TEXTO -->
+          <div id="neFieldsText" class="d-none">
+                        <div class="coolinput">
+              <label class="text">Conteúdo</label>
+              <textarea id="neTextContent" class="input w-100" rows="4"></textarea>
+            </div>
+            <div class="coolinput">
+              <label class="text">Tamanho da letra (mm)</label>
+              <input type="number" step="0.5" min="2" id="neFontSize" class="input w-100">
+            </div>
+          </div>
+
+          <!-- MÚLTIPLAS FORMAS SELECIONADAS -->
+          <div id="neMultiSelection" class="ne-panel-multi d-none"></div>
+
+          <hr>
+          <div class="ne-panel-hint">
+            <i class="bi bi-info-circle me-1"></i>
+            Arrasta a forma para a mover (fica sempre por cima) e usa os
+            pontos para redimensionar. Carrega em Shift e clica em várias
+            formas para as selecionar todas e mover em conjunto.
+            Ativa "Marcar polimento" e clica numa linha da peça para
+            assinalar que essa linha leva polimento (aparecem "C" a
+            vermelho automaticamente, mais ou menos consoante o comprimento).
+          </div>
+        </div>
+
+      </div>
+    </fieldset>
+
+    <!-- ================= AÇÕES ================= -->
+    <div class="form-actions justify-content-end">
+      <button type="button" id="btnCancelarNota" class="btn-form" style="background-color: #6c757d;">
+        <i class="bi bi-x-lg me-2"></i> Cancelar
+      </button>
+      <button type="submit" class="btn-form">
+        <i class="bi bi-save me-2"></i> Guardar Nota
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<!-- Modal para introduzir as medidas do retângulo antes de o adicionar -->
+<div class="modal fade" id="neModalAddRect" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-rulers me-2"></i>Nova peça retangular</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="coolinput mb-3">
+          <label class="text">Largura</label>
+          <input type="text" id="neRectBarW" class="input w-100" placeholder="Ex: 60 cm ou 0.60">
+        </div>
+        <div class="coolinput">
+          <label class="text">Altura</label>
+          <input type="text" id="neRectBarH" class="input w-100" placeholder="Ex: 40 cm ou 0.40">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="neRectBarConfirm">
+          <i class="bi bi-check-lg me-2"></i> Adicionar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Pré-visualização / Impressão -->
+<div class="modal fade" id="neModalPreview" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Pré-visualização</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body text-center">
+        <div id="neModalPreviewBody"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn-form" id="neModalImprimir">
+          <i class="bi bi-printer me-2"></i> Imprimir
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal de confirmação para campos não preenchidos -->
+<div class="modal fade" id="neModalCamposFalta" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Campos por preencher</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Vais guardar esta nota sem preencher:</p>
+        <ul id="neCamposFaltaLista" class="mb-0"></ul>
+        <p class="mt-3 mb-0">Queres continuar e guardar mesmo assim?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="neCamposFaltaConfirmar">
+          <i class="bi bi-check-lg me-2"></i> Guardar mesmo assim
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para escrever a medida manual (Cota manual) -->
+<div class="modal fade" id="neModalDimValue" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-rulers me-2"></i>Medida da linha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+            <div class="modal-body">
+        <div class="coolinput">
+          <label class="text">Medida</label>
+          <input type="text" id="neModalDimValueInput" class="input w-100" placeholder="Ex: 64.3 cm">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" id="neModalDimValueConfirm">
+          <i class="bi bi-check-lg me-2"></i> Concluído
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -8,7 +8,7 @@
 // ✅ Enter no Desconto abre modal de confirmação
 // =====================================================
 
-window.initOrcamentoForm = function () {
+window.initOrcamentoForm = async function () {
   console.log("🚀 Iniciando formulário de orçamento...");
   
   if (!window.supabaseClient) {
@@ -94,6 +94,158 @@ window.initOrcamentoForm = function () {
   console.log("✅ Elementos DOM carregados com sucesso");
 
   // =====================================================
+  // ✅ PERSISTÊNCIA DO RASCUNHO (não perder dados ao trocar de página)
+  // Guarda tudo em sessionStorage: mantém-se ao navegar entre páginas
+  // da aplicação e só desaparece quando o utilizador limpa/guarda
+  // o orçamento ou fecha a página/separador do browser.
+  // =====================================================
+  const ORCAMENTO_STORAGE_KEY = "orcamentoFormDraft_v1";
+
+  function coletarEstadoOrcamento() {
+    return {
+      cliente: {
+        nome: clienteNome.value,
+        id: clienteId.value,
+        detalhesHtml: clienteDetalhes.innerHTML,
+        original: window.selectedClienteData || null,
+      },
+      produtos: produtosAdicionados,
+      produtoAtual: {
+        modoDiversos: modoAtualDiversos,
+        tipoNome: produtoTipo.value,
+        tipoId: produtoTipoId.value,
+        brandNome: produtoBrand.value,
+        brandKey: produtoBrandKey.value,
+        descricao: produtoDescricao.value,
+        descricaoId: produtoDescricaoId.value,
+        espessuraTexto: produtoEspessura.value,
+        espessuraValue: produtoEspessuraValue.value,
+        tipoAcabamentoTexto: produtoTipoAcabamento.value,
+        tipoAcabamentoValue: produtoTipoAcabamentoValue.value,
+        quantidade: produtoQuantidade.value,
+        comprimento: produtoComprimento.value,
+        largura: produtoLargura.value,
+        precoMt2: produtoPrecoMt2.value,
+        desconto: produtoDesconto.value,
+      },
+    };
+  }
+
+  let guardarEstadoTimeout = null;
+  function guardarEstadoOrcamento() {
+    clearTimeout(guardarEstadoTimeout);
+    guardarEstadoTimeout = setTimeout(() => {
+      try {
+        sessionStorage.setItem(ORCAMENTO_STORAGE_KEY, JSON.stringify(coletarEstadoOrcamento()));
+      } catch (err) {
+        console.warn("⚠️ Não foi possível guardar o rascunho do orçamento:", err);
+      }
+    }, 150);
+  }
+
+  function limparEstadoOrcamento() {
+    clearTimeout(guardarEstadoTimeout);
+    try {
+      sessionStorage.removeItem(ORCAMENTO_STORAGE_KEY);
+    } catch (err) {
+      // ignora
+    }
+  }
+
+  // Guarda automaticamente qualquer alteração escrita nos campos do formulário
+  form.addEventListener("input", guardarEstadoOrcamento);
+  form.addEventListener("change", guardarEstadoOrcamento);
+
+  async function restaurarEstadoOrcamento() {
+    let raw;
+    try {
+      raw = sessionStorage.getItem(ORCAMENTO_STORAGE_KEY);
+    } catch (err) {
+      return;
+    }
+    if (!raw) return;
+
+    let estado;
+    try {
+      estado = JSON.parse(raw);
+    } catch (err) {
+      return;
+    }
+
+    // Cliente
+    if (estado.cliente) {
+      clienteNome.value = estado.cliente.nome || "";
+      clienteId.value = estado.cliente.id || "";
+      clienteDetalhes.innerHTML = estado.cliente.detalhesHtml || "";
+      window.selectedClienteData = estado.cliente.original || null;
+      toggleClearButton(clienteNome, clearCliente);
+    }
+
+    // Produtos já adicionados ao orçamento
+    if (Array.isArray(estado.produtos) && estado.produtos.length > 0) {
+      produtosAdicionados = estado.produtos;
+      renderProdutosTable();
+    }
+
+    // Linha de produto que estava a ser preenchida
+    const p = estado.produtoAtual;
+    if (p && (p.tipoNome || p.descricao || p.brandNome)) {
+      produtoTipo.value = p.tipoNome || "";
+      produtoTipoId.value = p.tipoId || "";
+      toggleClearButton(produtoTipo, clearTipo);
+
+      if (p.modoDiversos) {
+        activarModoDiversos(true);
+        produtoDescricao.value = p.descricao || "";
+        produtoDescricaoId.value = "diversos";
+      } else if (p.brandKey) {
+        produtoBrand.value = p.brandNome || "";
+        produtoBrandKey.value = p.brandKey;
+        toggleClearButton(produtoBrand, clearBrand);
+
+        try {
+          await carregarDescricoesDaMarca(p.brandKey);
+
+          if (p.descricaoId) {
+            produtoDescricao.value = p.descricao || "";
+            produtoDescricaoId.value = p.descricaoId;
+            toggleClearButton(produtoDescricao, clearDescricao);
+
+            await carregarEspessuras(p.descricaoId);
+
+            if (p.espessuraValue) {
+              produtoEspessura.value = p.espessuraTexto || "";
+              produtoEspessuraValue.value = p.espessuraValue;
+              toggleClearButton(produtoEspessura, clearEspessura);
+              produtoTipoAcabamento.disabled = false;
+              produtoTipoAcabamento.placeholder = "Seleciona...";
+              carregarTiposAcabamento(p.descricaoId, p.espessuraValue);
+              btnVerPrecario.classList.remove("d-none");
+
+              if (p.tipoAcabamentoValue) {
+                produtoTipoAcabamento.value = p.tipoAcabamentoTexto || "";
+                produtoTipoAcabamentoValue.value = p.tipoAcabamentoValue;
+                toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("⚠️ Não foi possível restaurar por completo a linha de produto:", err);
+        }
+      }
+
+      produtoQuantidade.value = p.quantidade || 1;
+      produtoComprimento.value = p.comprimento || "";
+      produtoLargura.value = p.largura || "";
+      produtoPrecoMt2.value = p.precoMt2 || "";
+      produtoDesconto.value = p.desconto || "0";
+      produtoDesconto.dataset.lastValid = p.desconto || "0";
+
+      calcularValores();
+    }
+  }
+
+  // =====================================================
   // ✅ FUNÇÃO PARA NORMALIZAR ENTRADA DE NÚMEROS DECIMAIS
   // =====================================================
   function normalizeDecimalInput(value) {
@@ -132,6 +284,15 @@ window.initOrcamentoForm = function () {
   });
 
   produtoLargura.addEventListener("input", function() {
+    calcularValores();
+  });
+
+  // ✅ Quantidade e Preço/m² também têm de recalcular Subtotal/Total
+  produtoQuantidade.addEventListener("input", function() {
+    calcularValores();
+  });
+
+  produtoPrecoMt2.addEventListener("input", function() {
     calcularValores();
   });
 
@@ -185,6 +346,7 @@ window.initOrcamentoForm = function () {
     newTipoWrapper.classList.add("d-none");
     newTipoInput.value = "";
     activarModoDiversos(false);
+    guardarEstadoOrcamento();
     produtoTipo.focus();
   });
 
@@ -220,6 +382,7 @@ window.initOrcamentoForm = function () {
     clearTipoAcabamento.classList.add("d-none");
     
     resetCamposDependentes();
+    guardarEstadoOrcamento();
     produtoBrand.focus();
   });
 
@@ -249,6 +412,7 @@ window.initOrcamentoForm = function () {
     clearTipoAcabamento.classList.add("d-none");
     
     resetCamposDependentes();
+    guardarEstadoOrcamento();
     produtoDescricao.focus();
   });
 
@@ -271,6 +435,7 @@ window.initOrcamentoForm = function () {
     clearTipoAcabamento.classList.add("d-none");
     produtoPrecoMt2.value = "";
     calcularValores();
+    guardarEstadoOrcamento();
     produtoEspessura.focus();
   });
 
@@ -288,6 +453,7 @@ window.initOrcamentoForm = function () {
     clearTipoAcabamento.classList.add("d-none");
     produtoPrecoMt2.value = "";
     calcularValores();
+    guardarEstadoOrcamento();
     produtoTipoAcabamento.focus();
   });
 
@@ -465,6 +631,7 @@ window.initOrcamentoForm = function () {
             <small>${item.original.morada || ''}</small>
           `;
           window.selectedClienteData = item.original;
+          guardarEstadoOrcamento();
           setTimeout(() => produtoTipo.focus(), 50);
         },
         item => item.display
@@ -486,6 +653,7 @@ window.initOrcamentoForm = function () {
     clienteDetalhes.innerHTML = "";
     window.selectedClienteData = null;
     clearCliente.classList.add("d-none");
+    guardarEstadoOrcamento();
     clienteNome.focus();
   });
 
@@ -539,6 +707,7 @@ window.initOrcamentoForm = function () {
             newTipoInput.value = "";
             const isDiversos = item.nome.trim().toLowerCase() === "diversos";
             activarModoDiversos(isDiversos);
+            guardarEstadoOrcamento();
             setTimeout(() => {
               if (isDiversos) {
                 produtoDescricao.focus();
@@ -593,6 +762,7 @@ window.initOrcamentoForm = function () {
         async (item) => {
           produtoBrandKey.value = item.website_key;
           await carregarDescricoesDaMarca(item.website_key);
+          guardarEstadoOrcamento();
           setTimeout(() => produtoDescricao.focus(), 50);
         }
       );
@@ -661,6 +831,7 @@ window.initOrcamentoForm = function () {
       async (item) => {
         produtoDescricaoId.value = item.id;
         await carregarEspessuras(item.id);
+        guardarEstadoOrcamento();
         setTimeout(() => produtoEspessura.focus(), 50);
       }
     );
@@ -728,6 +899,7 @@ window.initOrcamentoForm = function () {
           produtoPrecoMt2.value = "";
           carregarTiposAcabamento(produtoId, item.thickness);
           calcularValores();
+          guardarEstadoOrcamento();
         },
         item => item.display,
         item => item.value,
@@ -775,6 +947,7 @@ window.initOrcamentoForm = function () {
       clearTipoAcabamento.classList.remove("d-none");
       // produtoPrecoMt2 fica vazio — utilizador preenche manualmente
       calcularValores();
+      guardarEstadoOrcamento();
       // Foco vai para Quantidade para o utilizador confirmar e avançar
       setTimeout(() => produtoQuantidade.focus(), 50);
       return;
@@ -788,6 +961,7 @@ window.initOrcamentoForm = function () {
         produtoTipoAcabamentoValue.value = item.value;
         // ✅ Preço/m² também NÃO é preenchido aqui automaticamente
         calcularValores();
+        guardarEstadoOrcamento();
         setTimeout(() => produtoQuantidade.focus(), 50);
       }
     );
@@ -901,6 +1075,7 @@ window.initOrcamentoForm = function () {
 
       newTipoWrapper.classList.add("d-none");
       newTipoInput.value = "";
+      guardarEstadoOrcamento();
 
     } catch (err) {
       console.error("Erro ao adicionar tipo:", err);
@@ -1184,6 +1359,7 @@ window.initOrcamentoForm = function () {
         </tr>
       `;
       totalGeralEl.textContent = "0.00 €";
+      guardarEstadoOrcamento();
       return;
     }
 
@@ -1218,6 +1394,7 @@ window.initOrcamentoForm = function () {
     });
 
     totalGeralEl.textContent = totalGeral.toFixed(2) + " €";
+    guardarEstadoOrcamento();
   }
 
   // =====================================================
@@ -1279,6 +1456,7 @@ window.initOrcamentoForm = function () {
     }
 
     activarModoDiversos(false);
+    guardarEstadoOrcamento();
   }
 
   // =====================================================
@@ -1306,6 +1484,7 @@ window.initOrcamentoForm = function () {
     produtosAdicionados = [];
     limparCamposProduto();
     renderProdutosTable();
+    limparEstadoOrcamento();
     showMessage("🔄 Orçamento limpo com sucesso", "success");
   });
 
@@ -1384,6 +1563,7 @@ window.initOrcamentoForm = function () {
       produtosAdicionados = [];
       limparCamposProduto();
       renderProdutosTable();
+      limparEstadoOrcamento();
 
     } catch (err) {
       console.error("❌ Erro ao guardar:", err);
@@ -1418,10 +1598,16 @@ window.initOrcamentoForm = function () {
   // =====================================================
   // INICIALIZAÇÃO
   // =====================================================
-  loadTipos();
-  loadBrands();
-  loadProdutosWebsite();
-  loadClientes();
+  await Promise.all([
+    loadTipos(),
+    loadBrands(),
+    loadProdutosWebsite(),
+    loadClientes(),
+  ]);
+
+  // ✅ Restaura o que estava preenchido antes de sair desta página
+  // (fica guardado até guardares/limpares o orçamento ou fechares a página)
+  await restaurarEstadoOrcamento();
 
   console.log("✅ Formulário de Orçamento inicializado");
 };
