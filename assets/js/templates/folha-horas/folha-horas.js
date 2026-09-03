@@ -43,8 +43,8 @@ window.initFolhaHoras = async function () {
     "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
+
   const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  const DIAS_SEMANA_CAL = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 
   const HORA_MANHA_ENTRADA = "08:30";
   const HORA_MANHA_SAIDA   = "12:00";
@@ -619,109 +619,6 @@ window.initFolhaHoras = async function () {
   }
 
   // =====================================================
-  // GERAR HTML DE UM CALENDÁRIO DE HORAS EXTRA
-  // =====================================================
-  function gerarCalendarioHTML(funcionario, mes, ano) {
-    const nomeMes = MESES_PT[mes];
-    const diasNoMes = new Date(ano, mes, 0).getDate();
-    const primeiroDiaSemana = (new Date(ano, mes - 1, 1).getDay() + 6) % 7;
-
-    const celulas = [];
-    for (let i = 0; i < primeiroDiaSemana; i++) celulas.push(null);
-    for (let d = 1; d <= diasNoMes; d++) celulas.push(d);
-    while (celulas.length % 7 !== 0) celulas.push(null);
-
-    let linhas = "";
-    for (let semana = 0; semana < celulas.length / 7; semana++) {
-      linhas += "<tr>";
-      for (let col = 0; col < 7; col++) {
-        const dia = celulas[semana * 7 + col];
-        const domingoClass = col === 6 ? "col-domingo" : "";
-        if (dia === null) {
-          linhas += `<td class="cal-vazio ${domingoClass}"></td>`;
-        } else {
-          linhas += `<td class="${domingoClass}"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></td>`;
-        }
-      }
-      linhas += "</tr>";
-    }
-
-    return `
-    <div class="folha-calendario-page">
-      <div class="fh-header">
-        <div class="fh-header-empresa">
-          <div class="empresa-nome">J Sousa &amp; Coelho Lda</div>
-          <p>Rua da Indústria, nº 130</p>
-          <p>4595-355 Penamaior</p>
-          <p>Paços de Ferreira, Portugal</p>
-        </div>
-        <div class="fh-header-funcionario">
-          <div class="fh-titulo">Registo de Horas Extra</div>
-          <div class="fh-nome-func">${funcionario.nome}</div>
-          ${funcionario.cargo ? `<div class="fh-cargo-func">${funcionario.cargo}</div>` : ""}
-        </div>
-      </div>
-      <hr class="fh-divider">
-      <div class="fh-mes-label">${nomeMes} de ${ano}</div>
-      <table class="fh-cal-table">
-        <thead>
-          <tr>
-            ${DIAS_SEMANA_CAL.map((d, i) => `<th class="${i === 6 ? "col-domingo" : ""}">${d}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${linhas}
-        </tbody>
-      </table>
-      <div class="fh-page-footer">
-        <hr class="fh-pdf-divider-legal">
-        <div class="fh-pdf-footer">
-          <div class="fh-pdf-footer-logo">
-            <img src="assets/images/jsousacoelho_logo.png" alt="J Sousa &amp; Coelho">
-          </div>
-          <div class="fh-pdf-footer-divider"></div>
-          <div class="fh-pdf-footer-info">
-            <p class="footer-description">Telef: 255 862 343 &nbsp;|&nbsp; Fax: 255 866 206 <br>E-mail: jscoelho@sapo.pt</p>
-          </div>
-        </div>
-      </div>
-    </div>
-    `;
-  }
-
-  // =====================================================
-  // GERAR CALENDÁRIOS (usa período/funcionários já selecionados)
-  // =====================================================
-  function gerarCalendarios() {
-    const mesInicio = mesInicioSelecionado;
-    const mesFim    = mesFimSelecionado;
-    const ano       = anoSelecionado;
-
-    if (mesInicio > mesFim) {
-      showMessage("⚠️ O mês de início não pode ser posterior ao mês de fim", "warning");
-      return;
-    }
-
-    const selecionados = getFuncionariosSelecionados();
-    if (!selecionados.length) {
-      showMessage("⚠️ Seleciona pelo menos um funcionário", "warning");
-      return;
-    }
-
-    let html = "";
-    for (let mes = mesInicio; mes <= mesFim; mes++) {
-      selecionados.forEach(func => {
-        html += gerarCalendarioHTML(func, mes, ano);
-      });
-    }
-
-    areaImpressao.innerHTML = html;
-    areaImpressao.classList.remove("d-none");
-
-    return selecionados.length * (mesFim - mesInicio + 1);
-  }
-
-  // =====================================================
   // OBTER FUNCIONÁRIOS SELECIONADOS
   // =====================================================
   function getFuncionariosSelecionados() {
@@ -764,10 +661,9 @@ window.initFolhaHoras = async function () {
 // =====================================================
 // CONVERTER PÁGINAS EM PDF (com progresso)
 // =====================================================
-async function converterParaPDF(paginas, opcoes = {}) {
-  const { orientation = "p", canvasWidth = 794 } = opcoes;
+async function converterParaPDF(paginas) {
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF(orientation, "mm", "a4");
+  const pdf = new jsPDF("p", "mm", "a4");
 
   for (let i = 0; i < paginas.length; i++) {
     showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar folha ${i + 1} de ${paginas.length}...`, "info");
@@ -777,7 +673,7 @@ async function converterParaPDF(paginas, opcoes = {}) {
       useCORS: true,
       logging: false,
       backgroundColor: "#ffffff",
-      width: canvasWidth
+      width: 794
     });
     const imgData = canvas.toDataURL("image/jpeg", 0.95);
     const pageW = pdf.internal.pageSize.getWidth();
@@ -793,8 +689,6 @@ async function converterParaPDF(paginas, opcoes = {}) {
 function setBotoesGeracao(desativado) {
   btnGerarFolhas.disabled = desativado;
   btnGerarPDF.disabled = desativado;
-  btnGerarCalendarioImprimir.disabled = desativado;
-  btnGerarCalendarioPDF.disabled = desativado;
 }
   // =====================================================
   // BOTÃO GERAR E IMPRIMIR
@@ -925,131 +819,6 @@ function setBotoesGeracao(desativado) {
 });
 
   // =====================================================
-  // BOTÃO CALENDÁRIO — IMPRIMIR
-  // =====================================================
-  btnGerarCalendarioImprimir.addEventListener("click", async () => {
-    setBotoesGeracao(true);
-    try {
-      const total = gerarCalendarios();
-      if (!total) return;
-
-      showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} calendário(s), aguarde...`, "info");
-
-      if (!window.jspdf) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-      if (!window.html2canvas) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-
-      const paginas = areaImpressao.querySelectorAll(".folha-calendario-page");
-      const pdf = await converterParaPDF(paginas, { orientation: "l", canvasWidth: 1123 });
-
-      showProgressToast(TOAST_PROGRESSO_ID, "⏳ A abrir diálogo de impressão...", "info");
-
-      pdf.autoPrint();
-      const blob = pdf.output("blob");
-      const url = URL.createObjectURL(blob);
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = url;
-      document.body.appendChild(iframe);
-
-      await new Promise((resolve) => {
-        let limpo = false;
-        const limpar = () => {
-          if (limpo) return;
-          limpo = true;
-          clearTimeout(timeoutSeguranca);
-          iframe.remove();
-          URL.revokeObjectURL(url);
-          resolve();
-        };
-        const timeoutSeguranca = setTimeout(limpar, 15000);
-        iframe.onload = () => {
-          try {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            iframe.contentWindow.addEventListener("afterprint", limpar);
-          } catch (e) {
-            console.error("Erro ao imprimir iframe:", e);
-            limpar();
-          }
-        };
-      });
-
-      areaImpressao.innerHTML = "";
-      areaImpressao.classList.add("d-none");
-
-      showProgressToast(TOAST_PROGRESSO_ID, "✅ Impressão concluída!", "success");
-      fecharProgressToast(TOAST_PROGRESSO_ID);
-
-    } catch (err) {
-      console.error("Erro ao imprimir:", err);
-      showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao imprimir: " + err.message, "danger");
-      fecharProgressToast(TOAST_PROGRESSO_ID);
-    } finally {
-      setBotoesGeracao(false);
-    }
-  });
-
-  // =====================================================
-  // BOTÃO CALENDÁRIO — EXPORTAR PDF
-  // =====================================================
-  btnGerarCalendarioPDF.addEventListener("click", async () => {
-    setBotoesGeracao(true);
-    try {
-      const total = gerarCalendarios();
-      if (!total) return;
-
-      showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} calendário(s), aguarde...`, "info");
-
-      if (!window.jspdf) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-      if (!window.html2canvas) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-        document.head.appendChild(script);
-        await new Promise(resolve => { script.onload = resolve; });
-      }
-
-      const paginas = areaImpressao.querySelectorAll(".folha-calendario-page");
-      const pdf = await converterParaPDF(paginas, { orientation: "l", canvasWidth: 1123 });
-
-      const nomeMesInicio = MESES_PT[mesInicioSelecionado];
-      const nomeMesFim    = MESES_PT[mesFimSelecionado];
-      let nomeArquivo = `Calendario_Horas_Extra_${nomeMesInicio}`;
-      if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
-      nomeArquivo += `_${anoSelecionado}.pdf`;
-
-      pdf.save(nomeArquivo);
-
-      areaImpressao.innerHTML = "";
-      areaImpressao.classList.add("d-none");
-
-      showProgressToast(TOAST_PROGRESSO_ID, "✅ PDF exportado com sucesso!", "success");
-      fecharProgressToast(TOAST_PROGRESSO_ID);
-
-    } catch (err) {
-      console.error("Erro ao gerar PDF:", err);
-      showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao gerar PDF: " + err.message, "danger");
-      fecharProgressToast(TOAST_PROGRESSO_ID);
-    } finally {
-      setBotoesGeracao(false);
-    }
-  });
-
-  // =====================================================
   // ESTILOS DE IMPRESSÃO
   // =====================================================
   if (!document.getElementById("fh-print-style")) {
@@ -1073,14 +842,7 @@ function setBotoesGeracao(desativado) {
           padding: 12mm 12mm 8mm 12mm !important;
           page-break-after: always;
         }
-              .folha-hora-page:last-child { page-break-after: auto; }
-        .folha-calendario-page {
-          border: none !important;
-          margin: 0 !important;
-          padding: 10mm 14mm !important;
-          page-break-after: always;
-        }
-        .folha-calendario-page:last-child { page-break-after: auto; }
+        .folha-hora-page:last-child { page-break-after: auto; }
       }
     `;
     document.head.appendChild(style);
