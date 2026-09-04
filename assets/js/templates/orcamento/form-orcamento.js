@@ -458,6 +458,66 @@ window.initOrcamentoForm = async function () {
   });
 
   // =====================================================
+  // ✅ ESCRITA MANUAL — Descrição, Espessura e Acabamento
+  // Permite escrever estes campos mesmo que o valor não
+  // exista na base de dados / preçário, sem obrigar a
+  // escolher uma opção da lista de sugestões.
+  // =====================================================
+  function parseNumeroLivre(texto) {
+    if (!texto) return null;
+    const match = texto.replace(",", ".").match(/[\d]+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : null;
+  }
+
+  produtoDescricao.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (modoAtualDiversos) return;
+      if (produtoDescricao.disabled) return;
+      if (produtoDescricao.value.trim() === "") return;
+      if (produtoDescricaoId.value) return; // já selecionado da lista
+
+      produtoDescricaoId.value = "manual";
+      toggleClearButton(produtoDescricao, clearDescricao);
+
+      produtoEspessura.disabled = false;
+      produtoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
+      btnVerPrecario.classList.add("d-none");
+      guardarEstadoOrcamento();
+    }, 200);
+  });
+
+  produtoEspessura.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (produtoEspessura.disabled) return;
+      if (produtoEspessura.value.trim() === "") return;
+      if (produtoEspessuraValue.value) return; // já selecionado da lista
+
+      const numero = parseNumeroLivre(produtoEspessura.value);
+      produtoEspessuraValue.value = numero !== null ? numero : produtoEspessura.value.trim();
+      toggleClearButton(produtoEspessura, clearEspessura);
+
+      produtoTipoAcabamento.disabled = false;
+      produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
+      btnVerPrecario.classList.add("d-none");
+      calcularValores();
+      guardarEstadoOrcamento();
+    }, 200);
+  });
+
+  produtoTipoAcabamento.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (produtoTipoAcabamento.disabled) return;
+      if (produtoTipoAcabamento.value.trim() === "") return;
+      if (produtoTipoAcabamentoValue.value) return; // já selecionado da lista
+
+      produtoTipoAcabamentoValue.value = produtoTipoAcabamento.value.trim();
+      toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      calcularValores();
+      guardarEstadoOrcamento();
+    }, 200);
+  });
+
+  // =====================================================
   // ✅ FUNÇÃO PARA VERIFICAR SE HÁ DADOS NO FORMULÁRIO
   // =====================================================
   function formularioTemDados() {
@@ -481,6 +541,32 @@ window.initOrcamentoForm = async function () {
       dropdown.classList.remove("show");
       dropdown.innerHTML = "";
     });
+  }
+
+  // =====================================================
+  // ✅ AVANÇAR PARA O CAMPO SEGUINTE
+  // Usado quando o Enter é pressionado num autocomplete que
+  // mostra "Nenhum resultado encontrado" — em vez de bloquear
+  // o Enter (que antes não fazia nada), avança para o campo
+  // seguinte do formulário, respeitando a ordem natural do DOM.
+  // =====================================================
+  function focarProximoCampo(campoAtual) {
+    const focaveis = Array.from(
+      form.querySelectorAll("input, select, textarea, button")
+    ).filter(el => {
+      if (el.disabled) return false;
+      if (el.type === "hidden") return false;
+      if (el.offsetParent === null) return false; // escondido (d-none, etc.)
+      return true;
+    });
+
+    const indexAtual = focaveis.indexOf(campoAtual);
+    if (indexAtual === -1) return;
+
+    for (let i = indexAtual + 1; i < focaveis.length; i++) {
+      focaveis[i].focus();
+      if (document.activeElement === focaveis[i]) return;
+    }
   }
 
   // =====================================================
@@ -564,6 +650,16 @@ window.initOrcamentoForm = async function () {
         addActive(items);
       } else if (e.keyCode === 13) {
         e.preventDefault();
+
+        // ✅ Se o dropdown está a mostrar "Nenhum resultado encontrado",
+        // não bloqueia o Enter: fecha a lista e avança para o campo seguinte.
+        const semResultados = dropdown.querySelector(".autocomplete-item.disabled");
+        if (semResultados) {
+          closeAllLists();
+          focarProximoCampo(input);
+          return;
+        }
+
         if (currentFocus === -1 && items.length > 0) {
           items[0].click();
         } else if (currentFocus > -1 && items[currentFocus]) {
@@ -818,10 +914,8 @@ window.initOrcamentoForm = async function () {
     }));
 
     if (produtosDaMarca.length === 0) {
-      produtoDescricao.disabled = true;
-      produtoDescricao.placeholder = "Nenhum produto disponível para esta marca";
-      showMessage("⚠️ Nenhum produto disponível para esta marca", "warning");
-      return;
+      produtoDescricao.placeholder = "Sem produtos na base de dados — escreve a descrição manualmente...";
+      showMessage("⚠️ Nenhum produto na base de dados para esta marca. Podes escrever manualmente.", "warning");
     }
 
     setupAutocomplete(
@@ -860,9 +954,8 @@ window.initOrcamentoForm = async function () {
       if (error) throw error;
 
       if (!thicknesses || thicknesses.length === 0) {
-        produtoEspessura.disabled = true;
-        produtoEspessura.placeholder = "Sem espessuras disponíveis";
-        showMessage("⚠️ Este produto não tem espessuras configuradas", "warning");
+        produtoEspessura.placeholder = "Sem espessuras na tabela — escreve manualmente (mm)...";
+        showMessage("⚠️ Este produto não tem espessuras configuradas. Podes escrever manualmente.", "warning");
         return;
       }
 
@@ -934,8 +1027,8 @@ window.initOrcamentoForm = async function () {
     }));
 
     if (tiposAcabamentoData.length === 0) {
-      produtoTipoAcabamento.disabled = true;
-      produtoTipoAcabamento.placeholder = "Sem tipos disponíveis";
+      produtoTipoAcabamento.disabled = false;
+      produtoTipoAcabamento.placeholder = "Sem acabamentos na tabela — escreve manualmente...";
       return;
     }
 
@@ -1385,7 +1478,10 @@ window.initOrcamentoForm = async function () {
         <td>${produto.subtotal.toFixed(2)} €</td>
         <td>${produto.total.toFixed(2)} €</td>
         <td>
-          <button type="button" class="btn-remove" data-index="${index}">
+          <button type="button" class="btn-edit" data-index="${index}" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button type="button" class="btn-remove" data-index="${index}" title="Eliminar">
             <i class="bi bi-trash"></i>
           </button>
         </td>
@@ -1398,9 +1494,15 @@ window.initOrcamentoForm = async function () {
   }
 
   // =====================================================
-  // REMOVER PRODUTO
+  // REMOVER / EDITAR PRODUTO
   // =====================================================
   produtosTableBody.addEventListener("click", (e) => {
+    if (e.target.closest(".btn-edit")) {
+      const index = parseInt(e.target.closest(".btn-edit").dataset.index);
+      editarProduto(index);
+      return;
+    }
+
     if (e.target.closest(".btn-remove")) {
       const index = parseInt(e.target.closest(".btn-remove").dataset.index);
       produtosAdicionados.splice(index, 1);
@@ -1408,6 +1510,114 @@ window.initOrcamentoForm = async function () {
       showMessage("🗑️ Produto removido", "info");
     }
   });
+
+  // =====================================================
+  // ✅ EDITAR PRODUTO JÁ ADICIONADO
+  // Carrega os dados do produto de volta para o formulário
+  // (reconstruindo a cascata Tipo → Marca → Descrição →
+  // Espessura → Acabamento) e remove-o da lista. O produto
+  // volta a entrar na lista quando o utilizador clicar em
+  // "Adicionar Produto" com os dados já corrigidos.
+  // =====================================================
+  async function editarProduto(index) {
+    const produto = produtosAdicionados[index];
+    if (!produto) return;
+
+    if (formularioTemDados()) {
+      showMessage("⚠️ Termina ou limpa o produto atual antes de editar outro.", "warning");
+      return;
+    }
+
+    limparCamposProduto();
+
+    // ----- TIPO -----
+    produtoTipo.value = produto.tipoNome;
+    produtoTipoId.value = produto.tipo_id;
+    toggleClearButton(produtoTipo, clearTipo);
+
+    if (produto.isDiversos) {
+      // ----- MODO DIVERSOS -----
+      activarModoDiversos(true);
+      produtoDescricao.value = produto.descricao;
+      produtoDescricaoId.value = "diversos";
+      toggleClearButton(produtoDescricao, clearDescricao);
+
+      produtoQuantidade.value = produto.quantidade;
+      produtoPrecoMt2.value = produto.preco_mt2;
+      produtoDesconto.value = produto.desconto_percentagem;
+      produtoDesconto.dataset.lastValid = produto.desconto_percentagem;
+
+    } else {
+      // ----- MARCA -----
+      activarModoDiversos(false);
+      produtoBrand.value = produto.brandNome;
+      produtoBrandKey.value = produto.brand;
+      toggleClearButton(produtoBrand, clearBrand);
+
+      await carregarDescricoesDaMarca(produto.brand);
+
+      // Tenta encontrar o produto correspondente na base/website
+      // para conseguir repor as espessuras e acabamentos disponíveis.
+      const itemWebsite = produtosWebsite.find(
+        p => p.Brand === produto.brand && p.Title_pt === produto.descricao
+      );
+
+      // ----- DESCRIÇÃO -----
+      produtoDescricao.value = produto.descricao;
+      produtoDescricaoId.value = itemWebsite ? itemWebsite.id : "manual";
+      toggleClearButton(produtoDescricao, clearDescricao);
+
+      if (itemWebsite) {
+        await carregarEspessuras(itemWebsite.id);
+
+        // ----- ESPESSURA -----
+        produtoEspessura.value = produto.espessura + "mm";
+        produtoEspessuraValue.value = produto.espessura;
+        toggleClearButton(produtoEspessura, clearEspessura);
+
+        produtoTipoAcabamento.disabled = false;
+        produtoTipoAcabamento.placeholder = "Seleciona...";
+        carregarTiposAcabamento(itemWebsite.id, produto.espessura);
+        btnVerPrecario.classList.remove("d-none");
+      } else {
+        // Produto não encontrado na base de dados: mantém edição manual
+        produtoEspessura.disabled = false;
+        produtoEspessura.value = produto.espessura ? produto.espessura + "mm" : "";
+        produtoEspessuraValue.value = produto.espessura || "";
+        toggleClearButton(produtoEspessura, clearEspessura);
+
+        produtoTipoAcabamento.disabled = false;
+        produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
+      }
+
+      // ----- ACABAMENTO -----
+      if (produto.tipoAcabamento) {
+        produtoTipoAcabamento.value = produto.tipoAcabamento.charAt(0).toUpperCase() + produto.tipoAcabamento.slice(1);
+        produtoTipoAcabamentoValue.value = produto.tipoAcabamento;
+        toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      }
+
+      produtoQuantidade.value = produto.quantidade;
+      produtoComprimento.value = produto.comprimento.toFixed(4);
+      produtoLargura.value = produto.largura.toFixed(4);
+      produtoPrecoMt2.value = produto.preco_mt2;
+      produtoDesconto.value = produto.desconto_percentagem;
+      produtoDesconto.dataset.lastValid = produto.desconto_percentagem;
+    }
+
+    calcularValores();
+
+    // Remove da lista — volta a ser adicionado ao clicar em "Adicionar Produto"
+    produtosAdicionados.splice(index, 1);
+    renderProdutosTable();
+    guardarEstadoOrcamento();
+
+    showMessage("✏️ Produto carregado para edição. Corrige os dados e clica em 'Adicionar Produto'.", "info");
+
+    setTimeout(() => {
+      (produto.isDiversos ? produtoQuantidade : produtoComprimento).focus();
+    }, 60);
+  }
 
   // =====================================================
   // ✅ LIMPAR CAMPOS DO PRODUTO
@@ -1581,11 +1791,102 @@ window.initOrcamentoForm = async function () {
     }
   });
 
+  // ✅ Verifica se o dropdown tem, neste momento, alguma opção real
+  // (e não apenas a mensagem "Nenhum resultado encontrado")
+  function temOpcaoRealNoDropdown(dropdown) {
+    return (
+      dropdown.classList.contains("show") &&
+      dropdown.querySelectorAll(".autocomplete-item:not(.disabled)").length > 0
+    );
+  }
+
+  // ✅ DESCRIÇÃO — Enter sem resultados avança para Espessura
   produtoDescricao.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && modoAtualDiversos) {
+    if (e.key !== "Enter") return;
+
+    if (modoAtualDiversos) {
       e.preventDefault();
       setTimeout(() => produtoQuantidade.focus(), 50);
+      return;
     }
+
+    if (produtoDescricao.disabled) return;
+    if (temOpcaoRealNoDropdown(descricaoDropdown)) return; // deixa o autocomplete selecionar
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    if (!produtoDescricao.value.trim()) {
+      focarProximoCampo(produtoDescricao);
+      return;
+    }
+
+    if (!produtoDescricaoId.value) {
+      produtoDescricaoId.value = "manual";
+      toggleClearButton(produtoDescricao, clearDescricao);
+      produtoEspessura.disabled = false;
+      produtoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
+      btnVerPrecario.classList.add("d-none");
+      guardarEstadoOrcamento();
+    }
+
+    closeAllDropdowns();
+    setTimeout(() => produtoEspessura.focus(), 50);
+  });
+
+  // ✅ ESPESSURA — Enter sem resultados avança para Acabamento
+  // (valor sempre tratado como numérico manual)
+  produtoEspessura.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (produtoEspessura.disabled) return;
+    if (temOpcaoRealNoDropdown(espessuraDropdown)) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    if (!produtoEspessura.value.trim()) {
+      focarProximoCampo(produtoEspessura);
+      return;
+    }
+
+    if (!produtoEspessuraValue.value) {
+      const numero = parseNumeroLivre(produtoEspessura.value);
+      produtoEspessuraValue.value = numero !== null ? numero : produtoEspessura.value.trim();
+      toggleClearButton(produtoEspessura, clearEspessura);
+      produtoTipoAcabamento.disabled = false;
+      produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
+      btnVerPrecario.classList.add("d-none");
+      calcularValores();
+      guardarEstadoOrcamento();
+    }
+
+    closeAllDropdowns();
+    setTimeout(() => produtoTipoAcabamento.focus(), 50);
+  });
+
+  // ✅ ACABAMENTO — Enter sem resultados avança para Quantidade
+  produtoTipoAcabamento.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (produtoTipoAcabamento.disabled) return;
+    if (temOpcaoRealNoDropdown(tipoAcabamentoDropdown)) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    if (!produtoTipoAcabamento.value.trim()) {
+      focarProximoCampo(produtoTipoAcabamento);
+      return;
+    }
+
+    if (!produtoTipoAcabamentoValue.value) {
+      produtoTipoAcabamentoValue.value = produtoTipoAcabamento.value.trim();
+      toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      calcularValores();
+      guardarEstadoOrcamento();
+    }
+
+    closeAllDropdowns();
+    setTimeout(() => produtoQuantidade.focus(), 50);
   });
 
   document.addEventListener("keydown", (e) => {

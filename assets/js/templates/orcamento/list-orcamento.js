@@ -424,6 +424,42 @@ editProdutoLargura.addEventListener("input", function() {
   }
 
   // =====================================================
+  // ✅ ESCRITA MANUAL — Descrição, Espessura e Acabamento
+  // Permite escrever estes campos mesmo que o valor não
+  // exista na base de dados / preçário, sem obrigar a
+  // escolher uma opção da lista de sugestões.
+  // =====================================================
+  editProdutoDescricao.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (modoAtualDiversosEdit) return;
+      if (editProdutoDescricao.disabled) return;
+      if (editProdutoDescricao.value.trim() === "") return;
+      if (editProdutoDescricaoId.value) return; // já selecionado da lista
+
+      editProdutoEspessura.disabled = false;
+      editProdutoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
+      btnVerPrecarioEdit.classList.add("d-none");
+    }, 200);
+  });
+
+  editProdutoEspessura.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (editProdutoEspessura.disabled) return;
+      if (editProdutoEspessura.value.trim() === "") return;
+      if (editProdutoEspessuraValue.value) return; // já selecionado da lista
+
+      const match = editProdutoEspessura.value.replace(",", ".").match(/[\d]+(\.\d+)?/);
+      editProdutoEspessuraValue.value = match ? match[0] : editProdutoEspessura.value.trim();
+
+      editProdutoAcabamento.disabled = false;
+      editProdutoAcabamento.readOnly = false;
+      editProdutoAcabamento.placeholder = "Escreve o acabamento manualmente...";
+      btnVerPrecarioEdit.classList.add("d-none");
+      calcularValoresEdit();
+    }, 200);
+  });
+
+  // =====================================================
   // ✅ VERIFICAR FORMULÁRIO AO FECHAR OFFCANVAS
   // =====================================================
   editOffcanvasEl.addEventListener('hide.bs.offcanvas', function (e) {
@@ -580,10 +616,8 @@ editProdutoLargura.addEventListener("input", function() {
     }));
 
     if (produtosDaMarca.length === 0) {
-      editProdutoDescricao.disabled = true;
-      editProdutoDescricao.placeholder = "Nenhum produto disponível para esta marca";
-      showMessage("⚠️ Nenhum produto disponível para esta marca", "warning");
-      return;
+      editProdutoDescricao.placeholder = "Sem produtos na base de dados — escreve a descrição manualmente...";
+      showMessage("⚠️ Nenhum produto na base de dados para esta marca. Podes escrever manualmente.", "warning");
     }
 
     setupAutocomplete(
@@ -625,7 +659,9 @@ async function carregarEspessuras(produtoId) {
     if (error) throw error;
 
     if (!thicknesses || thicknesses.length === 0) {
-      editProdutoEspessura.disabled = true;
+      editProdutoEspessura.placeholder = "Sem espessuras na tabela — escreve manualmente (mm)...";
+      showMessage("⚠️ Este produto não tem espessuras configuradas. Podes escrever manualmente.", "warning");
+      window.dadosDestaEspessura = [];
       return;
     }
 
@@ -2773,6 +2809,28 @@ async function initDupDescAutocomplete(index, brandKey, currentDesc = "", curren
     } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
   });
 
+  // ✅ ESCRITA MANUAL — aceita o texto escrito mesmo que não
+  // corresponda a nenhum produto da lista (não obriga a escolher).
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      const val = input.value.trim();
+      if (val === "" || val === duplicateItens[index].descricao) return;
+
+      duplicateItens[index].descricao = val;
+      duplicateItens[index]._produtoId = null;
+      if (clearBtn) clearBtn.classList.remove("d-none");
+
+      const espInput = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
+      if (espInput) { espInput.disabled = false; espInput.placeholder = "Escreve a espessura manualmente (mm)..."; }
+      const acabInput = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
+      if (acabInput) { acabInput.disabled = false; acabInput.placeholder = "Escreve o acabamento manualmente..."; }
+
+      const cell = document.getElementById(`dup-total-${index}`);
+      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
+      recalcDuplicateTotal();
+    }, 200);
+  });
+
   if (clearBtn) {
     clearBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -2903,6 +2961,28 @@ async function initDupEspAutocomplete(index, produtoId, currentEsp = null, curre
       if (active) active.click();
       else { dd.classList.remove("show"); dd.innerHTML = ""; }
     } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
+  });
+
+  // ✅ ESCRITA MANUAL — aceita a espessura escrita mesmo que não
+  // exista na tabela de preços (não obriga a escolher da lista).
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      const val = input.value.trim();
+      if (val === "") return;
+      const match = val.replace(",", ".").match(/[\d]+(\.\d+)?/);
+      const numero = match ? parseFloat(match[0]) : null;
+      if (numero === null || numero === duplicateItens[index].espessura) return;
+
+      duplicateItens[index].espessura = numero;
+      if (clearBtn) clearBtn.classList.remove("d-none");
+
+      const acabInput = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
+      if (acabInput) { acabInput.disabled = false; acabInput.placeholder = "Escreve o acabamento manualmente..."; }
+
+      const cell = document.getElementById(`dup-total-${index}`);
+      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
+      recalcDuplicateTotal();
+    }, 200);
   });
 
   if (clearBtn) {
@@ -3055,6 +3135,23 @@ async function initDupAcabAutocomplete(index, espessuraSelecionada, currentAcab 
       if (active) active.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       else { dd.classList.remove("show"); dd.innerHTML = ""; }
     } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
+  });
+
+  // ✅ ESCRITA MANUAL — aceita o acabamento escrito mesmo que não
+  // exista na tabela de preços (não obriga a escolher da lista).
+  inp.addEventListener("blur", () => {
+    setTimeout(() => {
+      const val = inp.value.trim();
+      if (val === "" || val === duplicateItens[index].type) return;
+
+      duplicateItens[index].type = val;
+      const cb2 = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
+      if (cb2) cb2.classList.remove("d-none");
+
+      const cell = document.getElementById(`dup-total-${index}`);
+      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
+      recalcDuplicateTotal();
+    }, 200);
   });
 
   if (clearBtn) {
