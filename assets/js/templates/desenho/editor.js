@@ -1101,8 +1101,11 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     } else if (s.type === "circle") {
       const cx = r2dX(s.cx, view), cy = r2dY(s.cy, view), r = r2dLen(s.radius, view);
       appendHandle(cx + r, cy, "radius", (e) => onCircleHandlePointerDown(e, s.id));
-    } else if (s.type === "polygon") {
-      s.points.forEach((p, idx) => appendHandle(r2dX(p.x, view), r2dY(p.y, view), "v" + idx, (e) => onVertexPointerDown(e, s.id, idx)));
+       } else if (s.type === "polygon") {
+      const bb = neShapeBBox(s);
+      if (bb) {
+        appendHandle(r2dX(bb.maxX, view), r2dY(bb.maxY, view), "br", (e) => onPolygonScalePointerDown(e, s.id));
+      }
     } else if (s.type === "frisos") {
       const x = r2dX(s.x, view), y = r2dY(s.y, view), w = r2dLen(s.w, view), h = r2dLen(s.h, view);
       appendHandle(x + w, y + h, "br", (e) => onFrisosScalePointerDown(e, s.id));
@@ -1468,12 +1471,13 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
   }
-  function onVertexPointerDown(e, id, idx) {
+    function onPolygonScalePointerDown(e, id) {
     e.stopPropagation();
     selectOnly(id);
-    drag = { type: "vertex", shapeId: id, idx, viewSnapshot: computeView() };
+    drag = { type: "polygonScale", shapeId: id, viewSnapshot: computeView(), orig: cloneShape(getShape(id)) };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+  
   }
   function onArrowEndPointerDown(e, id, propX, propY) {
     e.stopPropagation();
@@ -1543,9 +1547,26 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     } else if (drag.type === "radius") {
       const s = getShape(drag.shapeId);
       s.radius = Math.max(NE_MIN_REAL / 2, Math.hypot(realP.x - s.cx, realP.y - s.cy));
-    } else if (drag.type === "vertex") {
+        } else if (drag.type === "vertex") {
       const s = getShape(drag.shapeId);
       s.points[drag.idx] = { x: realP.x, y: realP.y };
+    } else if (drag.type === "polygonScale") {
+      const s = getShape(drag.shapeId);
+      const o = drag.orig;
+      if (s && o.points && o.points.length) {
+        const xs = o.points.map((p) => p.x), ys = o.points.map((p) => p.y);
+        const originX = Math.min(...xs), originY = Math.min(...ys);
+        const ow = Math.max(Math.max(...xs) - originX, 1e-6);
+        const oh = Math.max(Math.max(...ys) - originY, 1e-6);
+        const diag2 = ow * ow + oh * oh || 1;
+        const dx = realP.x - originX, dy = realP.y - originY;
+        const minFactor = NE_MIN_REAL / Math.max(ow, oh);
+        const factor = Math.max((dx * ow + dy * oh) / diag2, minFactor);
+        s.points = o.points.map((p) => ({
+          x: originX + (p.x - originX) * factor,
+          y: originY + (p.y - originY) * factor,
+        }));
+      }
     } else if (drag.type === "frisosScale") {
       const s = getShape(drag.shapeId);
       const o = drag.orig;
