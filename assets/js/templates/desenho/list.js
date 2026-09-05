@@ -24,8 +24,17 @@ window.initNotaEncomendaList = async function () {
   const filtroNumero = document.getElementById("filtroNotaNumero");
   const filtroCliente = document.getElementById("filtroNotaCliente");
   const filtroMaterial = document.getElementById("filtroNotaMaterial");
-  const filtroTipo = document.getElementById("filtroNotaTipo");
+   const filtroTipo = document.getElementById("filtroNotaTipo");
+  const filtroEstado = document.getElementById("filtroNotaEstado");
   const btnLimpar = document.getElementById("btnLimparFiltrosNota");
+
+  function popularFiltroEstado() {
+    const opcoes = Object.entries(window.NE_ESTADO_LABEL || {})
+      .map(([valor, label]) => `<option value="${valor}">${escapeHtml(label)}</option>`)
+      .join("");
+    filtroEstado.innerHTML = `<option value="">Todos</option>${opcoes}`;
+  }
+  popularFiltroEstado();
 
   const itemsPerPageSelect = document.getElementById("itemsPerPageNota");
   const prevPageBtn = document.getElementById("prevPageNota");
@@ -36,7 +45,26 @@ window.initNotaEncomendaList = async function () {
   const deleteModal = new bootstrap.Modal(deleteModalEl);
   const confirmDeleteBtn = document.getElementById("confirmDeleteNotaBtn");
 
-  const storageKey = "itemsPerPage_list-nota-encomenda";
+   const estadoModalEl = document.getElementById("neModalAlterarEstado");
+  const estadoModal = new bootstrap.Modal(estadoModalEl);
+  const estadoModalSelect = document.getElementById("neEstadoModalSelect");
+  const confirmAlterarEstadoBtn = document.getElementById("confirmAlterarEstadoBtn");
+  let itemToChangeEstado = null;
+
+  function popularOpcoesEstado() {
+    estadoModalSelect.innerHTML = Object.entries(window.NE_ESTADO_LABEL || {})
+      .map(([valor, label]) => `<option value="${valor}">${escapeHtml(label)}</option>`)
+      .join("");
+  }
+  popularOpcoesEstado();
+
+  const confirmarImpressaoModalEl = document.getElementById("neModalConfirmarImpressao");
+  const confirmarImpressaoModal = new bootstrap.Modal(confirmarImpressaoModalEl);
+  const btnImpressaoSim = document.getElementById("btnImpressaoSim");
+  const btnImpressaoNao = document.getElementById("btnImpressaoNao");
+  let notaAImprimir = null;
+
+  const storageKey = "itemsPerPage_list-desenho";
   let currentPage = 1;
   let itemsPerPage = parseInt(localStorage.getItem(storageKey)) || 10;
   itemsPerPageSelect.value = itemsPerPage;
@@ -48,7 +76,7 @@ window.initNotaEncomendaList = async function () {
   // LOAD
   // ---------------------------------------------------------------
   async function loadData() {
-    tbody.innerHTML = `<tr><td colspan="9">A carregar dados...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11">A carregar dados...</td></tr>`;
 
     const { data, error } = await supabase
       .from("notas_encomenda")
@@ -56,7 +84,7 @@ window.initNotaEncomendaList = async function () {
       .order("id", { ascending: false });
 
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${escapeHtml(error.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11">Erro ao carregar dados: ${escapeHtml(error.message)}</td></tr>`;
       return;
     }
 
@@ -69,23 +97,26 @@ window.initNotaEncomendaList = async function () {
   // FILTROS
   // ---------------------------------------------------------------
     function aplicarFiltros() {
-    const numeroVal = filtroNumero.value.trim().toLowerCase();
+      const numeroVal = filtroNumero.value.trim().toLowerCase();
     const clienteVal = filtroCliente.value.trim().toLowerCase();
     const materialVal = filtroMaterial.value.trim().toLowerCase();
     const tipoVal = filtroTipo.value;
+    const estadoVal = filtroEstado.value;
 
     return dadosOriginais.filter((n) => {
       const numeroOk = !numeroVal || String(n.id).toLowerCase().startsWith(numeroVal);
 const clienteOk = !clienteVal || (n.cliente_nome || "").toLowerCase().startsWith(clienteVal);
       const materialOk = !materialVal || (n.material || "").toLowerCase().includes(materialVal);
       const tipoOk = !tipoVal || n.tipo === tipoVal;
-      return numeroOk && clienteOk && materialOk && tipoOk;
+      const estadoOk = !estadoVal || (n.estado || "por_acabar") === estadoVal;
+      return numeroOk && clienteOk && materialOk && tipoOk && estadoOk;
     });
   }
 
-    filtroNumero.addEventListener("input", () => { currentPage = 1; renderTabela(); });
+       filtroNumero.addEventListener("input", () => { currentPage = 1; renderTabela(); });
   filtroMaterial.addEventListener("input", () => { currentPage = 1; renderTabela(); });
   filtroTipo.addEventListener("change", () => { currentPage = 1; renderTabela(); });
+  filtroEstado.addEventListener("change", () => { currentPage = 1; renderTabela(); });
 
     // ---------------------------------------------------------------
   // AUTOCOMPLETE DO FILTRO "CLIENTE" (visual igual ao dropdown de Marca)
@@ -157,11 +188,12 @@ const clienteOk = !clienteVal || (n.cliente_nome || "").toLowerCase().startsWith
     filtroCliente.focus();
   });
 
-      btnLimpar.addEventListener("click", () => {
+        btnLimpar.addEventListener("click", () => {
     filtroNumero.value = "";
     filtroCliente.value = "";
     filtroMaterial.value = "";
     filtroTipo.value = "";
+    filtroEstado.value = "";
     toggleClearFiltroCliente();
     filtroClienteDropdown.classList.remove("show");
     currentPage = 1;
@@ -174,8 +206,8 @@ const clienteOk = !clienteVal || (n.cliente_nome || "").toLowerCase().startsWith
   function renderTabela() {
     const filtrados = aplicarFiltros();
 
-    if (filtrados.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10">Nenhuma nota de encomenda encontrada.</td></tr>`;
+     if (filtrados.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11">Nenhuma nota de encomenda encontrada.</td></tr>`;
       pageIndicator.textContent = "1 / 1";
       prevPageBtn.disabled = true;
       nextPageBtn.disabled = true;
@@ -195,11 +227,10 @@ tbody.innerHTML = pagina.map((n) => {
     : `<span class="text-muted fst-italic">—</span>`;
 
   const estado = n.estado || "por_acabar";
-  const estadoClass = (window.NE_ESTADO_BADGE_CLASS && window.NE_ESTADO_BADGE_CLASS[estado]) || "text-bg-secondary";
-  const estadoOptionsHtml = Object.entries(window.NE_ESTADO_LABEL || {})
-    .map(([valor, label]) => `<option value="${valor}" ${valor === estado ? "selected" : ""}>${escapeHtml(label)}</option>`)
-    .join("");
+  const estadoLabel = (window.NE_ESTADO_LABEL && window.NE_ESTADO_LABEL[estado]) || estado;
+  const estadoCor = (window.NE_ESTADO_BADGE_COLOR && window.NE_ESTADO_BADGE_COLOR[estado]) || "#6c757d";
   const imprimirDisabled = estado === "por_acabar";
+  const impressoes = n.impressoes || 0;
 
   return `
     <tr data-id="${n.id}">
@@ -208,10 +239,12 @@ tbody.innerHTML = pagina.map((n) => {
       <td>${escapeHtml(n.material || "")}</td>
       <td>${escapeHtml((window.NE_TIPO_LABEL && window.NE_TIPO_LABEL[n.tipo]) || n.tipo || "")}</td>
       <td>
-        <select class="form-select form-select-sm ne-estado-select" style="width:auto; display:inline-block;">
-          ${estadoOptionsHtml}
-        </select>
+        <span class="badge ne-estado-badge" data-id="${n.id}" title="Clica para alterar o estado"
+              style="background-color:${estadoCor}; color:#fff; cursor:pointer; font-weight:600;">
+          ${escapeHtml(estadoLabel)}
+        </span>
       </td>
+      <td><span class="badge text-bg-dark" title="Nº de vezes impressa">${impressoes}</span></td>
       <td>${previewHtml}</td>
       <td>${escapeHtml(window.neFormatDate ? window.neFormatDate(n.data_criacao) : (n.data_criacao || ""))}</td>
       <td>${escapeHtml(window.neFormatDate ? window.neFormatDate(n.data_entrega) : (n.data_entrega || ""))}</td>
@@ -255,7 +288,7 @@ tbody.innerHTML = pagina.map((n) => {
       btn.addEventListener("click", (e) => {
         const row = e.currentTarget.closest("tr");
         const id = row.getAttribute("data-id");
-        goToRoute(`/form-nota-encomenda?id=${id}`);
+        goToRoute(`/form-desenho?id=${id}`);
       });
     });
 
@@ -264,7 +297,7 @@ tbody.innerHTML = pagina.map((n) => {
         const row = e.currentTarget.closest("tr");
         const id = row.getAttribute("data-id");
         const nota = pagina.find((n) => String(n.id) === id);
-        if (nota) window.neImprimirNota(nota, nota.desenho || []);
+        if (nota) iniciarFluxoImpressao(nota, nota.desenho || []);
       });
     });
 
@@ -276,24 +309,18 @@ tbody.innerHTML = pagina.map((n) => {
       });
     });
 
-   tbody.querySelectorAll(".ne-estado-select").forEach((sel) => {
-  sel.addEventListener("change", async (e) => {
-    const row = e.currentTarget.closest("tr");
-    const id = row.getAttribute("data-id");
-    const novoEstado = e.currentTarget.value;
-    const { error } = await supabase.from("notas_encomenda").update({ estado: novoEstado }).eq("id", id);
-    if (error) {
-      showMessage(`Erro ao atualizar estado: ${error.message}`, "danger");
-      renderTabela(); // repõe o valor anterior no select
-      return;
-    }
-    const nota = dadosOriginais.find((n) => String(n.id) === id);
-    if (nota) nota.estado = novoEstado;
-    showMessage("Estado atualizado.", "success");
-    renderTabela();
+tbody.querySelectorAll(".ne-estado-badge").forEach((badge) => {
+  badge.addEventListener("click", (e) => {
+    const id = e.currentTarget.getAttribute("data-id");
+    const nota = pagina.find((n) => String(n.id) === id);
+    if (!nota) return;
+    itemToChangeEstado = id;
+    estadoModalSelect.value = nota.estado || "por_acabar";
+    estadoModal.show();
   });
 });
   }
+
 
    function abrirPreview(nota) {
   if (!nota) return;
@@ -308,7 +335,7 @@ tbody.innerHTML = pagina.map((n) => {
   const imprimirDisabled = (nota.estado || "por_acabar") === "por_acabar";
   btnImprimirModal.disabled = imprimirDisabled;
   btnImprimirModal.title = imprimirDisabled ? "Só disponível quando o desenho estiver pronto" : "";
-  btnImprimirModal.onclick = () => window.neImprimirNota(nota, nota.desenho || []);
+  btnImprimirModal.onclick = () => iniciarFluxoImpressao(nota, nota.desenho || []);
   new bootstrap.Modal(document.getElementById("neListModalPreview")).show();
 }
 
@@ -339,6 +366,67 @@ tbody.innerHTML = pagina.map((n) => {
     offcanvas.show();
   }
 
+   // ---------------------------------------------------------------
+  // ALTERAR ESTADO
+  // ---------------------------------------------------------------
+  confirmAlterarEstadoBtn.addEventListener("click", async () => {
+    if (!itemToChangeEstado) return;
+    const novoEstado = estadoModalSelect.value;
+    const { error } = await supabase.from("notas_encomenda").update({ estado: novoEstado }).eq("id", itemToChangeEstado);
+    if (error) {
+      showMessage(`Erro ao atualizar estado: ${error.message}`, "danger");
+      return;
+    }
+    const nota = dadosOriginais.find((n) => String(n.id) === itemToChangeEstado);
+    if (nota) nota.estado = novoEstado;
+    showMessage("Estado atualizado.", "success");
+    estadoModal.hide();
+    itemToChangeEstado = null;
+    renderTabela();
+  });
+
+  // ---------------------------------------------------------------
+  // IMPRESSÃO — abre o modal de impressão do browser e, por baixo dele,
+  // o nosso modal de confirmação; só se conta a impressão se o
+  // utilizador confirmar "Sim, imprimi" depois de fechar o diálogo do
+  // browser.
+  // ---------------------------------------------------------------
+  function iniciarFluxoImpressao(nota, shapes) {
+    notaAImprimir = nota;
+    window.neImprimirNota(nota, shapes || []);
+    setTimeout(() => {
+      // só mostra a confirmação se ainda estivermos a tratar da mesma nota
+      // (evita o modal aparecer sozinho se entretanto se mudou de página)
+      if (notaAImprimir && notaAImprimir.id === nota.id) {
+        confirmarImpressaoModal.show();
+      }
+    }, 2500);
+  }
+
+  async function registarImpressao(nota) {
+    const novoValor = (nota.impressoes || 0) + 1;
+    const { error } = await supabase.from("notas_encomenda").update({ impressoes: novoValor }).eq("id", nota.id);
+    if (error) {
+      showMessage(`Erro ao atualizar a contagem de impressões: ${error.message}`, "danger");
+      return;
+    }
+    nota.impressoes = novoValor;
+    const orig = dadosOriginais.find((n) => String(n.id) === String(nota.id));
+    if (orig) orig.impressoes = novoValor;
+    renderTabela();
+  }
+
+  btnImpressaoSim.addEventListener("click", async () => {
+    if (notaAImprimir) await registarImpressao(notaAImprimir);
+    notaAImprimir = null;
+    confirmarImpressaoModal.hide();
+  });
+
+  btnImpressaoNao.addEventListener("click", () => {
+    notaAImprimir = null;
+    confirmarImpressaoModal.hide();
+  });
+
   // ---------------------------------------------------------------
   // ELIMINAR
   // ---------------------------------------------------------------
@@ -353,7 +441,7 @@ tbody.innerHTML = pagina.map((n) => {
     }
 
     dadosOriginais = dadosOriginais.filter((n) => String(n.id) !== String(itemToDelete));
-    showMessage("Nota de encomenda eliminada com sucesso!", "success");
+    showMessage("Desenho eliminada com sucesso!", "success");
     deleteModal.hide();
     itemToDelete = null;
     renderTabela();

@@ -20,6 +20,15 @@ const NE_ESTADO_BADGE_CLASS = {
 };
 window.NE_ESTADO_BADGE_CLASS = NE_ESTADO_BADGE_CLASS;
 
+// Cores vibrantes (hex) para o badge de estado clicável na lista
+const NE_ESTADO_BADGE_COLOR = {
+  por_acabar: "#ff3b30",
+  desenho_pronto: "#0a84ff",
+  pronto: "#30d158",
+  entregue: "#af52de",
+};
+window.NE_ESTADO_BADGE_COLOR = NE_ESTADO_BADGE_COLOR;
+
 
 const NE_P_MARGIN_L = 8;
 const NE_P_MARGIN_T = 8;
@@ -64,7 +73,8 @@ function neBBoxOf(shapes) {
     maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
   };
   shapes.forEach((s) => {
-    if (s.type === "rect" || !s.type) { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
+        if (s.type === "rect" || !s.type) { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
+    else if (s.type === "frisos") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
     else if (s.type === "circle") { consider(s.cx - s.radius, s.cy - s.radius); consider(s.cx + s.radius, s.cy + s.radius); }
     else if (s.type === "polygon") (s.points || []).forEach((p) => consider(p.x, p.y));
         else if (s.type === "arrow") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
@@ -88,6 +98,7 @@ function neVerticesOf(s) {
 // para detetar se há outras peças encostadas a cada lado.
 function neShapeBBoxPrint(s) {
   if (s.type === "rect" || !s.type) return { minX: s.x, minY: s.y, maxX: s.x + s.w, maxY: s.y + s.h };
+  if (s.type === "frisos") return { minX: s.x, minY: s.y, maxX: s.x + s.w, maxY: s.y + s.h };
   if (s.type === "circle") return { minX: s.cx - s.radius, minY: s.cy - s.radius, maxX: s.cx + s.radius, maxY: s.cy + s.radius };
   if (s.type === "polygon" && s.points && s.points.length) {
     const xs = s.points.map((p) => p.x), ys = s.points.map((p) => p.y);
@@ -284,17 +295,17 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
       if (angDeg >= 90) angDeg -= 180;
       else if (angDeg < -90) angDeg += 180;
 
-      if (blocked) {
+           if (blocked) {
         const inOffset = 5;
         const tx = midD.x - nx * inOffset, ty = midD.y - ny * inOffset;
         out += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="${DIM_COLOR}" transform="rotate(${angDeg} ${tx} ${ty})">${labelText}</text>`;
             } else {
-        const offset = 4;
+        const offset = 3.2;
         const doa = { x: da.x + nx * offset, y: da.y + ny * offset };
         const dob = { x: db.x + nx * offset, y: db.y + ny * offset };
         out += neDimLineMarkup(doa, dob, DIM_COLOR);
         const midX = (doa.x + dob.x) / 2, midY = (doa.y + dob.y) / 2;
-        const labelX = midX + nx * 2.4, labelY = midY + ny * 2.4;
+        const labelX = midX + nx * 2.6, labelY = midY + ny * 2.6;
         out += `<text x="${labelX}" y="${labelY}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="${DIM_COLOR}" transform="rotate(${angDeg} ${labelX} ${labelY})">${labelText}</text>`;
       }
     });
@@ -397,11 +408,25 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
       const x1 = r2dX(s.x1), y1 = r2dY(s.y1), cx = r2dX(s.cx), cy = r2dY(s.cy), x2 = r2dX(s.x2), y2 = r2dY(s.y2);
       shapesMarkup += `<path d="M ${x2} ${y2} L ${cx} ${cy} L ${x1} ${y1}" fill="none" stroke="#22333B" stroke-width="0.6" marker-end="url(#neArrowHeadPrint)"/>`;
       if (s.label) shapesMarkup += `<text x="${(cx + x1) / 2}" y="${(cy + y1) / 2 - 1.5}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
-       } else if (s.type === "text") {
+              } else if (s.type === "text") {
       const x = r2dX(s.x), y = r2dY(s.y);
       const rot = s.rotation || 0;
       const transformAttr = rot ? ` transform="rotate(${rot} ${x} ${y})"` : "";
       shapesMarkup += `<text x="${x}" y="${y}" font-size="${s.fontSize || 4}" fill="#22333B"${transformAttr}>${neEscapeXml(s.content || "")}</text>`;
+    } else if (s.type === "frisos") {
+        } else if (s.type === "frisos") {
+      const x = r2dX(s.x), y = r2dY(s.y), w = r2dLen(s.w), h = r2dLen(s.h);
+      const N = 5;
+      for (let i = 0; i < N; i++) {
+        if (s.vertical) {
+          const lx = x + (w * i) / (N - 1);
+          shapesMarkup += `<line x1="${lx}" y1="${y}" x2="${lx}" y2="${y + h}" stroke="#22333B" stroke-width="0.6"/>`;
+        } else {
+          const ly = y + (h * i) / (N - 1);
+          shapesMarkup += `<line x1="${x}" y1="${ly}" x2="${x + w}" y2="${ly}" stroke="#22333B" stroke-width="0.6"/>`;
+        }
+      }
+      if (s.label) shapesMarkup += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
     }
   });
 

@@ -1298,9 +1298,12 @@ if (cliente) {
 } else {
   document.getElementById("viewClientePrint").textContent = orcamento.cliente_nome;
 }
-      const data = new Date(orcamento.data_criacao);
-      document.getElementById("viewDataPrint").innerHTML = 
+const data = new Date(orcamento.data_criacao);
+document.getElementById("viewDataPrint").innerHTML = 
   `<strong>${data.toLocaleDateString("pt-PT")}</strong>`;
+
+const NE_AUTOR = currentSession?.user?.user_metadata?.display_name || currentSession?.user?.email || "-";
+document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
       const viewProdutosBodyPrint = document.getElementById("viewProdutosBodyPrint");
       viewProdutosBodyPrint.innerHTML = "";
       

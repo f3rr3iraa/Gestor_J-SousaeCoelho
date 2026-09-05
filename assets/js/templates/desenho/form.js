@@ -26,7 +26,9 @@ window.initNotaEncomendaForm = async function () {
   const panelCircle = document.getElementById("neFieldsCircle");
   const panelPolygon = document.getElementById("neFieldsPolygon");
   const panelArrow = document.getElementById("neFieldsArrow");
-    const panelText = document.getElementById("neFieldsText");
+        const panelText = document.getElementById("neFieldsText");
+  const panelFrisos = document.getElementById("neFieldsFrisos");
+  const fLabelFrisos = document.getElementById("neLabelFrisos");
   const panelLine = document.getElementById("neFieldsLine");
   const fLabelLine = document.getElementById("neLabelLine");
   const fDashedLine = document.getElementById("neDashedLine");
@@ -85,7 +87,16 @@ window.initNotaEncomendaForm = async function () {
   const dimValueModal = new bootstrap.Modal(dimValueModalEl);
   const fModalDimValue = document.getElementById("neModalDimValueInput");
   const fMarcarPorAcabar = document.getElementById("neMarcarPorAcabar");
-  allPanels.push(panelArrow90);
+        allPanels.push(panelArrow90);
+  allPanels.push(panelFrisos);
+
+  function neDesativarModosEdgeDim() {
+    if (editor.getTool() !== "select") editor.setTool("select");
+    edgeModeBtn.classList.remove("ne-tool-active");
+    edgeModeBtn.style.backgroundColor = "";
+    dimModeBtn.classList.remove("ne-tool-active");
+    dimModeBtn.style.backgroundColor = "";
+  }
 
   // ---------------------------------------------------------------
   // ESTADO INICIAL
@@ -147,12 +158,13 @@ window.initNotaEncomendaForm = async function () {
     };
   }
 
-  let neDraftSaveTimeout = null;
+   let neDraftSaveTimeout = null;
   function neGuardarRascunho() {
+    const chave = neDraftKey();
     clearTimeout(neDraftSaveTimeout);
     neDraftSaveTimeout = setTimeout(() => {
       try {
-        sessionStorage.setItem(neDraftKey(), JSON.stringify(neColetarRascunho()));
+        sessionStorage.setItem(chave, JSON.stringify(neColetarRascunho()));
       } catch (err) {
         console.warn("Aviso: não foi possível guardar o rascunho da nota:", err);
       }
@@ -307,11 +319,15 @@ window.initNotaEncomendaForm = async function () {
       const w = selected.width || 20;
       fBraceWidth.value = Math.round(Math.abs(w));
       fBraceFlip.checked = w < 0;
-    } else if (selected.type === "text") {
+        } else if (selected.type === "text") {
       panelText.classList.remove("d-none");
       if (!mudouSelecao) return;
       fTextContent.value = selected.content || "";
       fFontSize.value = selected.fontSize || 4;
+    } else if (selected.type === "frisos") {
+      panelFrisos.classList.remove("d-none");
+      if (!mudouSelecao) return;
+      fLabelFrisos.value = selected.label || "";
     }
   });
 
@@ -398,14 +414,16 @@ window.initNotaEncomendaForm = async function () {
   // ---------------------------------------------------------------
   // FERRAMENTAS DA TOOLBAR
   // ---------------------------------------------------------------
-  document.getElementById("neAddRect").addEventListener("click", () => {
+    document.getElementById("neAddRect").addEventListener("click", () => {
+    neDesativarModosEdgeDim();
     rectBarW.value = "";
     rectBarH.value = "";
     rectModal.show();
   });
   rectModalEl.addEventListener("shown.bs.modal", () => rectBarW.focus());
-  document.getElementById("neAddCircle").addEventListener("click", () => { editor.addCircle(); refreshScaleInfo(); });
+  document.getElementById("neAddCircle").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addCircle(); refreshScaleInfo(); });
       document.getElementById("neAddArrow").addEventListener("click", () => {
+    neDesativarModosEdgeDim();
     editor.startArrow();
     arrowBar.classList.remove("d-none");
   });
@@ -413,9 +431,10 @@ window.initNotaEncomendaForm = async function () {
     editor.cancelArrow();
     arrowBar.classList.add("d-none");
   });
-  document.querySelectorAll(".ne-line-style").forEach((el) => {
+    document.querySelectorAll(".ne-line-style").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
+      neDesativarModosEdgeDim();
       const dashed = el.getAttribute("data-style") === "dashed";
       editor.startLine(dashed);
       lineBar.classList.remove("d-none");
@@ -425,16 +444,19 @@ window.initNotaEncomendaForm = async function () {
     editor.cancelLine();
     lineBar.classList.add("d-none");
   });
-  document.querySelectorAll(".ne-arrow90-dir").forEach((el) => {
+   document.querySelectorAll(".ne-arrow90-dir").forEach((el) => {
   el.addEventListener("click", (e) => {
     e.preventDefault();
+    neDesativarModosEdgeDim();
     const dir = el.getAttribute("data-dir");
     editor.addArrow90(dir);
     refreshScaleInfo();
   });
 });
-  document.getElementById("neAddBrace").addEventListener("click", () => { editor.addBrace(); refreshScaleInfo(); });
-  document.getElementById("neAddText").addEventListener("click", () => { editor.addText(); refreshScaleInfo(); });
+   document.getElementById("neAddBrace").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addBrace(); refreshScaleInfo(); });
+  document.getElementById("neAddText").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addText(); refreshScaleInfo(); });
+  document.getElementById("neAddFrisos").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addFrisos(); refreshScaleInfo(); });
+  fLabelFrisos.addEventListener("input", () => editor.updateSelected({ label: fLabelFrisos.value }));
 
   showGridChk.addEventListener("change", () => editor.setShowGrid(showGridChk.checked));
 
@@ -462,7 +484,8 @@ window.initNotaEncomendaForm = async function () {
     });
   });
 
-    document.getElementById("neAddPolygon").addEventListener("click", () => {
+       document.getElementById("neAddPolygon").addEventListener("click", () => {
+    neDesativarModosEdgeDim();
     editor.startPolygon();
     polyBar.classList.remove("d-none");
   });
@@ -532,23 +555,25 @@ window.initNotaEncomendaForm = async function () {
     fModalDimValue.select();
   });
 
-  document.getElementById("neBringForward").addEventListener("click", () => editor.bringForward());
-  document.getElementById("neSendBackward").addEventListener("click", () => editor.sendBackward());
+   document.getElementById("neBringForward").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.bringForward(); });
+  document.getElementById("neSendBackward").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.sendBackward(); });
 
-  document.getElementById("neDeleteShape").addEventListener("click", () => editor.deleteSelected());
+  document.getElementById("neDeleteShape").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.deleteSelected(); });
   document.getElementById("neClearAll").addEventListener("click", () => {
+    neDesativarModosEdgeDim();
     if (confirm("Tens a certeza que queres limpar todo o desenho?")) editor.clearAll();
   });
 
   document.querySelectorAll(".ne-flip-action").forEach((el) => {
   el.addEventListener("click", (e) => {
     e.preventDefault();
+    neDesativarModosEdgeDim();
     editor.rotateOrFlipSelected(el.getAttribute("data-action"));
     refreshScaleInfo();
   });
 });
 
-document.getElementById("neUndo").addEventListener("click", () => editor.undo());
+document.getElementById("neUndo").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.undo(); });
 
   // Escala
   scaleSelect.addEventListener("change", () => {
@@ -586,7 +611,7 @@ document.getElementById("neUndo").addEventListener("click", () => editor.undo())
 
   // ---------------------------------------------------------------
   // ESTADO DA NOTA (Por acabar / Desenho pronto)
-  // Pronto e Entregue só se alteram na lista (list-nota-encomenda).
+  // Pronto e Entregue só se alteram na lista (list-desenho).
   // ---------------------------------------------------------------
   function neCamposEmFaltaParaEstado() {
     const faltaMaterial = !materialEl.value.trim();
@@ -743,7 +768,7 @@ document.getElementById("neUndo").addEventListener("click", () => editor.undo())
   let notaAtual = null;
 
   if (editId) {
-    tituloEl.textContent = "Editar Nota de Encomenda";
+    tituloEl.textContent = "Editar Desenho";
     const { data, error } = await supabase
       .from("notas_encomenda")
       .select("*")
@@ -840,16 +865,27 @@ document.getElementById("neUndo").addEventListener("click", () => editor.undo())
   // CANCELAR
   // ---------------------------------------------------------------
   document.getElementById("btnCancelarNota").addEventListener("click", () => {
-    goToRoute("/list-nota-encomenda");
+    goToRoute("/list-desenho");
   });
 
   // ---------------------------------------------------------------
   // LIMPAR FORMULÁRIO (mantém-se na mesma página, limpa tudo)
   // ---------------------------------------------------------------
   document.getElementById("btnLimparFormularioNota").addEventListener("click", () => {
-    limparFormularioTotal();
-    neLimparRascunho();
+    limparApenasCamposFormulario();
+    neGuardarRascunho();
   });
+
+  function limparApenasCamposFormulario() {
+    clienteEl.value = "";
+    toggleClearNotaCliente();
+    materialEl.value = "";
+    tipoEl.value = "";
+    dataEntregaEl.value = "";
+    observacoesEl.value = "";
+    fMarcarPorAcabar.checked = false;
+    syncObservacoesObrigatorias();
+  }
 
 
   
@@ -943,7 +979,7 @@ document.getElementById("neUndo").addEventListener("click", () => editor.undo())
   dataEntregaEl.value = "";
     observacoesEl.value = "";
   fMarcarPorAcabar.checked = false;
-  tituloEl.textContent = "Nova Nota de Encomenda";
+  tituloEl.textContent = "Novo Desenho";
 
   editor.clearAll();
 
@@ -989,7 +1025,7 @@ document.getElementById("neUndo").addEventListener("click", () => editor.undo())
     const htmlOriginal = btnGuardarNota.innerHTML;
     bloquearFormulario();
     btnGuardarNota.innerHTML = `<i class="bi bi-hourglass-split me-2"></i> A guardar...`;
-    showMessage("A guardar nota de encomenda...", "info");
+    showMessage("A guardar desenho...", "info");
 
     try {
       const shapes = editor.getShapes();
@@ -1049,9 +1085,9 @@ document.getElementById("neUndo").addEventListener("click", () => editor.undo())
 
             await garantirClienteEncomenda(clienteEl.value);
 
-      showMessage("Nota de encomenda guardada com sucesso!", "success");
-      limparFormularioTotal();
+            showMessage("Desenho guardada com sucesso!", "success");
       neLimparRascunho();
+      limparFormularioTotal();
         } finally {
       desbloquearFormulario();
       btnGuardarNota.innerHTML = htmlOriginal;

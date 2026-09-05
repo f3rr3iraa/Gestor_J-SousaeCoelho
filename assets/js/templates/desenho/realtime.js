@@ -5,13 +5,13 @@ window.initNotaEncomendaRealtime = function (reloadCallback) {
 
   const supabase = window.supabaseClient;
 
-  const existente = supabase.getChannels().find((ch) => ch.topic === "realtime:notas-encomenda-changes");
+  const existente = supabase.getChannels().find((ch) => ch.topic === "realtime:desenho-changes");
   if (existente) {
     supabase.removeChannel(existente);
   }
 
   const channel = supabase
-    .channel("notas-encomenda-changes")
+    .channel("desenho-changes")
     .on(
       "postgres_changes",
       {

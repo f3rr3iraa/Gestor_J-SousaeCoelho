@@ -207,28 +207,51 @@ window.initOrcamentoForm = async function () {
           await carregarDescricoesDaMarca(p.brandKey);
 
           if (p.descricaoId) {
-            produtoDescricao.value = p.descricao || "";
-            produtoDescricaoId.value = p.descricaoId;
-            toggleClearButton(produtoDescricao, clearDescricao);
+  produtoDescricao.value = p.descricao || "";
+  produtoDescricaoId.value = p.descricaoId;
+  toggleClearButton(produtoDescricao, clearDescricao);
 
-            await carregarEspessuras(p.descricaoId);
+  if (p.descricaoId === "manual") {
+    // ✅ Descrição escrita manualmente — não existe na base de dados,
+    // por isso NÃO se faz query de espessuras (evita o erro de tipo integer).
+    produtoEspessura.disabled = false;
+    produtoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
+    btnVerPrecario.classList.add("d-none");
 
-            if (p.espessuraValue) {
-              produtoEspessura.value = p.espessuraTexto || "";
-              produtoEspessuraValue.value = p.espessuraValue;
-              toggleClearButton(produtoEspessura, clearEspessura);
-              produtoTipoAcabamento.disabled = false;
-              produtoTipoAcabamento.placeholder = "Seleciona...";
-              carregarTiposAcabamento(p.descricaoId, p.espessuraValue);
-              btnVerPrecario.classList.remove("d-none");
+    if (p.espessuraValue) {
+      produtoEspessura.value = p.espessuraTexto || "";
+      produtoEspessuraValue.value = p.espessuraValue;
+      toggleClearButton(produtoEspessura, clearEspessura);
 
-              if (p.tipoAcabamentoValue) {
-                produtoTipoAcabamento.value = p.tipoAcabamentoTexto || "";
-                produtoTipoAcabamentoValue.value = p.tipoAcabamentoValue;
-                toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
-              }
-            }
-          }
+      produtoTipoAcabamento.disabled = false;
+      produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
+
+      if (p.tipoAcabamentoValue) {
+        produtoTipoAcabamento.value = p.tipoAcabamentoTexto || "";
+        produtoTipoAcabamentoValue.value = p.tipoAcabamentoValue;
+        toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      }
+    }
+  } else {
+    await carregarEspessuras(p.descricaoId);
+
+    if (p.espessuraValue) {
+      produtoEspessura.value = p.espessuraTexto || "";
+      produtoEspessuraValue.value = p.espessuraValue;
+      toggleClearButton(produtoEspessura, clearEspessura);
+      produtoTipoAcabamento.disabled = false;
+      produtoTipoAcabamento.placeholder = "Seleciona...";
+      carregarTiposAcabamento(p.descricaoId, p.espessuraValue);
+      btnVerPrecario.classList.remove("d-none");
+
+      if (p.tipoAcabamentoValue) {
+        produtoTipoAcabamento.value = p.tipoAcabamentoTexto || "";
+        produtoTipoAcabamentoValue.value = p.tipoAcabamentoValue;
+        toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      }
+    }
+  }
+}
         } catch (err) {
           console.warn("⚠️ Não foi possível restaurar por completo a linha de produto:", err);
         }
@@ -1350,8 +1373,8 @@ window.initOrcamentoForm = async function () {
   // =====================================================
   // ✅ ADICIONAR PRODUTO À TABELA
   // =====================================================
-  btnAdicionarProduto.addEventListener("click", () => {
-    const isDiversos = produtoTipo.value.trim().toLowerCase() === "diversos";
+btnAdicionarProduto.addEventListener("click", async () => {
+      const isDiversos = produtoTipo.value.trim().toLowerCase() === "diversos";
 
     if (!produtoTipoId.value) {
       showMessage("⚠️ Seleciona o tipo", "warning");
@@ -1381,8 +1404,8 @@ window.initOrcamentoForm = async function () {
         return;
       }
       const compM = parseFloat(normalizeDecimalInput(produtoComprimento.value));
-      const largM = parseFloat(normalizeDecimalInput(produtoLargura.value));
-      if (!compM || compM <= 0) {
+       const largM = parseFloat(normalizeDecimalInput(produtoLargura.value));
+         if (!compM || compM <= 0) {
         showMessage("⚠️ Comprimento deve ser maior que zero", "warning");
         return;
       }
@@ -1401,9 +1424,75 @@ window.initOrcamentoForm = async function () {
       return;
     }
 
+      // ✅ Se a descrição foi escrita manualmente (não veio da base de dados),
+    // guarda-a agora na tabela "website" para ficar disponível no futuro.
+    if (!isDiversos) {
+      try {
+        // ----- 1) Garantir que a descrição existe na tabela "website" -----
+        if (produtoDescricaoId.value === "manual") {
+
+          const { data: novoProduto, error: novoProdutoError } = await supabase
+            .from("website")
+            .insert([{
+              Brand: produtoBrandKey.value,
+              Title_pt: produtoDescricao.value.trim()
+            }])
+            .select();
+
+          if (novoProdutoError) throw novoProdutoError;
+
+          const novoId = novoProduto[0].id;
+          produtoDescricaoId.value = novoId;
+
+          // Atualiza a cache local para já aparecer no autocomplete sem reload
+          produtosWebsite.push({ id: novoId, Brand: produtoBrandKey.value, Title_pt: produtoDescricao.value.trim() });
+          produtosDaMarca.push({ display: produtoDescricao.value.trim(), value: novoId, id: novoId, title: produtoDescricao.value.trim() });
+
+          showMessage("✅ Nova descrição guardada com sucesso!", "success");
+        }
+
+        // ----- 2) Garantir que a espessura + acabamento existem em "product_thicknesses" -----
+        const idAtual = produtoDescricaoId.value;
+        const espessuraAtual = parseInt(produtoEspessuraValue.value);
+        const acabamentoAtual = (produtoTipoAcabamentoValue.value || "").trim().toLowerCase();
+        const precoAtual = parseFloat(produtoPrecoMt2.value);
+
+        const jaExiste = !!(
+          precosPorProduto[idAtual] &&
+          precosPorProduto[idAtual][espessuraAtual] &&
+          precosPorProduto[idAtual][espessuraAtual].some(t => t.type.toLowerCase() === acabamentoAtual)
+        );
+
+        if (!jaExiste && !isNaN(espessuraAtual) && acabamentoAtual) {
+
+          const { error: espessuraError } = await supabase
+            .from("product_thicknesses")
+            .insert([{
+              website_item_id: idAtual,
+              thickness: espessuraAtual,
+              type: acabamentoAtual,
+              price_per_m2: precoAtual
+            }]);
+
+          if (espessuraError) throw espessuraError;
+
+          // Atualiza a cache local para já refletir no preçário sem reload
+          if (!precosPorProduto[idAtual]) precosPorProduto[idAtual] = {};
+          if (!precosPorProduto[idAtual][espessuraAtual]) precosPorProduto[idAtual][espessuraAtual] = [];
+          precosPorProduto[idAtual][espessuraAtual].push({ type: acabamentoAtual, price_per_m2: precoAtual });
+
+          showMessage("✅ Espessura e acabamento guardados no preçário!", "success");
+        }
+      } catch (err) {
+        console.error("Erro ao guardar descrição/espessura/acabamento:", err);
+        showMessage("⚠️ Não foi possível guardar tudo na base de dados: " + (err.message || err), "warning");
+        // Continua mesmo assim a adicionar o produto à lista do orçamento
+      }
+    }
+    
     const compM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoComprimento.value));
     const largM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoLargura.value));
-
+    
     const produto = {
       id: Date.now(),
       isDiversos: isDiversos,

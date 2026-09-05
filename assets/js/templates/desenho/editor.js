@@ -219,6 +219,7 @@ window.neBracePoints = neBracePoints;
 
 function neShapeBBox(s) {
   if (s.type === "rect") return { minX: s.x, minY: s.y, maxX: s.x + s.w, maxY: s.y + s.h };
+  if (s.type === "frisos") return { minX: s.x, minY: s.y, maxX: s.x + s.w, maxY: s.y + s.h };
   if (s.type === "circle") return { minX: s.cx - s.radius, minY: s.cy - s.radius, maxX: s.cx + s.radius, maxY: s.cy + s.radius };
   if (s.type === "polygon" && s.points && s.points.length) {
     const xs = s.points.map((p) => p.x), ys = s.points.map((p) => p.y);
@@ -495,7 +496,8 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const consider = (x, y) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
     shapes.forEach((s) => {
-      if (s.type === "rect") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
+            if (s.type === "rect") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
+      else if (s.type === "frisos") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
       else if (s.type === "circle") { consider(s.cx - s.radius, s.cy - s.radius); consider(s.cx + s.radius, s.cy + s.radius); }
       else if (s.type === "polygon") s.points.forEach((p) => consider(p.x, p.y));
       else if (s.type === "arrow") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
@@ -504,7 +506,7 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
       else if (s.type === "arrow90") { const p = neArrow90Points(s); consider(p.x1, p.y1); consider(p.cx, p.cy); consider(p.x2, p.y2); }
       else if (s.type === "text") consider(s.x, s.y);
     });
-    if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 500, maxY: 350 };
+    if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 400 , maxY: 300 };
     return { minX, minY, maxX, maxY };
   }
 
@@ -804,6 +806,27 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
       path.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
       shapesLayer.appendChild(path);
       if (s.label) appendPlainLabel((cx + x1) / 2, (cy + y1) / 2 - 1.5, s.label);
+         } else if (s.type === "frisos") {
+      const x = r2dX(s.x, view), y = r2dY(s.y, view);
+      const w = r2dLen(s.w, view), h = r2dLen(s.h, view);
+      const hit = neCreateSvgEl("rect", { x, y, width: w, height: h, fill: "transparent", stroke: "none", class: "ne-shape", "data-id": s.id });
+      attachSelect(hit, s);
+      shapesLayer.appendChild(hit);
+      const N = 5;
+      for (let i = 0; i < N; i++) {
+        let lx1, ly1, lx2, ly2;
+        if (s.vertical) {
+          const lx = x + (w * i) / (N - 1);
+          lx1 = lx; ly1 = y; lx2 = lx; ly2 = y + h;
+        } else {
+          const ly = y + (h * i) / (N - 1);
+          lx1 = x; ly1 = ly; lx2 = x + w; ly2 = ly;
+        }
+        const line = neCreateSvgEl("line", { x1: lx1, y1: ly1, x2: lx2, y2: ly2, stroke: shapeStroke(s), "stroke-width": shapeStrokeW(s) });
+        line.style.pointerEvents = "none";
+        shapesLayer.appendChild(line);
+      }
+      if (s.label) appendCenteredLabel(x + w / 2, y + h / 2, s.label);
              } else if (s.type === "text") {
       const x = r2dX(s.x, view), y = r2dY(s.y, view);
       const fontSize = s.fontSize || 4;
@@ -956,7 +979,7 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
         if (angDeg >= 90) angDeg -= 180;
         else if (angDeg < -90) angDeg += 180;
 
-        if (blocked) {
+                if (blocked) {
           const inOffset = 5;
           const tx = midD.x - nx * inOffset, ty = midD.y - ny * inOffset;
           const label = neCreateSvgEl("text", {
@@ -967,12 +990,12 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
           label.textContent = labelText;
           dimsLayer.appendChild(label);
                 } else {
-          const offset = 4;
+          const offset = 3.2;
           const doa = { x: da.x + nx * offset, y: da.y + ny * offset };
           const dob = { x: db.x + nx * offset, y: db.y + ny * offset };
           neDrawDimLine(dimsLayer, doa, dob, DIM_COLOR);
           const midX = (doa.x + dob.x) / 2, midY = (doa.y + dob.y) / 2;
-          const labelX = midX + nx * 2.4, labelY = midY + ny * 2.4;
+          const labelX = midX + nx * 2.6, labelY = midY + ny * 2.6;
           const label = neCreateSvgEl("text", {
             x: labelX, y: labelY, "text-anchor": "middle", "dominant-baseline": "central", "font-family": "Arial, sans-serif",
             "font-size": "4.4", "letter-spacing": "0.5", fill: DIM_COLOR,
@@ -1080,6 +1103,9 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
       appendHandle(cx + r, cy, "radius", (e) => onCircleHandlePointerDown(e, s.id));
     } else if (s.type === "polygon") {
       s.points.forEach((p, idx) => appendHandle(r2dX(p.x, view), r2dY(p.y, view), "v" + idx, (e) => onVertexPointerDown(e, s.id, idx)));
+    } else if (s.type === "frisos") {
+      const x = r2dX(s.x, view), y = r2dY(s.y, view), w = r2dLen(s.w, view), h = r2dLen(s.h, view);
+      appendHandle(x + w, y + h, "br", (e) => onFrisosScalePointerDown(e, s.id));
         } else if (s.type === "arrow") {
       appendHandle(r2dX(s.x1, view), r2dY(s.y1, view), "a1", (e) => onArrowEndPointerDown(e, s.id, "x1", "y1"));
       appendHandle(r2dX(s.x2, view), r2dY(s.y2, view), "a2", (e) => onArrowEndPointerDown(e, s.id, "x2", "y2"));
@@ -1126,7 +1152,7 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     const xs = [], ys = [];
     shapes.forEach((s) => {
       if (excludeIds.has(s.id)) return;
-      if (s.type === "rect") { xs.push(s.x, s.x + s.w / 2, s.x + s.w); ys.push(s.y, s.y + s.h / 2, s.y + s.h); }
+        if (s.type === "rect" || s.type === "frisos") { xs.push(s.x, s.x + s.w / 2, s.x + s.w); ys.push(s.y, s.y + s.h / 2, s.y + s.h); }
       else if (s.type === "circle") { xs.push(s.cx - s.radius, s.cx, s.cx + s.radius); ys.push(s.cy - s.radius, s.cy, s.cy + s.radius); }
       else if (s.type === "polygon") {
         const bx = s.points.map((p) => p.x), by = s.points.map((p) => p.y);
@@ -1141,7 +1167,7 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     const tol = d2rLen(2, view);
     const { xs, ys } = collectSnapTargets(excludeIds);
     let candX = [], candY = [];
-    if (s.type === "rect") {
+        if (s.type === "rect" || s.type === "frisos") {
       candX = [s.x + dx, s.x + dx + s.w / 2, s.x + dx + s.w];
       candY = [s.y + dy, s.y + dy + s.h / 2, s.y + dy + s.h];
     } else if (s.type === "circle") {
@@ -1435,6 +1461,13 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
   }
+  function onFrisosScalePointerDown(e, id) {
+    e.stopPropagation();
+    selectOnly(id);
+    drag = { type: "frisosScale", shapeId: id, viewSnapshot: computeView(), orig: cloneShape(getShape(id)) };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
   function onVertexPointerDown(e, id, idx) {
     e.stopPropagation();
     selectOnly(id);
@@ -1494,8 +1527,9 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
         else if (s.type === "arrow") { s.x1 = o.x1 + dx; s.y1 = o.y1 + dy; s.x2 = o.x2 + dx; s.y2 = o.y2 + dy; }
         else if (s.type === "line") { s.x1 = o.x1 + dx; s.y1 = o.y1 + dy; s.x2 = o.x2 + dx; s.y2 = o.y2 + dy; }
         else if (s.type === "brace") { s.x1 = o.x1 + dx; s.y1 = o.y1 + dy; s.x2 = o.x2 + dx; s.y2 = o.y2 + dy; }
-        else if (s.type === "arrow90") { s.cx = o.cx + dx; s.cy = o.cy + dy; }
+                else if (s.type === "arrow90") { s.cx = o.cx + dx; s.cy = o.cy + dy; }
         else if (s.type === "text") { s.x = o.x + dx; s.y = o.y + dy; }
+        else if (s.type === "frisos") { s.x = o.x + dx; s.y = o.y + dy; }
       });
     } else if (drag.type === "resize") {
       const s = getShape(drag.shapeId);
@@ -1512,6 +1546,16 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     } else if (drag.type === "vertex") {
       const s = getShape(drag.shapeId);
       s.points[drag.idx] = { x: realP.x, y: realP.y };
+    } else if (drag.type === "frisosScale") {
+      const s = getShape(drag.shapeId);
+      const o = drag.orig;
+      if (s) {
+        const diag2 = o.w * o.w + o.h * o.h || 1;
+        const dx = realP.x - o.x, dy = realP.y - o.y;
+        const factor = Math.max((dx * o.w + dy * o.h) / diag2, NE_MIN_REAL / Math.max(o.w, o.h));
+        s.w = Math.max(NE_MIN_REAL, o.w * factor);
+        s.h = Math.max(NE_MIN_REAL, o.h * factor);
+      }
     } else if (drag.type === "arrowEnd") {
       const s = getShape(drag.shapeId);
       s[drag.propX] = realP.x; s[drag.propY] = realP.y;
@@ -1623,8 +1667,9 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
       else if (s.type === "arrow") { s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy; }
       else if (s.type === "line") { s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy; }
       else if (s.type === "brace") { s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy; }
-      else if (s.type === "arrow90") { s.cx += dx; s.cy += dy; }
+            else if (s.type === "arrow90") { s.cx += dx; s.cy += dy; }
       else if (s.type === "text") { s.x += dx; s.y += dy; }
+      else if (s.type === "frisos") { s.x += dx; s.y += dy; }
     });
     render();
   }
@@ -1671,8 +1716,8 @@ function undo() {
     const pasted = clipboard.map((orig) => {
       const s = cloneShape(orig);
       s.id = neUid();
-      if (s.type === "rect" || s.type === "text") { s.x += offset; s.y += offset; }
-      else if (s.type === "circle" || s.type === "arrow90") { s.cx += offset; s.cy += offset; }
+      if (s.type === "rect" || s.type === "text" || s.type === "frisos") { s.x += offset; s.y += offset; }
+            else if (s.type === "circle" || s.type === "arrow90") { s.cx += offset; s.cy += offset; }
       else if (s.type === "polygon") { s.points = s.points.map((p) => ({ x: p.x + offset, y: p.y + offset })); }
       else if (s.type === "arrow") { s.x1 += offset; s.y1 += offset; s.x2 += offset; s.y2 += offset; }
       else if (s.type === "line") { s.x1 += offset; s.y1 += offset; s.x2 += offset; s.y2 += offset; }
@@ -1950,9 +1995,14 @@ function undo() {
     };
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
-    function addText() {
+        function addText() {
     const offset = nextOffset();
     const shape = { id: neUid(), type: "text", x: 100 + offset, y: 100 + offset, content: "Texto", fontSize: 4, rotation: 0 };
+    shapes.push(shape); selectOnly(shape.id); return shape;
+  }
+    function addFrisos() {
+    const offset = nextOffset();
+    const shape = { id: neUid(), type: "frisos", x: 100 + offset, y: 100 + offset, w: 500, h: 360, label: "", vertical: false };
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
 
@@ -2062,7 +2112,7 @@ function undo() {
     const n1 = tr({ x: s.x1, y: s.y1 }), n2 = tr({ x: s.x2, y: s.y2 });
     s.x1 = n1.x; s.y1 = n1.y; s.x2 = n2.x; s.y2 = n2.y;
     if (s.type === "brace" && (kind === "flipH" || kind === "flipV")) s.width = -(s.width || 20);
-  } else if (s.type === "arrow90") {
+      } else if (s.type === "arrow90") {
     const np = kind === "flipH" ? neFlipPointH({ x: s.cx, y: s.cy }, pivot)
       : kind === "flipV" ? neFlipPointV({ x: s.cx, y: s.cy }, pivot)
       : neRotatePointAround({ x: s.cx, y: s.cy }, pivot, deg);
@@ -2073,6 +2123,21 @@ function undo() {
       s.dir1Angle = neNormDeg(180 - s.dir1Angle); s.turn = -s.turn;
     } else if (kind === "flipV") {
       s.dir1Angle = neNormDeg(-s.dir1Angle); s.turn = -s.turn;
+    }
+    } else if (s.type === "frisos") {
+    if (kind === "flipH") {
+      s.x = 2 * pivot.x - (s.x + s.w);
+    } else if (kind === "flipV") {
+      s.y = 2 * pivot.y - (s.y + s.h);
+    } else {
+      const corners = [
+        { x: s.x, y: s.y }, { x: s.x + s.w, y: s.y },
+        { x: s.x + s.w, y: s.y + s.h }, { x: s.x, y: s.y + s.h },
+      ].map((c) => neRotatePointAround(c, pivot, deg));
+      const xs = corners.map((c) => c.x), ys = corners.map((c) => c.y);
+      s.x = Math.min(...xs); s.y = Math.min(...ys);
+      s.w = Math.max(...xs) - s.x; s.h = Math.max(...ys) - s.y;
+      s.vertical = !s.vertical;
     }
   } else if (s.type === "text") {
     const np = kind === "flipH" ? neFlipPointH({ x: s.x, y: s.y }, pivot)
@@ -2128,7 +2193,7 @@ function rotateOrFlipSelected(kind) {
     } else if (s.type === "brace") {
       if (props.label !== undefined) s.label = props.label;
       if (props.width !== undefined) s.width = props.width;
-    } else if (s.type === "polygon" || s.type === "arrow" || s.type === "arrow90") {
+        } else if (s.type === "polygon" || s.type === "arrow" || s.type === "arrow90" || s.type === "frisos") {
       if (props.label !== undefined) s.label = props.label;
         } else if (s.type === "text") {
       if (props.content !== undefined) s.content = props.content;
@@ -2184,7 +2249,14 @@ function setDimInside(mode) {
       }
             if (s.type === "circle" && !s.edges) s.edges = [{ polish: false }];
       if (s.type === "polygon" && !s.edges) s.edges = nePolygonEdgesFor(s.points || []);
-      if (s.type === "text" && s.rotation === undefined) s.rotation = 0;
+            if (s.type === "text" && s.rotation === undefined) s.rotation = 0;
+      if (s.type === "frisos") {
+        if (typeof s.w !== "number" || s.w <= 0) s.w = 395;
+        if (typeof s.h !== "number" || s.h <= 0) s.h = 290;
+        if (s.label === undefined) s.label = "";
+                if (s.vertical === undefined) s.vertical = false;
+
+      }
       if (s.type === "arrow90" && s.dir1Angle === undefined) {
         // Migração do formato antigo (x1,y1 / cx,cy / x2,y2 soltos, com
         // pega no meio) para o novo modelo (cx,cy fixo + comprimentos +
@@ -2234,7 +2306,7 @@ function setDimInside(mode) {
   render();
 
     return {
-    addRect, addCircle, addArrow, addBrace, addArrow90, addText,
+        addRect, addCircle, addArrow, addBrace, addArrow90, addText, addFrisos,
     startPolygon, cancelPolygon, finishPolygon, isDrawingPolygon,
         startLine, cancelLine, finishLine, isDrawingLine,
     startArrow, cancelArrow, finishArrow, isDrawingArrow,

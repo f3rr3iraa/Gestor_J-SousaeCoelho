@@ -722,22 +722,44 @@ td img {
 .produto-row:hover {
   background-color: #f8f9fa;
 }
+.btn-edit,
+.btn-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s, transform 0.1s ease;
+  margin: 0 2px 6px 2px;
+  padding: 0;
+}
+
+.btn-edit {
+  background-color: #0d6dfc;
+  color: white;
+}
+
+.btn-edit:hover {
+  background-color: #0b5ed7;
+}
 
 .btn-remove {
   background-color: #dc3545;
   color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
 }
 
 .btn-remove:hover {
-    background-color: #c82333;
-  }
+  background-color: #c82333;
+}
 
+.btn-edit:active,
+.btn-remove:active {
+  transform: scale(0.95);
+}
 /* ================= MODAL LIMPAR ORÇAMENTO ================= */
 #limparOrcamentoModal .modal-header .btn-close {
   filter: invert(1);

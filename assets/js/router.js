@@ -64,14 +64,14 @@ const routes = {
     title: "folha-horas",
     description: "Folha de Horas"
   },
-  "/form-nota-encomenda": {
-    template: "/templates/notas-encomenda/form-nota-encomenda.html",
-    title: "form-nota-encomenda",
-    description: "Adicionar Nota de Encomenda",
+  "/form-desenho": {
+    template: "/templates/desenho/form-desenho.html",
+    title: "form-desenho",
+    description: "Adicionar Desenho",
   },
-    "/list-nota-encomenda": {
-    template: "/templates/notas-encomenda/list-nota-encomenda.html",
-    title: "list-nota-encomenda",
+    "/list-desenho": {
+    template: "/templates/desenho/list-desenho.html",
+    title: "list-desenho",
     description: "Lista de Notas de Encomenda",
   },
   "/list-notas": {
@@ -156,8 +156,8 @@ const locationHandler = async () => {
 
   if (window.initFolhaHoras && location === "/list-folha-horas") initFolhaHoras();
 
-  if (window.initNotaEncomendaForm && location === "/form-nota-encomenda") initNotaEncomendaForm();
-  if (window.initNotaEncomendaList && location === "/list-nota-encomenda") initNotaEncomendaList();
+  if (window.initNotaEncomendaForm && location === "/form-desenho") initNotaEncomendaForm();
+  if (window.initNotaEncomendaList && location === "/list-desenho") initNotaEncomendaList();
 
   if (window.initNotas && location === "/list-notas") initNotas();
 

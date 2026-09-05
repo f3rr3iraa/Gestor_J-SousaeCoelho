@@ -258,10 +258,17 @@
       <!-- ===== CONTEÚDO PRINCIPAL ===== -->
       <div class="pdf-content">
         <!-- Orçamento nº + Data -->
-        <div class="pdf-cliente pdf-avoid-break" style="margin-bottom:6px; padding: 8px 12px;">
-          <div><span class="ref-label" style="font-weight:bold;">Orçamento nº </span><span class="ref-value" id="viewRefPrint" style="font-weight:bold;"></span></div>
-          <div style="margin-top:3px;"><span class="ref-label"><strong>Data: </strong></span><span class="ref-value" id="viewDataPrint"></span></div>
-        </div>
+       <div class="pdf-cliente pdf-avoid-break" style="margin-bottom:6px; padding: 8px 12px;">
+  <div><span class="ref-label" style="font-weight:bold;">Orçamento nº </span><span class="ref-value" id="viewRefPrint" style="font-weight:bold;"></span></div>
+  <div style="margin-top:3px; display:flex; justify-content:space-between; align-items:baseline;">
+    <span>
+      <span class="ref-label"><strong>Data: </strong></span><span class="ref-value" id="viewDataPrint"></span>
+    </span>
+    <span>
+      <span class="ref-label"><strong>Autor: </strong></span><span class="ref-value" id="viewAutorPrint"></span>
+    </span>
+  </div>
+</div>
 
         <!-- Tabela de Produtos -->
         <table class="pdf-table">
