@@ -57,8 +57,8 @@ tableBody.innerHTML = `<tr><td colspan="${colspanAtual}">A carregar dados...</td
     // ============================
     // FETCH SUPABASE
     // ============================
-    const { data, error } = await supabaseClient
-      .from("items_view")
+        const { data, error } = await supabaseClient
+      .from("items")
       .select("*")
       .eq("estado", filtroEstado)
       .order(orderField, { ascending: false });
@@ -484,6 +484,7 @@ function configurarEventosTabela() {
         .update({
           estado: "on",
           data_off: null,
+          cliente: null,
         })
         .eq("id", itemToReactivate.id);
 
