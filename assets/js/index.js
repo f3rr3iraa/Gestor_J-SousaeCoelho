@@ -20,6 +20,7 @@ async function initAuth() {
 
     const { data: { session } } = await supabase.auth.getSession();
     currentSession = session;
+    window.currentSession = session;
     updateUI();
     if (typeof window.locationHandler === "function") {
         window.locationHandler();
@@ -27,6 +28,7 @@ async function initAuth() {
 
         supabase.auth.onAuthStateChange((event, session) => {
         currentSession = session;
+        window.currentSession = session;
         updateUI();
 
         // Só recarrega a rota atual quando o estado de autenticação
@@ -49,8 +51,12 @@ function updateUI() {
         contentDashboard.classList.remove("d-none");
         content.classList.remove("d-none");
 
-        const displayName = currentSession.user.user_metadata?.display_name || currentSession.user.email;
+                const displayName = currentSession.user.user_metadata?.display_name || currentSession.user.email;
         document.getElementById("userDisplayName").textContent = displayName;
+
+        if (typeof window.applyMenuPermissions === "function") {
+            window.applyMenuPermissions();
+        }
     } else {
         contentLogin.classList.remove("d-none");
         contentDashboard.classList.add("d-none");

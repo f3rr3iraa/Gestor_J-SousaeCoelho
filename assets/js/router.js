@@ -139,6 +139,16 @@ const locationHandler = async () => {
     route = routes[location];
   }
 
+  // Aplica permissões do utilizador (ex: acesso restrito a Chapas e Sobras)
+  if (typeof window.applyRoutePermissions === "function") {
+    const locationPermitida = window.applyRoutePermissions(location);
+    if (locationPermitida !== location) {
+      window.history.replaceState({}, "", locationPermitida);
+      location = locationPermitida;
+      route = routes[location] || routes["404"];
+    }
+  }
+
   window.currentRoute = location;
   const html = await fetch(route.template).then((res) => res.text());
   document.getElementById("content").innerHTML = html;
