@@ -58,7 +58,6 @@
         <th class="col-2 align-middle">Marca/Nome</th>
         <th class="col-1 align-middle">Comprimento(mm)</th>
         <th class="col-1 align-middle">Largura(mm)</th>
-        <th class="col-1 align-middle">Lote</th>
         <th class="col-1 align-middle">Tipo</th>
         <th class="col-1 align-middle">Foto</th>
         <th class="col-2 align-middle">Observações</th>
@@ -67,7 +66,7 @@
       </tr>
     </thead>
     <tbody id="itemsBody">
-      <tr><td colspan="10">A carregar dados...</td></tr>
+      <tr><td colspan="9">A carregar dados...</td></tr>
     </tbody>
   </table>
 </div>
@@ -129,8 +128,12 @@
         <h5 class="modal-title" id="moveNossoModalLabel">Mover para "Nossas Reservas"</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
+            <div class="modal-body">
         Tem a certeza que deseja mover este item para a lista de <strong>"Nossas Reservas"</strong>?
+        <div class="coolinput mt-3">
+          <label for="moveNossoCliente" class="text">Cliente:</label>
+          <input type="text" id="moveNossoCliente" class="input w-100" placeholder="Nome do cliente..." required>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -161,11 +164,6 @@
       <div class="coolinput">
         <label for="editNome" class="text">Nome</label>
         <input type="text" class="input form-control" id="editNome" required>
-      </div>
-
-      <div class="coolinput">
-        <label for="editLote" class="text">Lote</label>
-        <input type="text" class="input form-control" id="editLote">
       </div>
       
       <div class="coolinput">

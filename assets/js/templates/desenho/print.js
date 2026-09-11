@@ -72,15 +72,21 @@ function neBBoxOf(shapes) {
     minX = Math.min(minX, x); minY = Math.min(minY, y);
     maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
   };
-  shapes.forEach((s) => {
-        if (s.type === "rect" || !s.type) { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
+   shapes.forEach((s) => {
+        if (s.type === "rect" || !s.type) {
+      consider(s.x, s.y); consider(s.x + s.w, s.y + s.h);
+      if (s.isRodamao) {
+        const extra = (window.neRodamaoLabelWidthEstimate ? window.neRodamaoLabelWidthEstimate(s.quantidade, s.label) : 40) + 3;
+        consider(s.x - extra, s.y);
+      }
+    }
     else if (s.type === "frisos") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
     else if (s.type === "circle") { consider(s.cx - s.radius, s.cy - s.radius); consider(s.cx + s.radius, s.cy + s.radius); }
     else if (s.type === "polygon") (s.points || []).forEach((p) => consider(p.x, p.y));
         else if (s.type === "arrow") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
         else if (s.type === "line") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
     else if (s.type === "brace") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
-    else if (s.type === "arrow90") { consider(s.x1, s.y1); consider(s.cx, s.cy); consider(s.x2, s.y2); }
+else if (s.type === "arrow90") { const p = neArrow90PointsPrint(s); consider(p.x1, p.y1); consider(p.cx, p.cy); consider(p.x2, p.y2); }
     else if (s.type === "text") consider(s.x, s.y);
   });
   if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 500, maxY: 350 };
@@ -93,6 +99,20 @@ function neVerticesOf(s) {
   }
   if (s.type === "polygon") return (s.points || []).map((p) => ({ x: p.x, y: p.y }));
   return [];
+}
+
+// Deriva as pontas da seta 90º a partir do modelo atual (cx,cy + len1,len2
+// + dir1Angle + turn) — mesma lógica do neArrow90Points do editor.js.
+// Usa a versão global se editor.js já a expôs; caso contrário calcula aqui.
+function neArrow90PointsPrint(s) {
+  if (typeof window.neArrow90Points === "function") return window.neArrow90Points(s);
+  const a1 = (s.dir1Angle * Math.PI) / 180;
+  const a2 = ((s.dir1Angle + s.turn * 90) * Math.PI) / 180;
+  return {
+    cx: s.cx, cy: s.cy,
+    x1: s.cx + Math.cos(a1) * s.len1, y1: s.cy + Math.sin(a1) * s.len1,
+    x2: s.cx + Math.cos(a2) * s.len2, y2: s.cy + Math.sin(a2) * s.len2,
+  };
 }
 // bbox real de UMA peça (equivalente ao neShapeBBox do editor) — usado só
 // para detetar se há outras peças encostadas a cada lado.
@@ -108,9 +128,10 @@ function neShapeBBoxPrint(s) {
     return { minX: Math.min(s.x1, s.x2), minY: Math.min(s.y1, s.y2), maxX: Math.max(s.x1, s.x2), maxY: Math.max(s.y1, s.y2) };
   }
   if (s.type === "arrow90") {
-    const xs = [s.x1, s.cx, s.x2], ys = [s.y1, s.cy, s.y2];
-    return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
-  }
+  const p = neArrow90PointsPrint(s);
+  const xs = [p.x1, p.cx, p.x2], ys = [p.y1, p.cy, p.y2];
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+}
   if (s.type === "brace") {
     const p = window.neBracePoints(s.x1, s.y1, s.x2, s.y2, s.width || 20);
     const xs = [p.x1, p.qx1, p.qx2, p.tx1, p.x2, p.qx3, p.qx4];
@@ -181,8 +202,29 @@ function neEdgeSideBlockedPrint(s, edgeIdx, verts, allShapes) {
   return blocked;
 }
 
+
 function neCCount(drawnLen) {
   return Math.min(Math.max(Math.round(drawnLen / 15), 1), 24);
+}
+
+function neRodamaoLabelMarkup(anchorX, cy, quantidade, label) {
+  const fontSize = 3.2;
+  const qtdRaw = String(quantidade ?? 1);
+  const restRaw = label ? ` - ${label}` : "";
+  const circleR = Math.max(2.2, fontSize * 0.5 + 0.5 * qtdRaw.length + 0.6);
+  const gap = 1.2;
+  const restWidth = fontSize * restRaw.length * 0.55;
+  const totalWidth = circleR * 2 + (restRaw ? gap + restWidth : 0);
+  // anchorX = borda direita do bloco (encostado à esquerda da peça)
+  const startX = anchorX - totalWidth;
+  const circleCx = startX + circleR;
+
+  let out = `<circle cx="${circleCx}" cy="${cy}" r="${circleR}" fill="#ffffff" stroke="#22333B" stroke-width="0.35"/>`;
+  out += `<text x="${circleCx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-weight="700" fill="#22333B">${neEscapeXml(qtdRaw)}</text>`;
+  if (restRaw) {
+    out += `<text x="${circleCx + circleR + gap}" y="${cy}" text-anchor="start" dominant-baseline="middle" font-size="${fontSize}" fill="#22333B">${neEscapeXml(restRaw)}</text>`;
+  }
+  return out;
 }
 
 /**
@@ -191,7 +233,7 @@ function neCCount(drawnLen) {
  * é uma ajuda visual no ecrã de edição, nunca é impressa).
  */
 function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
-  const headerH = 20;
+  const headerH = 28;
   const pageW = window.NE_PAGE_W;
   const pageH = window.NE_PAGE_H;
   const drawAreaH = pageH - headerH;
@@ -235,26 +277,64 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
     </marker>
   `;
 
-  let shapesMarkup = "";
+    let shapesMarkup = "";
   let dimsMarkup = "";
   let polishMarkup = "";
+  let rodamaoMarkup = "";
 
-  function polishMarksFor(s, verts) {
-    if (!s.edges) return "";
+   function nePolishSegmentsPrint(polish) {
+    if (polish === true) return [{ from: 0, to: 1 }];
+    if (Array.isArray(polish)) return polish.map((s) => ({ from: s.from, to: s.to }));
+    return [];
+  }
+
+  const NE_POLISH_TICK_LEN_PRINT = 2;
+
+  function polishTickMarkup(da, db, t) {
+    const dx = db.x - da.x, dy = db.y - da.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const nx = -uy, ny = ux;
+    const px = da.x + dx * t, py = da.y + dy * t;
+    return `<line x1="${px - nx * NE_POLISH_TICK_LEN_PRINT}" y1="${py - ny * NE_POLISH_TICK_LEN_PRINT}" x2="${px + nx * NE_POLISH_TICK_LEN_PRINT}" y2="${py + ny * NE_POLISH_TICK_LEN_PRINT}" stroke="#22333B" stroke-width="0.6" stroke-linecap="round"/>`;
+  }
+
+   function polishMarksFor(s, verts) {
+    if (!s.edges || !verts.length) return "";
     let out = "";
     s.edges.forEach((edge, i) => {
-      if (!edge || !edge.polish || !verts.length) return;
+      if (!edge || !edge.polish) return;
       const a = verts[i], b = verts[(i + 1) % verts.length];
       const da = { x: r2dX(a.x), y: r2dY(a.y) };
       const db = { x: r2dX(b.x), y: r2dY(b.y) };
-      const drawnLen = Math.hypot(db.x - da.x, db.y - da.y);
-      const count = neCCount(drawnLen);
-      for (let k = 1; k <= count; k++) {
-        const t = k / (count + 1);
-        const px = da.x + (db.x - da.x) * t;
-        const py = da.y + (db.y - da.y) * t;
-        out += `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.6" font-weight="700" fill="#c0392b">C</text>`;
-      }
+      const segments = nePolishSegmentsPrint(edge.polish);
+      const lastT = edge.polishLastT;
+      const tol = 0.03;
+      segments.forEach((seg) => {
+        let tickT = null;
+        if (lastT !== undefined && lastT !== null) {
+          if (Math.abs(lastT - seg.to) < tol) tickT = seg.to;
+          else if (Math.abs(lastT - seg.from) < tol) tickT = seg.from;
+        }
+        if (tickT === null) {
+          if (seg.to < 0.99) tickT = seg.to;
+          else if (seg.from > 0.01) tickT = seg.from;
+        }
+        if (tickT !== null) out += polishTickMarkup(da, db, tickT);
+
+        const pa = { x: a.x + (b.x - a.x) * seg.from, y: a.y + (b.y - a.y) * seg.from };
+        const pb = { x: a.x + (b.x - a.x) * seg.to, y: a.y + (b.y - a.y) * seg.to };
+        const sda = { x: r2dX(pa.x), y: r2dY(pa.y) };
+        const sdb = { x: r2dX(pb.x), y: r2dY(pb.y) };
+        const segLen = Math.hypot(sdb.x - sda.x, sdb.y - sda.y);
+        const count = neCCount(segLen);
+        for (let k = 1; k <= count; k++) {
+          const t = k / (count + 1);
+          const px = sda.x + (sdb.x - sda.x) * t;
+          const py = sda.y + (sdb.y - sda.y) * t;
+          out += `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.6" font-weight="700" fill="#c0392b">C</text>`;
+        }
+      });
     });
     return out;
   }
@@ -269,6 +349,18 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
     });
     return out;
   }
+      function neDimTextMarkup(x1, y1, x2, y2, dimValue) {
+      // Mesma medida do modo "Medida", mas só o texto (sem linha de cota)
+      // — usado nas setas e linhas soltas, que já são a própria linha.
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+      const tx = midX + nx * 2.6, ty = midY + ny * 2.6;
+      let angDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+      if (angDeg >= 90) angDeg -= 180; else if (angDeg < -90) angDeg += 180;
+      return `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B" transform="rotate(${angDeg} ${tx} ${ty})">${neEscapeXml(fmt(dimValue))}</text>`;
+    }
 
         function manualDimsMarkup(s, verts) {
     if (!s.edges || !verts.length) return "";
@@ -325,7 +417,7 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
        if (wMode !== "inside") {
       out += neDimLineMarkup({ x, y: topY }, { x: x + w, y: topY }, "#22333B");
     }
-    const wLabelY = wMode === "top" ? topY - 1.2 : wMode === "inside" ? topY : topY + 3.6;
+    const wLabelY = wMode === "top" ? topY - 1.2 : wMode === "inside" ? topY : topY + 4.6;
     out += `<text x="${x + w / 2}" y="${wLabelY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B">${neEscapeXml(fmt(s.w))}</text>`;
 
     let hMode = "left";
@@ -342,16 +434,20 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
     return out;
   }
 
-  shapes.forEach((s) => {
+    shapes.forEach((s) => {
     if (s.type === "rect" || !s.type) {
       const x = r2dX(s.x), y = r2dY(s.y), w = r2dLen(s.w), h = r2dLen(s.h);
       const r = Array.isArray(s.r) ? s.r.map((v) => r2dLen(v || 0)) : [0, 0, 0, 0];
-      const d = window.neRectPath ? window.neRectPath(x, y, w, h, r) : `M ${x} ${y} h ${w} v ${h} h ${-w} Z`;
-      shapesMarkup += `<path d="${d}" fill="#f8f9fa" stroke="#22333B" stroke-width="0.6"/>`;
-      if (s.label) shapesMarkup += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
-            polishMarkup += polishMarksFor(s, neVerticesOf(s));
-      dimsMarkup += rectDimsMarkup(s, x, y, w, h, shapes);
-      dimsMarkup += manualDimsMarkup(s, neVerticesOf(s));
+      const showRect = s.showRect !== false;
+      if (showRect) {
+        const d = window.neRectPath ? window.neRectPath(x, y, w, h, r) : `M ${x} ${y} h ${w} v ${h} h ${-w} Z`;
+        shapesMarkup += `<path d="${d}" fill="#f8f9fa" stroke="#22333B" stroke-width="0.6"/>`;
+      }
+      if (s.isRodamao) rodamaoMarkup += neRodamaoLabelMarkup(x - 3, y + h / 2, s.quantidade, s.label);
+else if (s.label) shapesMarkup += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
+polishMarkup += polishMarksFor(s, neVerticesOf(s));
+if (s.showDims !== false) dimsMarkup += rectDimsMarkup(s, x, y, w, h, shapes);
+dimsMarkup += manualDimsMarkup(s, neVerticesOf(s));
     } else if (s.type === "circle") {
       const cx = r2dX(s.cx), cy = r2dY(s.cy), r = r2dLen(s.radius);
       shapesMarkup += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f8f9fa" stroke="#22333B" stroke-width="0.6"/>`;
@@ -404,10 +500,11 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
       const d = `M ${dp.x1} ${dp.y1} Q ${dp.qx1} ${dp.qy1} ${dp.qx2} ${dp.qy2} T ${dp.tx1} ${dp.ty1} M ${dp.x2} ${dp.y2} Q ${dp.qx3} ${dp.qy3} ${dp.qx4} ${dp.qy4} T ${dp.tx1} ${dp.ty1}`;
       shapesMarkup += `<path d="${d}" fill="none" stroke="#22333B" stroke-width="0.6"/>`;
       if (s.label) shapesMarkup += `<text x="${dp.tx1 + (width >= 0 ? 3 : -3)}" y="${dp.ty1}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
-    } else if (s.type === "arrow90") {
-      const x1 = r2dX(s.x1), y1 = r2dY(s.y1), cx = r2dX(s.cx), cy = r2dY(s.cy), x2 = r2dX(s.x2), y2 = r2dY(s.y2);
-      shapesMarkup += `<path d="M ${x2} ${y2} L ${cx} ${cy} L ${x1} ${y1}" fill="none" stroke="#22333B" stroke-width="0.6" marker-end="url(#neArrowHeadPrint)"/>`;
-      if (s.label) shapesMarkup += `<text x="${(cx + x1) / 2}" y="${(cy + y1) / 2 - 1.5}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
+   } else if (s.type === "arrow90") {
+  const p90 = neArrow90PointsPrint(s);
+  const x1 = r2dX(p90.x1), y1 = r2dY(p90.y1), cx = r2dX(p90.cx), cy = r2dY(p90.cy), x2 = r2dX(p90.x2), y2 = r2dY(p90.y2);
+  shapesMarkup += `<path d="M ${x2} ${y2} L ${cx} ${cy} L ${x1} ${y1}" fill="none" stroke="#22333B" stroke-width="0.6" marker-end="url(#neArrowHeadPrint)"/>`;
+  if (s.label) shapesMarkup += `<text x="${(cx + x1) / 2}" y="${(cy + y1) / 2 - 1.5}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
               } else if (s.type === "text") {
       const x = r2dX(s.x), y = r2dY(s.y);
       const rot = s.rotation || 0;
@@ -430,41 +527,65 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
     }
   });
 
-  // Linha 2 do cabeçalho (esquerda): material | gestão | observação (só se tiver)
+  // Linha 2 do cabeçalho (esquerda): gestão | observação (só se tiver)
   const linha2EsqParts = [];
-  linha2EsqParts.push(`Material: ${neEscapeXml(nota.material || "-")}`);
   linha2EsqParts.push(`Gestão: ${neEscapeXml(tipoLabel)}`);
   if (nota.observacoes) linha2EsqParts.push(`Obs: ${neEscapeXml(nota.observacoes).slice(0, 70)}`);
   const linha2Esq = linha2EsqParts.join("  |  ");
 
-    // Linha 2 do cabeçalho (direita): criação | entrega | autor
+    // Linha 2 do cabeçalho (direita): criação | autor
   const linha2Dir = [
     `Criação: ${neEscapeXml(nota.data_criacao ? neFormatDate(nota.data_criacao) : "-")}`,
-    `Entrega: ${neEscapeXml(nota.data_entrega ? neFormatDate(nota.data_entrega) : "-")}`,
     `Autor: ${neEscapeXml(NE_AUTOR)}`,
   ].join("  |  ");
+
+  // Linha do material/entrega: o material encolhe se for muito comprido,
+  // para nunca invadir o espaço da data de entrega (à direita).
+  const materialTexto = `Material: ${nota.material || "-"}`;
+  const entregaTexto = `Entrega: ${nota.data_entrega ? neFormatDate(nota.data_entrega) : "-"}`;
+  const linha2FontBase = 4.7;
+  const entregaLargura = entregaTexto.length * linha2FontBase * 0.55;
+  const linha2LarguraDisponivel = (pageW - 4) - 6 - entregaLargura - 6;
+  const materialLarguraBase = materialTexto.length * linha2FontBase * 0.55;
+    const materialFontSize = materialLarguraBase > linha2LarguraDisponivel && linha2LarguraDisponivel > 0
+    ? Math.max(2.6, linha2FontBase * (linha2LarguraDisponivel / materialLarguraBase))
+    : linha2FontBase;
+
+  // Linha de gestão/obs: encolhe se for muito comprida, para nunca
+  // invadir o espaço da criação/autor (à direita).
+  const linha3FontBase = 3.6;
+  const linha3DirLargura = linha2Dir.length * linha3FontBase * 0.55;
+  const linha3LarguraDisponivel = (pageW - 6) - 6 - linha3DirLargura - 6;
+  const linha3EsqLarguraBase = linha2Esq.length * linha3FontBase * 0.55;
+  const linha3EsqFontSize = linha3EsqLarguraBase > linha3LarguraDisponivel && linha3LarguraDisponivel > 0
+    ? Math.max(2.2, linha3FontBase * (linha3LarguraDisponivel / linha3EsqLarguraBase))
+    : linha3FontBase;
 
   return `
     <svg xmlns="${'http://www.w3.org/2000/svg'}" viewBox="0 0 ${pageW} ${pageH}" width="${pageW}mm" height="${pageH}mm">
       <rect x="0" y="0" width="${pageW}" height="${pageH}" fill="#ffffff"/>
 
       <!-- Cabeçalho: linha 1 = cliente (esq.) / nº (dir.) -->
-      <text x="6" y="8" font-family="Arial, sans-serif" font-size="4.4" font-weight="bold" fill="#22333B">${neEscapeXml(nota.cliente_nome || "")}</text>
-      <text x="${pageW - 6}" y="8" font-family="Arial, sans-serif" font-size="4.4" font-weight="bold" fill="#22333B" text-anchor="end">${neEscapeXml(numero)}</text>
+      <text x="6" y="9" font-family="Arial, sans-serif" font-size="5.2" font-weight="bold" fill="#22333B">${neEscapeXml(nota.cliente_nome || "")}</text>
+      <text x="${pageW - 6}" y="9" font-family="Arial, sans-serif" font-size="5.2" font-weight="bold" fill="#22333B" text-anchor="end">${neEscapeXml(numero)}</text>
 
-      <!-- Cabeçalho: linha 2 = material | gestão | obs (esq.) / criação | entrega | autor (dir.) -->
-      <text x="6" y="14" font-family="Arial, sans-serif" font-size="3" fill="#2e4752">${linha2Esq}</text>
-      <text x="${pageW - 6}" y="14" font-family="Arial, sans-serif" font-size="3" fill="#2e4752" text-anchor="end">${linha2Dir}</text>
+           <!-- Cabeçalho: linha 2 = material (esq., mesmo tamanho do cliente) / data de entrega (dir., o mais à direita possível) -->
+      <text x="6" y="16" font-family="Arial, sans-serif" font-size="${materialFontSize.toFixed(2)}" font-weight="bold" fill="#22333B">${neEscapeXml(materialTexto)}</text>
+      <text x="${pageW - 4}" y="16" font-family="Arial, sans-serif" font-size="${linha2FontBase}" font-weight="bold" fill="#22333B" text-anchor="end">${neEscapeXml(entregaTexto)}</text>
 
+      <!-- Cabeçalho: linha 3 = gestão | obs (esq.) / criação | autor (dir.) -->
+      <text x="6" y="23" font-family="Arial, sans-serif" font-size="${linha3EsqFontSize.toFixed(2)}" fill="#2e4752">${linha2Esq}</text>
+      <text x="${pageW - 6}" y="23" font-family="Arial, sans-serif" font-size="${linha3FontBase}" fill="#2e4752" text-anchor="end">${linha2Dir}</text>
       <line x1="4" y1="${headerH - 1}" x2="${pageW - 4}" y2="${headerH - 1}" stroke="#22333B" stroke-width="0.4"/>
 
       <!-- Folha de desenho: fundo sempre branco, sem grelha -->
-            <g transform="translate(${outerOffsetX}, ${headerH}) scale(${outerScale})">
+      <g transform="translate(${outerOffsetX}, ${headerH}) scale(${outerScale})">
                 <rect x="0" y="0" width="${pageW}" height="${pageH}" fill="#ffffff"/>
         <defs>${defsMarkup}</defs>
-        ${shapesMarkup}
+                ${shapesMarkup}
         ${dimsMarkup}
         ${polishMarkup}
+        ${rodamaoMarkup}
       </g>
     </svg>
   `;

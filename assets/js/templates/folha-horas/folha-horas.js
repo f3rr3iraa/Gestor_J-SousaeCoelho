@@ -663,7 +663,7 @@ window.initFolhaHoras = async function () {
           <p>Paços de Ferreira, Portugal</p>
         </div>
         <div class="fh-header-funcionario">
-          <div class="fh-titulo">Registo de Horas Extra</div>
+          <div class="fh-titulo">Registo de Horas</div>
           <div class="fh-nome-func">${funcionario.nome}</div>
         </div>
       </div>

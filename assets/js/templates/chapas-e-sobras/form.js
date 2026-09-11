@@ -101,7 +101,6 @@ itemForm.addEventListener("submit", async (e) => {
   const formData = new FormData(itemForm);
   const selectedWebsiteKey = formData.get("marca");
   const nome = formData.get("nome");
-  const lote = formData.get("lote");
   const tipo = formData.get("tipo");
   const comprimento = parseFloat(formData.get("comprimento")) || 0;
   const largura = parseFloat(formData.get("largura")) || 0;
@@ -162,7 +161,7 @@ itemForm.addEventListener("submit", async (e) => {
   try {
     const { data, error } = await supabase
       .from("items")
-      .insert([{ nome, marca, lote, tipo, comprimento, largura, espessura, observacoes, foto: fotoUrl }])
+      .insert([{ nome, marca, tipo, comprimento, largura, espessura, observacoes, foto: fotoUrl }])
       .select();
 
     if (error) throw error;

@@ -119,38 +119,38 @@
     </a></li>
   </ul>
 </div>
-<div class="btn-group" role="group">
-  <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neAddArrow90Btn"
-          data-bs-toggle="dropdown" aria-expanded="false" title="Adicionar seta em esquadria (90º)">
-    <i class="bi bi-arrow-90deg-up me-1"></i> Seta 90º
-  </button>
-  <ul class="dropdown-menu" aria-labelledby="neAddArrow90Btn">
-    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="up">
-      <i class="bi bi-arrow-90deg-up me-2"></i>Para cima
-    </a></li>
-    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="down">
-      <i class="bi bi-arrow-90deg-down me-2"></i>Para baixo
-    </a></li>
-    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="left">
-      <i class="bi bi-arrow-90deg-left me-2"></i>Para a esquerda
-    </a></li>
-    <li><a class="dropdown-item ne-arrow90-dir" href="#" data-dir="right">
-      <i class="bi bi-arrow-90deg-right me-2"></i>Para a direita
-    </a></li>
-  </ul>
-</div>
+<button type="button" class="btn-form ne-btn-sm" id="neAddArrow90" title="Adicionar seta em esquadria (90º): clica onde começa e depois onde acaba">
+  <i class="bi bi-arrow-90deg-up me-1"></i> Seta 90º
+</button>
                               <button type="button" class="btn-form ne-btn-sm" id="neAddBrace" title="Adicionar chaveta { }">
           <i class="bi bi-braces me-1"></i> Chaveta
         </button>
-        <button type="button" class="btn-form ne-btn-sm" id="neAddFrisos" title="Adicionar grupo de 5 frisos horizontais">
+                <button type="button" class="btn-form ne-btn-sm" id="neAddFrisos" title="Adicionar grupo de 5 frisos horizontais">
           <i class="bi bi-stack me-1"></i> Frisos
         </button>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neAddPioBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false" title="Adicionar pio">
+            <i class="bi bi-square-half me-1"></i> Pios
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="neAddPioBtn">
+            <li><a class="dropdown-item ne-pio-option" href="#" data-pio="personalizado">
+              <i class="bi bi-sliders me-2"></i>Personalizado
+            </a></li>
+          </ul>
+        </div>
+        <button type="button" class="btn-form ne-btn-sm" id="neAddRodamao" title="Adicionar rodamão">
+<i class="bi bi-border-width me-1"></i> Rodamão
+</button>
         <button type="button" class="btn-form ne-btn-sm" id="neAddText" title="Adicionar texto">
           <i class="bi bi-fonts me-1"></i> Texto
         </button>
 
         <span class="ne-toolbar-sep"></span>
 
+        <button type="button" class="btn-form ne-btn-sm" id="neToggleParallelMode" title="Selecionar uma linha para criar outra paralela a essa distância">
+          <i class="bi bi-distribute-vertical me-1"></i> Linha Paralela
+        </button>
         <button type="button" class="btn-form ne-btn-sm" id="neToggleEdgeMode" title="Selecionar uma linha para marcar polimento">
           <i class="bi bi-vector-pen me-1"></i> Marcar polimento
         </button>
@@ -225,6 +225,13 @@
         <button type="button" class="btn-form ne-btn-sm" id="neArrowCancel" style="background-color:#6c757d;">Cancelar</button>
       </div>
 
+            <!-- Barra de desenho de seta 90º (só aparece enquanto se desenha) -->
+      <div class="ne-poly-bar d-none" id="neArrow90Bar">
+        <i class="bi bi-info-circle me-1"></i>
+        A desenhar seta 90º: clica no ponto inicial, depois no canto da dobra e depois no ponto final. Cada troço encaixa automaticamente na horizontal ou vertical.
+        <button type="button" class="btn-form ne-btn-sm" id="neArrow90Cancel" style="background-color:#6c757d;">Cancelar</button>
+      </div>
+
             <!-- Barra de desenho de polígono (só aparece enquanto se desenha) -->
       <div class="ne-poly-bar d-none" id="nePolyBar">
         <i class="bi bi-info-circle me-1"></i>
@@ -277,7 +284,7 @@
               <label class="text">Medida</label>
               <input type="text" id="neDimValue" class="input w-100" placeholder="Ex: 64.3 cm">
             </div>
-            <div class="coolinput mt-2">
+                        <div class="coolinput mt-2" id="neDimPositionWrap">
               <label class="text">Posição da cota</label>
               <select id="neDimPosition" class="input w-100">
                 <option value="auto">Automática</option>
@@ -330,7 +337,6 @@
                 <input type="number" step="1" min="0" id="neRBR" class="input w-100">
               </div>
             </div>
-
             <div class="coolinput mt-2">
               <label class="text">Etiqueta / referência</label>
               <input type="text" id="neLabelRect" class="input w-100" placeholder="Ex: Peça 1">
@@ -345,6 +351,98 @@
               <label class="form-check-label text" for="neShowDims">Mostrar medidas</label>
             </div>
           </div>
+
+          <!-- PIO (mesmos campos do modal "Novo pio personalizado") -->
+          <div id="neFieldsPio" class="d-none">
+            <div class="coolinput">
+              <label class="text">Comprimento</label>
+              <input type="text" id="nePioWField" class="input w-100" placeholder="Ex: 60 cm ou 0.60">
+            </div>
+            <div class="coolinput">
+              <label class="text">Largura</label>
+              <input type="text" id="nePioHField" class="input w-100" placeholder="Ex: 45 cm ou 0.45">
+            </div>
+            <div class="coolinput">
+              <label class="text">Raio dos cantos (mm)</label>
+              <input type="number" step="1" min="0" id="nePioRaioField" class="input w-100" placeholder="Ex: 20 (opcional)">
+            </div>
+            <div class="coolinput">
+              <label class="text">Nome do pio</label>
+              <input type="text" id="nePioNomeField" class="input w-100" placeholder="Deixa vazio para usar as medidas">
+            </div>
+                          <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="nePioFuroField" checked>
+              <label class="form-check-label text" for="nePioFuroField">Furo de torneira (Ø3,5 cm, centrado, 2 cm acima do pio)</label>
+            </div>
+          </div>
+
+          <!-- RODAMÃO -->
+<div id="neFieldsRodamao" class="d-none">
+   <div class="coolinput">
+    <label class="text">Quantidade</label>
+    <input type="number" min="1" step="1" id="neRodQuantidade" class="input w-100">
+  </div>
+  <div class="coolinput">
+    <label class="text">Texto (dentro da peça)</label>
+    <input type="text" id="neLabelRodamao" class="input w-100" placeholder="Ex: 1.01 x 43.3 x 12">
+  </div>
+
+    <div class="form-check mt-2">
+    <input class="form-check-input" type="checkbox" id="neRodDimsInside">
+    <label class="form-check-label text" for="neRodDimsInside">Cotas por dentro da peça</label>
+  </div>
+   <div class="form-check mt-2">
+    <input class="form-check-input" type="checkbox" id="neRodShowDims">
+    <label class="form-check-label text" for="neRodShowDims">Mostrar medidas</label>
+  </div>
+  <div class="form-check mt-2">
+    <input class="form-check-input" type="checkbox" id="neRodShowRect" checked>
+    <label class="form-check-label text" for="neRodShowRect">Mostrar retângulo</label>
+  </div>
+
+  <button type="button" class="btn-form ne-btn-sm mt-3" id="neRodMaisPropBtn" style="background-color:#6c757d;">
+    <i class="bi bi-chevron-down me-1"></i> Mais propriedades
+  </button>
+
+  <div id="neRodMaisProp" class="d-none mt-2">
+    <div class="coolinput mt-1">
+      <label class="text">Comprimento</label>
+      <input type="text" id="neRodW" class="input w-100" placeholder="Ex: 45 cm">
+    </div>
+    <div class="coolinput mt-1">
+      <label class="text">Largura</label>
+      <input type="text" id="neRodH" class="input w-100" placeholder="Ex: 10 cm">
+    </div>
+
+    <label class="text mt-3 mb-2 d-block">Raio dos cantos (mm)</label>
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" id="neRodRGroup">
+      <label class="form-check-label text" for="neRodRGroup">Todos em grupo</label>
+    </div>
+    <div class="coolinput mt-1 d-none" id="neRodRAllWrap">
+      <label class="text">Todos os cantos</label>
+      <input type="number" step="1" min="0" id="neRodRAll" class="input w-100">
+    </div>
+    <div class="ne-corner-grid mt-1" id="neRodRGridWrap">
+      <div class="coolinput">
+        <label class="text">Sup. esq.</label>
+        <input type="number" step="1" min="0" id="neRodRTL" class="input w-100">
+      </div>
+      <div class="coolinput">
+        <label class="text">Sup. dir.</label>
+        <input type="number" step="1" min="0" id="neRodRTR" class="input w-100">
+      </div>
+      <div class="coolinput">
+        <label class="text">Inf. esq.</label>
+        <input type="number" step="1" min="0" id="neRodRBL" class="input w-100">
+      </div>
+      <div class="coolinput">
+        <label class="text">Inf. dir.</label>
+        <input type="number" step="1" min="0" id="neRodRBR" class="input w-100">
+      </div>
+    </div>
+  </div>
+</div>
 
           <!-- CÍRCULO -->
           <div id="neFieldsCircle" class="d-none">
@@ -400,6 +498,8 @@
             </div>
             <div class="ne-panel-hint">Arrasta as duas pontas para posicionar a linha.</div>
           </div>
+
+ 
 
                     <!-- CHAVETA -->
           <div id="neFieldsBrace" class="d-none">
@@ -510,6 +610,81 @@
     </div>
   </div>
 </div>
+<!-- Modal para introduzir as medidas do Pio personalizado -->
+<div class="modal fade" id="neModalAddPio" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-square-half me-2"></i>Novo pio personalizado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="coolinput mb-3">
+          <label class="text">Comprimento</label>
+          <input type="text" id="nePioComprimento" class="input w-100" placeholder="Ex: 60 cm ou 0.60">
+        </div>
+        <div class="coolinput mb-3">
+          <label class="text">Largura</label>
+          <input type="text" id="nePioLargura" class="input w-100" placeholder="Ex: 45 cm ou 0.45">
+        </div>
+               <div class="coolinput mb-3">
+          <label class="text">Raio dos cantos (mm)</label>
+          <input type="number" step="1" min="0" id="nePioRaio" class="input w-100" placeholder="Ex: 20 (opcional)">
+        </div>
+        <div class="coolinput mb-3">
+          <label class="text">Nome do pio</label>
+          <input type="text" id="nePioNome" class="input w-100" placeholder="Ex: Pio 1 - Cozinha (deixa vazio para usar as medidas)">
+        </div>
+                <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="nePioFuro" checked>
+          <label class="form-check-label text" for="nePioFuro">Furo de torneira (Ø3,5 cm, centrado, 2 cm acima do pio)</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="nePioConfirm">
+          <i class="bi bi-check-lg me-2"></i> Adicionar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para introduzir os dados do Rodamão -->
+<div class="modal fade" id="neModalAddRodamao" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-border-width me-2"></i>Novo rodamão</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="coolinput mb-3">
+          <label class="text">Quantidade</label>
+          <input type="number" min="1" step="1" id="neRodamaoQuantidade" class="input w-100" value="1">
+        </div>
+        <div class="coolinput mb-3">
+  <label class="text">Comprimento</label>
+  <input type="text" id="neRodamaoComprimento" class="input w-100" placeholder="Ex: 35">
+</div>
+<div class="coolinput mb-3">
+  <label class="text">Largura</label>
+  <input type="text" id="neRodamaoLargura" class="input w-100" placeholder="Ex: 15">
+</div>
+<div class="coolinput">
+  <label class="text">Espessura *</label>
+  <input type="text" id="neRodamaoEspessura" class="input w-100" placeholder="Ex: 2" required>
+</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="neRodamaoConfirm">
+          <i class="bi bi-check-lg me-2"></i> Adicionar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal de Pré-visualização / Impressão -->
 <div class="modal fade" id="neModalPreview" tabindex="-1" aria-hidden="true">
@@ -573,6 +748,34 @@
       <div class="modal-footer">
         <button type="button" class="btn-form" id="neModalDimValueConfirm">
           <i class="bi bi-check-lg me-2"></i> Concluído
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para introduzir a distância da linha paralela -->
+<div class="modal fade" id="neModalParallelValue" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-distribute-vertical me-2"></i>Linha paralela</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="coolinput">
+          <label class="text">Distância</label>
+          <input type="text" id="neModalParallelValueInput" class="input w-100" placeholder="Ex: 5 cm ou -5 cm">
+        </div>
+        <div class="ne-panel-hint mt-2">
+          Positivo cria a linha para a direita (a seguir o sentido em que
+          desenhaste/selecionaste a linha); negativo cria para a esquerda.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" id="neModalParallelCancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="neModalParallelConfirm">
+          <i class="bi bi-check-lg me-2"></i> Criar
         </button>
       </div>
     </div>

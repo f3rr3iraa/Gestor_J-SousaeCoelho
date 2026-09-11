@@ -44,7 +44,8 @@ async function initHomeSupabase(filtroEstado = "on", preservarPaginacao = false)
     // LOADING (só se NÃO for realtime)
     // ============================
     if (!window.isRealtimeUpdate) {
-      tableBody.innerHTML = `<tr><td colspan="10">A carregar dados...</td></tr>`;
+      const colspanAtual = filtroEstado === "nosso" ? 10 : 9;
+tableBody.innerHTML = `<tr><td colspan="${colspanAtual}">A carregar dados...</td></tr>`;
     }
 
     // ============================
@@ -64,7 +65,7 @@ async function initHomeSupabase(filtroEstado = "on", preservarPaginacao = false)
 
     if (error) {
       if (!window.isRealtimeUpdate) {
-        tableBody.innerHTML = `<tr><td colspan="10">Erro ao carregar dados: ${error.message}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="9">Erro ao carregar dados: ${error.message}</td></tr>`;
       }
       showMessage(`Erro ao carregar dados: ${error.message}`, "danger");
       window.isRealtimeUpdate = false;
@@ -76,7 +77,7 @@ async function initHomeSupabase(filtroEstado = "on", preservarPaginacao = false)
     // ============================
     if (!data || data.length === 0) {
       if (!window.isRealtimeUpdate) {
-        tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="9">Nenhum produto encontrado.</td></tr>`;
       }
 
       window.dadosOriginais = [];
@@ -116,7 +117,7 @@ async function initHomeSupabase(filtroEstado = "on", preservarPaginacao = false)
   } catch (err) {
     const tableBody = document.getElementById("itemsBody");
     if (!window.isRealtimeUpdate && tableBody) {
-      tableBody.innerHTML = `<tr><td colspan="10">Erro inesperado ao carregar dados.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="9">Erro inesperado ao carregar dados.</td></tr>`;
     }
     showMessage("Erro inesperado ao carregar dados.", "danger");
     console.error(err);
@@ -261,7 +262,7 @@ function renderTabela(lista, estadoAtual) {
   if (!tableBody) return;
 
   if (!lista || lista.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="10">Nenhum produto encontrado.</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="9">Nenhum produto encontrado.</td></tr>`;
     return;
   }
 
@@ -283,16 +284,21 @@ function renderTabela(lista, estadoAtual) {
       const marcaenomeeespessura = `${item.marca ?? ""} - ${item.nome ?? ""} ${
         item.espessura ?? ""
       }`;
+            const clienteCol =
+        estadoAtual === "nosso"
+          ? `<td>${escapeHtml(item.cliente ?? "")}</td>`
+          : "";
+
       return `
             <tr data-id="${escapeHtml(String(item.id))}">
                 <td>${escapeHtml(String(item.id))}</td>
                 <td>${escapeHtml(marcaenomeeespessura ?? "")}</td>
                 <td>${escapeHtml(item.comprimento ?? "")}</td>
                 <td>${escapeHtml(item.largura ?? "")}</td>
-                <td>${escapeHtml(item.lote ?? "")}</td>
                 <td>${escapeHtml(item.tipo ?? "")}</td>
                 <td>${fotoHtml}</td>
                 <td>${escapeHtml(item.observacoes ?? "")}</td>
+                ${clienteCol}
                 <td>${escapeHtml(dataCol)}</td>
                 <td>
                     ${
@@ -538,10 +544,20 @@ function configurarEventosTabela() {
     moveNossoModal?.show();
   }
 
-  document
+   document
     .getElementById("confirmMoveNossoBtn")
     ?.addEventListener("click", async () => {
       if (!itemToMoveNosso) return;
+
+      // 🔹 VALIDAR campo Cliente obrigatório
+      const clienteInput = document.getElementById("moveNossoCliente");
+      const clienteValor = clienteInput?.value.trim() || "";
+
+      if (!clienteValor) {
+        showMessage("Por favor, indica o nome do cliente.", "danger");
+        clienteInput?.focus();
+        return;
+      }
 
       const pageKey = window.currentRoute || window.location.pathname;
       const paginaAnterior = paginacaoPorPagina[pageKey]?.paginaAtual || 1;
@@ -556,6 +572,7 @@ function configurarEventosTabela() {
         .update({
           estado: "nosso",
           data_off: new Date().toISOString(),
+          cliente: clienteValor,
         })
         .eq("id", itemToMoveNosso.id);
 
@@ -595,10 +612,12 @@ function configurarEventosTabela() {
         renderTabelaComPaginacao(dadosFiltrados, pageKey);
       }
 
+      // 🔹 Limpar campo cliente para a próxima vez
+      if (clienteInput) clienteInput.value = "";
+
       moveNossoModal?.hide();
       itemToMoveNosso = null;
     });
-
   // EDIT (Offcanvas)
   document.querySelectorAll(".btn-edit").forEach((btn) => {
     btn.removeEventListener?.("click", onEditClick);
@@ -647,7 +666,6 @@ function configurarEventosTabela() {
 
     document.getElementById("editId").value = item.id;
     document.getElementById("editNome").value = item.nome ?? "";
-    document.getElementById("editLote").value = item.lote ?? "";
     document.getElementById("editTipo").value = item.tipo ?? "";
     document.getElementById("editComprimento").value = item.comprimento ?? "";
     document.getElementById("editLargura").value = item.largura ?? "";
@@ -751,7 +769,6 @@ window.addEventListener("load", () => {
       const updatedItem = {
         marca: document.getElementById("editMarca").value || null,
         nome: document.getElementById("editNome").value || null,
-        lote: document.getElementById("editLote").value || null,
         tipo: document.getElementById("editTipo").value || null,
         comprimento: document.getElementById("editComprimento").value || null,
         largura: document.getElementById("editLargura").value || null,

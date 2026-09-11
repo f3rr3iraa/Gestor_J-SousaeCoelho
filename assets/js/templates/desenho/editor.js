@@ -20,6 +20,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const NE_EDGE_CLICK_THRESHOLD = 2.5; // mm no desenho — abaixo disto conta como "clique", acima é "arrasto" (troço parcial)
 const NE_MIN_POLISH_SEGMENT = 0.015; // fração mínima (0-1) de uma aresta para um troço de polimento contar
 const NE_LINE_STRAIGHT_TOL = 0.5; // mm reais — abaixo disto a linha é considerada "reta" (horizontal/vertical) e fica verde
+const NE_ARROW90_SWITCH_RATIO = 2; // seta 90º automática: só troca o lado da dobra quando o outro eixo passar a dominar claramente (histerese), para não ficar sensível perto da diagonal
 
 function neNiceScaleAtLeast(x) {
   // Passos mais finos do que antes (1, 2, 2.5, 5) para evitar saltos bruscos
@@ -197,6 +198,7 @@ function neArrow90Points(s) {
     x2: s.cx + Math.cos(a2) * s.len2, y2: s.cy + Math.sin(a2) * s.len2,
   };
 }
+window.neArrow90Points = neArrow90Points;
 
 // Gera os pontos de controlo de uma chaveta "{" ou "}" entre dois pontos.
 // width = curvatura/profundidade em mm reais (negativo inverte o lado).
@@ -216,6 +218,20 @@ function neBracePoints(x1, y1, x2, y2, width, q) {
   return { x1, y1, qx1, qy1, qx2, qy2, tx1, ty1, x2, y2, qx3, qy3, qx4, qy4 };
 }
 window.neBracePoints = neBracePoints;
+
+// Estimativa (sem medir o DOM) da largura do bloco "círculo + texto" do
+// Rodamão — usada só para a folha se ajustar e incluir esse bloco, que
+// fica fora do retângulo, à esquerda.
+function neRodamaoLabelWidthEstimate(quantidade, label) {
+  const fontSize = 3.4;
+  const qtdText = String(quantidade ?? 1);
+  const restText = label ? ` - ${label}` : "";
+  const circleR = Math.max(2.2, fontSize * 0.5 + 0.5 * qtdText.length + 0.6);
+  const gap = 1.2;
+  const restWidth = restText.length * fontSize * 0.6;
+  return circleR * 2 + (restText ? gap + restWidth : 0);
+}
+window.neRodamaoLabelWidthEstimate = neRodamaoLabelWidthEstimate;
 
 function neShapeBBox(s) {
   if (s.type === "rect") return { minX: s.x, minY: s.y, maxX: s.x + s.w, maxY: s.y + s.h };
@@ -391,24 +407,40 @@ const NE_UNDO_MAX = 50;
 let undoDebouncePending = false;
 let undoDebounceTimer = null;
 
-  let drag = null;
+    let drag = null;
   let polyDraft = null; // { points:[{x,y}], preview:{x,y}|null, aligned:boolean }
   let lineDraft = null; // { points:[{x,y}], preview:{x,y}|null, aligned:boolean, dashed:boolean }
-    let arrowDraft = null; // { points:[{x,y}], preview:{x,y}|null, aligned:boolean }
+  let arrowDraft = null; // { points:[{x,y}], preview:{x,y}|null, aligned:boolean } — seta reta (2 cliques)
+  let arrow90Draft = null; // { points:[{x,y}], preview:{x,y}|null } — seta 90º automática (2 cliques)
     let guideLines = { v: null, h: null };
   let hoverEdgeInfo = null; // { id, idx } — aresta em destaque (vermelho) no modo "edge"
-  let dimSelection = null; // { shapeId, edgeIdx } — aresta escolhida no modo "Cota manual"
+   let dimSelection = null; // { shapeId, edgeIdx } — aresta escolhida no modo "Cota manual"
   let onDimChangeCb = null;
 
-    function emitDimChange() {
+  let paraHover = null;      // {a,b} reais — segmento em destaque (hover) no modo "Linha paralela"
+  let paraSelection = null;  // {a,b} reais — segmento confirmado (clicado) no modo "Linha paralela"
+  let onParallelChangeCb = null;
+
+      function emitDimChange() {
     if (typeof onDimChangeCb !== "function") return;
     if (!dimSelection) { onDimChangeCb(null); return; }
     const s = getShape(dimSelection.shapeId);
-    if (!s || !s.edges || !s.edges[dimSelection.edgeIdx]) { onDimChangeCb(null); return; }
+    if (!s) { onDimChangeCb(null); return; }
+    if (dimSelection.edgeIdx === null) {
+      onDimChangeCb({
+        shapeId: s.id, edgeIdx: null,
+        dimValue: s.dimValue ?? null,
+        dimInside: undefined,
+        shapeLevel: true,
+      });
+      return;
+    }
+    if (!s.edges || !s.edges[dimSelection.edgeIdx]) { onDimChangeCb(null); return; }
     onDimChangeCb({
       shapeId: s.id, edgeIdx: dimSelection.edgeIdx,
       dimValue: s.edges[dimSelection.edgeIdx].dimValue ?? null,
       dimInside: s.edges[dimSelection.edgeIdx].dimInside,
+      shapeLevel: false,
     });
   }
 
@@ -495,8 +527,14 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
   function computeBBox() {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const consider = (x, y) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
-    shapes.forEach((s) => {
-            if (s.type === "rect") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
+       shapes.forEach((s) => {
+            if (s.type === "rect") {
+        consider(s.x, s.y); consider(s.x + s.w, s.y + s.h);
+        if (s.isRodamao) {
+          const extra = neRodamaoLabelWidthEstimate(s.quantidade, s.label) + 3;
+          consider(s.x - extra, s.y);
+        }
+      }
       else if (s.type === "frisos") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
       else if (s.type === "circle") { consider(s.cx - s.radius, s.cy - s.radius); consider(s.cx + s.radius, s.cy + s.radius); }
       else if (s.type === "polygon") s.points.forEach((p) => consider(p.x, p.y));
@@ -509,6 +547,24 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
     if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 400 , maxY: 300 };
     return { minX, minY, maxX, maxY };
   }
+
+        // Escala "ideal" (mais pequena que ainda cabe) para a bbox atual —
+    // usada tanto para crescer como para detetar quando vale a pena encolher.
+    function neIdealDenFor(bbox, drawAreaW, drawAreaH) {
+      const realW = Math.max(bbox.maxX - bbox.minX, NE_MIN_REAL);
+      const realH = Math.max(bbox.maxY - bbox.minY, NE_MIN_REAL);
+      return neNiceScaleAtLeast(Math.max(realW / drawAreaW, realH / drawAreaH, 1) * 1.05);
+    }
+
+    // Só vale a pena encolher a escala automática quando o desenho já
+    // encolheu bastante (ex: apagou-se uma peça grande) — evita ficar a
+    // "tremer" por pequenas variações, mas garante que a escala desce
+    // sozinha quando já não faz sentido continuar tão grande.
+    const NE_SHRINK_MARGIN = 0.7;
+    function podeEncolherEscala(fixedDenAtual, bbox, drawAreaW, drawAreaH) {
+      const ideal = neIdealDenFor(bbox, drawAreaW, drawAreaH);
+      return ideal <= fixedDenAtual * NE_SHRINK_MARGIN;
+    }
 
     function computeView() {
     const drawAreaW = NE_PAGE_W - NE_MARGIN_L - NE_MARGIN_R;
@@ -529,15 +585,14 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
     if (scaleDen) {
       // escala escolhida manualmente pelo utilizador — respeita sempre
       origin = fixedOrigin && fits(scaleDen, fixedOrigin) ? fixedOrigin : { x: bbox.minX, y: bbox.minY };
-    } else if (fixedDen && fits(fixedDen, fixedOrigin)) {
-      // ainda cabe tudo na escala/origem atual -> NÃO mexer em nada
+    } else if (fixedDen && fits(fixedDen, fixedOrigin) && !podeEncolherEscala(fixedDen, bbox, drawAreaW, drawAreaH)) {
+      // ainda cabe tudo na escala/origem atual e não vale a pena encolher -> NÃO mexer em nada
       den = fixedDen;
       origin = fixedOrigin;
     } else {
-      // só recalcula quando deixou mesmo de caber (ou é a 1ª peça)
-      const realW = Math.max(bbox.maxX - bbox.minX, NE_MIN_REAL);
-      const realH = Math.max(bbox.maxY - bbox.minY, NE_MIN_REAL);
-      den = neNiceScaleAtLeast(Math.max(realW / drawAreaW, realH / drawAreaH, 1) * 1.05);
+      // recalcula: ou deixou de caber, ou já encolheu o suficiente para
+      // fazer sentido usar uma escala mais pequena
+      den = neIdealDenFor(bbox, drawAreaW, drawAreaH);
       origin = { x: bbox.minX, y: bbox.minY };
     }
 
@@ -575,19 +630,21 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
     const renderOrder = [...shapes.filter((s) => !selectedIds.has(s.id)), ...shapes.filter((s) => selectedIds.has(s.id))];
     renderOrder.forEach((s) => renderShape(s, view));
 
-                if (dimSelection && !getShape(dimSelection.shapeId)) dimSelection = null;
+                          if (dimSelection && !getShape(dimSelection.shapeId)) dimSelection = null;
     drawManualEdgeDims(view);
+    drawShapeDimValues(view);
     if (dimSelection && tool === "dim") drawDimSelectionHighlight(view);
 
-            if (polyDraft) drawPolyDraft(view);
+                 if (polyDraft) drawPolyDraft(view);
     if (lineDraft) drawLineDraft(view);
     if (arrowDraft) drawArrowDraft(view);
+    if (arrow90Draft) drawArrow90Draft(view);
     if (drag && drag.type === "edgeRange") drawEdgeRangePreview(view);
     if (drag && drag.type === "marquee") drawMarquee();
 
-    if (selectedIds.size === 1) drawHandles(getShape([...selectedIds][0]), view);
+     if (selectedIds.size === 1) drawHandles(getShape([...selectedIds][0]), view);
 
-    drawEdgeHover(view);
+    if (tool === "parallel") drawParallelHighlight(view); else drawEdgeHover(view);
 
     emitChange();
   }
@@ -671,7 +728,7 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     }
     // "inside" (peças dos dois lados): sem a linha de ponta a ponta —
     // fica só o texto da medida, bem visível por cima da peça.
-    const wLabelY = wMode === "top" ? topY - 1.2 : wMode === "inside" ? topY : topY + 3.6;
+    const wLabelY = wMode === "top" ? topY - 1.2 : wMode === "inside" ? topY : topY + 4.6;
         const wLabel = neCreateSvgEl("text", { x: x + w / 2, y: wLabelY, "text-anchor": "middle", "font-family": "Arial, sans-serif", "font-size": "4.4", "letter-spacing": "0.5", fill: "#22333B" });
     wLabel.textContent = neFormatMeasure(s.w);
     appendLabelBg(x + w / 2, wLabelY, wLabel);
@@ -698,18 +755,25 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     appendLabelBg(hLabelX, y + h / 2, hLabel);
   }
 
-  function renderShape(s, view) {
+    function renderShape(s, view) {
     if (s.type === "rect") {
       const x = r2dX(s.x, view), y = r2dY(s.y, view);
       const w = r2dLen(s.w, view), h = r2dLen(s.h, view);
+      const showRect = s.showRect !== false;
       const path = neCreateSvgEl("path", {
         d: neRectPath(x, y, w, h, (s.r || [0, 0, 0, 0]).map((v) => r2dLen(v, view))),
-        fill: shapeFill(s), stroke: shapeStroke(s), "stroke-width": shapeStrokeW(s),
+        fill: showRect ? shapeFill(s) : "transparent",
+        stroke: showRect ? shapeStroke(s) : "none",
+        "stroke-width": shapeStrokeW(s),
         class: "ne-shape", "data-id": s.id,
       });
       attachSelect(path, s);
       shapesLayer.appendChild(path);
-            if (s.label) appendCenteredLabel(x + w / 2, y + h / 2, s.label);
+      if (s.isRodamao) {
+        drawRodamaoLabel(x - 3, y + h / 2, s.quantidade, s.label);
+      } else if (s.label) {
+        appendCenteredLabel(x + w / 2, y + h / 2, s.label);
+      }
       drawPolishForEdges(s, neShapeVertices(s), view);
       if (s.showDims !== false) drawRectDimensions(s, view, x, y, w, h);
     } else if (s.type === "circle") {
@@ -754,20 +818,28 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
       line.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
       shapesLayer.appendChild(line);
             if (s.label) appendPlainLabel((x1 + x2) / 2, (y1 + y2) / 2 - 1.5, s.label);
-            } else if (s.type === "line") {
+         } else if (s.type === "line") {
       const x1 = r2dX(s.x1, view), y1 = r2dY(s.y1, view), x2 = r2dX(s.x2, view), y2 = r2dY(s.y2, view);
       const isSelected = selectedIds.has(s.id);
       const isStraight = Math.abs(s.x1 - s.x2) < NE_LINE_STRAIGHT_TOL || Math.abs(s.y1 - s.y2) < NE_LINE_STRAIGHT_TOL;
-      // o verde só aparece enquanto a linha está selecionada (feedback ao
-      // ajustar); assim que deixa de estar selecionada, volta à cor normal
       const lineColor = (isSelected && isStraight) ? "#2ecc71" : (isSelected ? "#22333B" : "#333");
+
+      // Zona de toque invisível, mais larga do que a linha visível — só
+      // para facilitar clicar/tocar; a linha continua fina.
+      const hitLine = neCreateSvgEl("line", {
+        x1, y1, x2, y2, stroke: "transparent", "stroke-width": "4",
+        "stroke-linecap": "round", class: "ne-shape", "data-id": s.id,
+      });
+      hitLine.style.cursor = "move";
+      hitLine.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
+      shapesLayer.appendChild(hitLine);
+
       const line = neCreateSvgEl("line", {
         x1, y1, x2, y2, stroke: lineColor, "stroke-width": isSelected ? "0.8" : "0.6",
         class: "ne-shape", "data-id": s.id,
         ...(s.dashed ? { "stroke-dasharray": "2,1.4" } : {}),
       });
-      line.style.cursor = "move";
-      line.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
+      line.style.pointerEvents = "none";
       shapesLayer.appendChild(line);
             if (s.label) appendPlainLabel((x1 + x2) / 2, (y1 + y2) / 2 - 1.5, s.label);
     } else if (s.type === "brace") {
@@ -791,19 +863,30 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
       path.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
       shapesLayer.appendChild(path);
       if (s.label) appendPlainLabel(dp.tx1 + (width >= 0 ? 3 : -3), dp.ty1, s.label);
-    } else if (s.type === "arrow90") {
+        } else if (s.type === "arrow90") {
       const p = neArrow90Points(s);
       const x1 = r2dX(p.x1, view), y1 = r2dY(p.y1, view);
       const cx = r2dX(p.cx, view), cy = r2dY(p.cy, view);
       const x2 = r2dX(p.x2, view), y2 = r2dY(p.y2, view);
       ensureArrowMarker();
+      const dAttr = `M ${x2} ${y2} L ${cx} ${cy} L ${x1} ${y1}`;
+
+      // Zona de toque invisível, mais larga do que a linha visível — igual
+      // ao truque usado na "Linha" — só para facilitar clicar/tocar.
+      const hitPath = neCreateSvgEl("path", {
+        d: dAttr, fill: "none", stroke: "transparent", "stroke-width": "4",
+        "stroke-linecap": "round", "stroke-linejoin": "round", class: "ne-shape", "data-id": s.id,
+      });
+      hitPath.style.cursor = "move";
+      hitPath.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
+      shapesLayer.appendChild(hitPath);
+
       const path = neCreateSvgEl("path", {
-        d: `M ${x2} ${y2} L ${cx} ${cy} L ${x1} ${y1}`, fill: "none",
+        d: dAttr, fill: "none",
         stroke: selectedIds.has(s.id) ? "#22333B" : "#333", "stroke-width": "0.6",
         "marker-end": "url(#neArrowHead)", class: "ne-shape", "data-id": s.id,
       });
-      path.style.cursor = "move";
-      path.addEventListener("pointerdown", (e) => onShapePointerDown(e, s.id));
+      path.style.pointerEvents = "none";
       shapesLayer.appendChild(path);
       if (s.label) appendPlainLabel((cx + x1) / 2, (cy + y1) / 2 - 1.5, s.label);
          } else if (s.type === "frisos") {
@@ -863,7 +946,46 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     const el = neCreateSvgEl("text", { x, y, "text-anchor": "middle", "dominant-baseline": "middle", "font-size": "3.4", fill: "#22333B", class: "ne-shape-label" });
     el.textContent = text; el.style.pointerEvents = "none";
     shapesLayer.appendChild(el);
+  } 
+    function drawRodamaoLabel(anchorX, cy, quantidade, label) {
+    const fontSize = 3.4;
+    const qtdText = String(quantidade ?? 1);
+    const restText = label ? ` - ${label}` : "";
+
+    // mede o texto "resto" de verdade (em vez de estimar), para o
+    // conjunto ficar sempre exatamente encostado a anchorX
+    let restWidth = 0;
+    if (restText) {
+      const measureEl = neCreateSvgEl("text", { x: 0, y: 0, "font-size": fontSize, visibility: "hidden" });
+      measureEl.textContent = restText;
+      svg.appendChild(measureEl);
+      restWidth = measureEl.getBBox().width;
+      svg.removeChild(measureEl);
+    }
+
+    const circleR = Math.max(2.2, fontSize * 0.5 + 0.5 * qtdText.length + 0.6);
+    const gap = 1.2;
+    const totalWidth = circleR * 2 + (restText ? gap + restWidth : 0);
+    // anchorX é a borda DIREITA do bloco (encostado à esquerda da peça)
+    const startX = anchorX - totalWidth;
+    const circleCx = startX + circleR;
+
+  const circle = neCreateSvgEl("circle", { cx: circleCx, cy, r: circleR, fill: "#ffffff", stroke: "#22333B", "stroke-width": "0.35" });
+  circle.style.pointerEvents = "none";
+  dimsLayer.appendChild(circle);
+
+  const qtdEl = neCreateSvgEl("text", { x: circleCx, y: cy, "text-anchor": "middle", "dominant-baseline": "middle", "font-size": fontSize, "font-weight": "700", fill: "#22333B" });
+  qtdEl.textContent = qtdText;
+  qtdEl.style.pointerEvents = "none";
+  dimsLayer.appendChild(qtdEl);
+
+  if (restText) {
+    const restEl = neCreateSvgEl("text", { x: circleCx + circleR + gap, y: cy, "text-anchor": "start", "dominant-baseline": "middle", "font-size": fontSize, fill: "#22333B" });
+    restEl.textContent = restText;
+    restEl.style.pointerEvents = "none";
+    dimsLayer.appendChild(restEl);
   }
+}
   function appendPlainLabel(x, y, text) {
     const el = neCreateSvgEl("text", { x, y, "text-anchor": "middle", "font-size": "3.2", fill: "#22333B" });
     el.textContent = text; el.style.pointerEvents = "none";
@@ -876,22 +998,56 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     marker.appendChild(neCreateSvgEl("path", { d: "M0,0 L6,3 L0,6 Z", fill: "#22333B" }));
     defs.appendChild(marker);
   }
+  const NE_POLISH_TICK_LEN = 2; // mm no desenho, para cada lado da linha
 
-  function drawPolishForEdges(s, realVerts, view) {
+  function drawPolishTickAt(da, db, t, view) {
+    // traço perpendicular à aresta, centrado exatamente em cima da linha,
+    // no ponto onde o troço de polimento começa/acaba (só quando esse
+    // ponto está a meio da aresta, não nos cantos da peça)
+    const dx = db.x - da.x, dy = db.y - da.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const nx = -uy, ny = ux;
+    const px = da.x + dx * t, py = da.y + dy * t;
+    polishLayer.appendChild(neCreateSvgEl("line", {
+      x1: px - nx * NE_POLISH_TICK_LEN, y1: py - ny * NE_POLISH_TICK_LEN,
+      x2: px + nx * NE_POLISH_TICK_LEN, y2: py + ny * NE_POLISH_TICK_LEN,
+      stroke: "#22333B", "stroke-width": "0.6", "stroke-linecap": "round", "pointer-events": "none",
+    }));
+  }
+
+   function drawPolishForEdges(s, realVerts, view) {
     if (!s.edges || !realVerts.length) return;
     s.edges.forEach((edge, i) => {
       if (!edge.polish) return;
       const a = realVerts[i], b = realVerts[(i + 1) % realVerts.length];
+      const da = { x: r2dX(a.x, view), y: r2dY(a.y, view) };
+      const db = { x: r2dX(b.x, view), y: r2dY(b.y, view) };
       const segments = nePolishToSegments(edge.polish);
-      segments.forEach((seg) => {
+      const lastT = edge.polishLastT;
+      const tol = 0.03;
+        segments.forEach((seg) => {
+        // o tracinho fica no lado onde o rato foi mesmo largado
+        // (polishLastT); só cai no comportamento antigo (canto da peça)
+        // se essa posição não pertencer a este troço
+        let tickT = null;
+        if (lastT !== undefined && lastT !== null) {
+          if (Math.abs(lastT - seg.to) < tol) tickT = seg.to;
+          else if (Math.abs(lastT - seg.from) < tol) tickT = seg.from;
+        }
+        if (tickT === null) {
+          if (seg.to < 0.99) tickT = seg.to;
+          else if (seg.from > 0.01) tickT = seg.from;
+        }
+        if (tickT !== null) drawPolishTickAt(da, db, tickT, view);
+
         const pa = { x: a.x + (b.x - a.x) * seg.from, y: a.y + (b.y - a.y) * seg.from };
         const pb = { x: a.x + (b.x - a.x) * seg.to, y: a.y + (b.y - a.y) * seg.to };
-        const da = { x: r2dX(pa.x, view), y: r2dY(pa.y, view) };
-        const db = { x: r2dX(pb.x, view), y: r2dY(pb.y, view) };
-        const drawnLen = Math.hypot(db.x - da.x, db.y - da.y);
+        const sda = { x: r2dX(pa.x, view), y: r2dY(pa.y, view) };
+        const sdb = { x: r2dX(pb.x, view), y: r2dY(pb.y, view) };
+        const drawnLen = Math.hypot(sdb.x - sda.x, sdb.y - sda.y);
         const count = neCCountForLength(drawnLen);
-        neSegPoints(da, db, count).forEach((p) => {
-          // "C" mesmo em cima da linha (sem deslocamento para fora)
+        neSegPoints(sda, sdb, count).forEach((p) => {
         const c = neCreateSvgEl("text", { x: p.x, y: p.y, "text-anchor": "middle", "dominant-baseline": "middle", "font-family": "Arial, sans-serif", "font-size": "4.6", "font-weight": "700", fill: "#c0392b" });
           c.textContent = "C"; c.style.pointerEvents = "none";
           polishLayer.appendChild(c);
@@ -1004,9 +1160,45 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
           label.textContent = labelText;
           dimsLayer.appendChild(label);
         }
-      });
+           });
     });
   }
+
+  // Desenha a medida manual "de peça toda" (dimValue) para peças sem
+// arestas próprias — seta, linha e seta 90º — como texto centrado sobre
+// a peça, acompanhando o ângulo da linha (mesmo espírito visual das
+// cotas de aresta em drawManualEdgeDims, mas sem linha de cota).
+function drawShapeDimValues(view) {
+  shapes.forEach((s) => {
+    if (s.dimValue === undefined || s.dimValue === null) return;
+    if (s.type !== "arrow" && s.type !== "line" && s.type !== "arrow90") return;
+
+    const DIM_COLOR = "#22333B";
+    let x1, y1, x2, y2;
+    if (s.type === "arrow90") {
+      const p = neArrow90Points(s);
+      x1 = p.x1; y1 = p.y1; x2 = p.x2; y2 = p.y2;
+    } else {
+      x1 = s.x1; y1 = s.y1; x2 = s.x2; y2 = s.y2;
+    }
+
+    const da = { x: r2dX(x1, view), y: r2dY(y1, view) };
+    const db = { x: r2dX(x2, view), y: r2dY(y2, view) };
+    const midX = (da.x + db.x) / 2, midY = (da.y + db.y) / 2 - 2;
+
+    let angDeg = (Math.atan2(db.y - da.y, db.x - da.x) * 180) / Math.PI;
+    if (angDeg >= 90) angDeg -= 180;
+    else if (angDeg < -90) angDeg += 180;
+
+    const label = neCreateSvgEl("text", {
+      x: midX, y: midY, "text-anchor": "middle", "dominant-baseline": "central",
+      "font-family": "Arial, sans-serif", "font-size": "4.4", "letter-spacing": "0.5",
+      fill: DIM_COLOR, transform: `rotate(${angDeg} ${midX} ${midY})`,
+    });
+    label.textContent = neFormatMeasure(s.dimValue);
+    dimsLayer.appendChild(label);
+  });
+}
 
   // Destaca (azul) a aresta atualmente escolhida no modo "Cota manual"
   function drawDimSelectionHighlight(view) {
@@ -1151,38 +1343,41 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
   // ---------------------------------------------------------------
   // GUIAS DE ALINHAMENTO (snap) — genérico, funciona para qualquer tipo
   // ---------------------------------------------------------------
+  // Usa a bbox real (neShapeBBox) para QUALQUER tipo de peça — assim os
+  // guias de alinhamento funcionam com retângulo, círculo, polígono,
+  // frisos, texto, seta, linha, chaveta e seta 90º, todos por igual.
   function collectSnapTargets(excludeIds) {
     const xs = [], ys = [];
     shapes.forEach((s) => {
       if (excludeIds.has(s.id)) return;
-        if (s.type === "rect" || s.type === "frisos") { xs.push(s.x, s.x + s.w / 2, s.x + s.w); ys.push(s.y, s.y + s.h / 2, s.y + s.h); }
-      else if (s.type === "circle") { xs.push(s.cx - s.radius, s.cx, s.cx + s.radius); ys.push(s.cy - s.radius, s.cy, s.cy + s.radius); }
-      else if (s.type === "polygon") {
-        const bx = s.points.map((p) => p.x), by = s.points.map((p) => p.y);
-        xs.push(Math.min(...bx), Math.max(...bx)); ys.push(Math.min(...by), Math.max(...by));
-      }
+      const bb = neShapeBBox(s);
+      if (!bb) return;
+      xs.push(bb.minX, (bb.minX + bb.maxX) / 2, bb.maxX);
+      ys.push(bb.minY, (bb.minY + bb.maxY) / 2, bb.maxY);
     });
     return { xs, ys };
   }
 
-  // Devolve {dx,dy} ajustado para a forma "s" (nas coordenadas ORIGINAIS antes do delta) alinhar
-  function snapDeltaForShape(s, dx, dy, view, excludeIds) {
+  // Calcula {dx,dy} ajustado para a bbox combinada de "items" (lista de
+  // { id, orig }, nas coordenadas ORIGINAIS antes do delta) alinhar com
+  // outra peça — funciona tanto para uma peça isolada como para um
+  // conjunto inteiro a ser arrastado junto (ex: Pio = retângulo + furo).
+  function snapDeltaForItems(items, dx, dy, view, excludeIds) {
     const tol = d2rLen(2, view);
     const { xs, ys } = collectSnapTargets(excludeIds);
-    let candX = [], candY = [];
-        if (s.type === "rect" || s.type === "frisos") {
-      candX = [s.x + dx, s.x + dx + s.w / 2, s.x + dx + s.w];
-      candY = [s.y + dy, s.y + dy + s.h / 2, s.y + dy + s.h];
-    } else if (s.type === "circle") {
-      candX = [s.cx + dx - s.radius, s.cx + dx, s.cx + dx + s.radius];
-      candY = [s.cy + dy - s.radius, s.cy + dy, s.cy + dy + s.radius];
-    } else if (s.type === "polygon") {
-      const bx = s.points.map((p) => p.x + dx), by = s.points.map((p) => p.y + dy);
-      candX = [Math.min(...bx), Math.max(...bx)];
-      candY = [Math.min(...by), Math.max(...by)];
-    } else {
-      return { dx, dy };
-    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    items.forEach((item) => {
+      const bb = neShapeBBox(item.orig);
+      if (!bb) return;
+      minX = Math.min(minX, bb.minX); minY = Math.min(minY, bb.minY);
+      maxX = Math.max(maxX, bb.maxX); maxY = Math.max(maxY, bb.maxY);
+    });
+    if (!isFinite(minX)) return { dx, dy };
+
+    const candX = [minX + dx, (minX + maxX) / 2 + dx, maxX + dx];
+    const candY = [minY + dy, (minY + maxY) / 2 + dy, maxY + dy];
+
     let bestDx = dx, bestDxDist = tol, snapVX = null;
     candX.forEach((cx) => xs.forEach((tx) => { const d = Math.abs(cx - tx); if (d < bestDxDist) { bestDxDist = d; bestDx = dx + (tx - cx); snapVX = tx; } }));
     let bestDy = dy, bestDyDist = tol, snapVY = null;
@@ -1233,6 +1428,107 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     });
     out.sort((a, b) => a.dist - b.dist);
     return out;
+  }
+
+    // ---------------------------------------------------------------
+  // LINHA PARALELA — funciona em cima de QUALQUER linha: aresta de
+  // retângulo/polígono, ou linha/seta/chaveta soltas.
+  // ---------------------------------------------------------------
+  function segmentsOfShapeForParallel(s) {
+    if (s.type === "rect" || s.type === "polygon") {
+      const verts = neShapeVertices(s);
+      return verts.map((a, i) => ({ a, b: verts[(i + 1) % verts.length] }));
+    }
+    if (s.type === "line" || s.type === "arrow" || s.type === "brace") {
+      return [{ a: { x: s.x1, y: s.y1 }, b: { x: s.x2, y: s.y2 } }];
+    }
+    return [];
+  }
+
+  function findClosestLineSegment(realPoint, view) {
+    const maxRealDist = NE_EDGE_HOVER_MAX_DRAW_DIST * view.den;
+    let best = null, bestDist = Infinity;
+    shapes.forEach((s) => {
+      segmentsOfShapeForParallel(s).forEach((seg) => {
+        const d = neDistToSeg(realPoint, seg.a, seg.b);
+        if (d < bestDist && d <= maxRealDist) { bestDist = d; best = seg; }
+      });
+    });
+    return best;
+  }
+
+  function updateParallelHoverFromEvent(e) {
+    const view = currentView || computeView();
+    const p = toSvgPoint(e.clientX, e.clientY);
+    const realPoint = { x: d2rX(p.x, view), y: d2rY(p.y, view) };
+    paraHover = findClosestLineSegment(realPoint, view);
+    render();
+  }
+
+  function drawParallelHighlight(view) {
+    hoverLayer.innerHTML = "";
+    const seg = paraSelection || paraHover;
+    if (!seg) return;
+    const da = { x: r2dX(seg.a.x, view), y: r2dY(seg.a.y, view) };
+    const db = { x: r2dX(seg.b.x, view), y: r2dY(seg.b.y, view) };
+    hoverLayer.appendChild(neCreateSvgEl("line", { x1: da.x, y1: da.y, x2: db.x, y2: db.y, stroke: "#ffffff", "stroke-width": "1.8", "stroke-linecap": "round", "pointer-events": "none" }));
+    hoverLayer.appendChild(neCreateSvgEl("line", { x1: da.x, y1: da.y, x2: db.x, y2: db.y, stroke: "#2ecc71", "stroke-width": "1.1", "stroke-linecap": "round", "pointer-events": "none" }));
+  }
+
+  function emitParallelChange() {
+    if (typeof onParallelChangeCb === "function") {
+      onParallelChangeCb(paraSelection ? { a: paraSelection.a, b: paraSelection.b } : null);
+    }
+  }
+
+  // distanceMm positivo = linha nova para a DIREITA (seguindo o sentido
+  // a->b da linha selecionada); negativo = para a ESQUERDA.
+  function createParallelLine(distanceMm) {
+    if (!paraSelection || isNaN(distanceMm) || distanceMm === 0) {
+      paraSelection = null;
+      emitParallelChange();
+      render();
+      return null;
+    }
+    const { a, b } = paraSelection;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+
+    // Convenção fixa, independente do sentido em que a linha original foi
+    // desenhada/selecionada:
+    // - linha VERTICAL  -> positivo = direita,  negativo = esquerda
+    // - linha HORIZONTAL -> positivo = baixo,    negativo = cima
+    // - linha em diagonal (nem vertical nem horizontal) -> mantém a normal
+    //   relativa ao sentido a->b, como antes.
+    let nx, ny;
+    const isVertical = Math.abs(dx) < NE_LINE_STRAIGHT_TOL;
+    const isHorizontal = Math.abs(dy) < NE_LINE_STRAIGHT_TOL;
+    if (isVertical) {
+      nx = 1; ny = 0;
+    } else if (isHorizontal) {
+      nx = 0; ny = 1;
+    } else {
+      nx = -dy / len; ny = dx / len;
+    }
+
+    const shape = {
+      id: neUid(), type: "line",
+      x1: a.x + nx * distanceMm, y1: a.y + ny * distanceMm,
+      x2: b.x + nx * distanceMm, y2: b.y + ny * distanceMm,
+      dashed: false, label: "",
+    };
+    shapes.push(shape);
+    paraSelection = null;
+    emitParallelChange();
+    selectOnly(shape.id);
+    return shape;
+  }
+
+  function clearParallelSelection() {
+    paraSelection = null;
+    paraHover = null;
+    emitParallelChange();
+    render();
   }
 
   // ---------------------------------------------------------------
@@ -1369,17 +1665,46 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     drawEdgeHover(view);
   }
 
-   function onShapePointerDown(e, id) {
-    // Enquanto se desenha um polígono ou uma linha, um clique em cima de
-    // outra peça não pode selecionar nem arrastar essa peça — tem de
-    // "passar por baixo" para colocar o ponto, como se fosse folha vazia.
-    if (polyDraft || lineDraft) return;
+      function onShapePointerDown(e, id) {
+    // Enquanto se desenha um polígono, linha, seta ou seta 90º, um clique
+    // em cima de outra peça não pode selecionar nem arrastar essa peça —
+    // tem de "passar por baixo" para colocar o ponto, como se fosse folha vazia.
+    if (polyDraft || lineDraft || arrowDraft || arrow90Draft) return;
 
     e.stopPropagation();
     const s = getShape(id);
     if (!s) return;
 
-        if (tool === "edge" || tool === "dim") {
+    if (tool === "parallel") {
+      const view = computeView();
+      let seg = paraHover;
+      if (!seg) {
+        const segs = segmentsOfShapeForParallel(s);
+        if (segs.length) {
+          const pDraw = toSvgPoint(e.clientX, e.clientY);
+          const realPoint = { x: d2rX(pDraw.x, view), y: d2rY(pDraw.y, view) };
+          let bestDist = Infinity;
+          segs.forEach((sgm) => { const d = neDistToSeg(realPoint, sgm.a, sgm.b); if (d < bestDist) { bestDist = d; seg = sgm; } });
+        }
+      }
+      if (seg) {
+        paraSelection = { a: seg.a, b: seg.b };
+        paraHover = null;
+        emitParallelChange();
+        render();
+      }
+      return;
+    }
+
+               if (tool === "edge" || tool === "dim") {
+      if (tool === "dim" && (s.type === "arrow" || s.type === "line" || s.type === "arrow90")) {
+        // setas/linhas soltas não têm arestas — a medida aplica-se à peça
+        // toda e mostra-se só como texto, sem linha de cota
+        dimSelection = { shapeId: s.id, edgeIdx: null };
+        emitDimChange();
+        render();
+        return;
+      }
       const view = computeView();
       const pDraw = toSvgPoint(e.clientX, e.clientY);
       const realPoint = { x: d2rX(pDraw.x, view), y: d2rY(pDraw.y, view) };
@@ -1429,13 +1754,16 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
       return;
     }
 
-    if (e.shiftKey) {
-      if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+      if (e.shiftKey) {
+      const groupIds = idsInGroupOf(id);
+      const jaTodosSelecionados = [...groupIds].every((gid) => selectedIds.has(gid));
+      if (jaTodosSelecionados) groupIds.forEach((gid) => selectedIds.delete(gid));
+      else groupIds.forEach((gid) => selectedIds.add(gid));
       render();
       return; // shift-click só alterna seleção, não inicia arrasto
     }
 
-    if (!selectedIds.has(id)) selectedIds = new Set([id]);
+    if (!selectedIds.has(id)) selectedIds = idsInGroupOf(id);
 
     const view = computeView();
     const p = toSvgPoint(e.clientX, e.clientY);
@@ -1447,7 +1775,15 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     window.addEventListener("pointerup", onPointerUp);
   }
 
-  function selectOnly(id) { selectedIds = id ? new Set([id]) : new Set(); render(); }
+    // Devolve todos os ids que pertencem ao mesmo grupo que "id" (incluindo
+  // ele próprio) — usado para o Pio: retângulo + furo selecionam-se juntos.
+  function idsInGroupOf(id) {
+    const s = getShape(id);
+    if (!s || !s.groupId) return new Set([id]);
+    return new Set(shapes.filter((x) => x.groupId === s.groupId).map((x) => x.id));
+  }
+
+  function selectOnly(id) { selectedIds = id ? idsInGroupOf(id) : new Set(); render(); }
   function cloneShape(s) { return JSON.parse(JSON.stringify(s)); }
 
   function onHandlePointerDown(e, id, corner) {
@@ -1512,15 +1848,16 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
     const p = toSvgPoint(e.clientX, e.clientY);
     const realP = { x: d2rX(p.x, view), y: d2rY(p.y, view) };
 
-    if (drag.type === "groupMove") {
+       if (drag.type === "groupMove") {
       let dx = realP.x - drag.startReal.x, dy = realP.y - drag.startReal.y;
-      if (drag.items.length === 1) {
-        const item = drag.items[0];
-        const excludeIds = new Set([item.id]);
-        const snapped = snapDeltaForShape(item.orig, dx, dy, view, excludeIds);
-        dx = snapped.dx; dy = snapped.dy;
-        renderGuides(view);
-      }
+      // funciona com uma peça só ou com o conjunto todo (ex: Pio =
+      // retângulo + furo) — o alinhamento usa a bbox combinada de tudo
+      // o que está a ser arrastado
+      const excludeIds = new Set(drag.items.map((item) => item.id));
+      const snapped = snapDeltaForItems(drag.items, dx, dy, view, excludeIds);
+      dx = snapped.dx; dy = snapped.dy;
+      renderGuides(view);
+      
       drag.items.forEach((item) => {
         const s = getShape(item.id);
         if (!s) return;
@@ -1657,10 +1994,14 @@ function shapeFill(s) { return selectedIds.has(s.id) ? "#eaf1f580" : "#f8f9fa"; 
             const isMarked = cur === true || (Array.isArray(cur) && cur.length > 0);
             s.edges[drag.edgeIdx].polish = !isMarked;
           }
-        } else {
+                } else {
           // arrastou ao longo da linha = marca/apaga só esse troço (manual)
           const t0 = Math.min(drag.t0, drag.t1), t1 = Math.max(drag.t0, drag.t1);
           neApplyEdgeRange(s.edges[drag.edgeIdx], t0, t1);
+          // guarda o ponto exato onde o rato foi largado (sem ordenar),
+          // para o tracinho ficar sempre aí — mesmo arrastando "ao
+          // contrário" (do fim para o início da linha)
+          s.edges[drag.edgeIdx].polishLastT = drag.t1;
         }
       }
     }
@@ -1730,13 +2071,18 @@ function undo() {
 
   // Cola as formas do clipboard com um pequeno deslocamento (10mm), gerando
   // ids novos, e seleciona só o que acabou de ser colado.
-  function pasteClipboard() {
+   function pasteClipboard() {
     if (!clipboard.length) return;
      pushUndo();    
     const offset = 10;
+        const groupIdMap = new Map();
     const pasted = clipboard.map((orig) => {
       const s = cloneShape(orig);
       s.id = neUid();
+      if (s.groupId) {
+        if (!groupIdMap.has(s.groupId)) groupIdMap.set(s.groupId, neUid());
+        s.groupId = groupIdMap.get(s.groupId);
+      }
       if (s.type === "rect" || s.type === "text" || s.type === "frisos") { s.x += offset; s.y += offset; }
             else if (s.type === "circle" || s.type === "arrow90") { s.cx += offset; s.cy += offset; }
       else if (s.type === "polygon") { s.points = s.points.map((p) => ({ x: p.x + offset, y: p.y + offset })); }
@@ -1745,6 +2091,26 @@ function undo() {
       else if (s.type === "brace") { s.x1 += offset; s.y1 += offset; s.x2 += offset; s.y2 += offset; }
       return s;
     });
+
+    const gap = 15;
+    let dy = 0;
+    for (let guard = 0; guard < 300; guard++) {
+      const overlap = pasted.some((p) => {
+        const pb = neShapeBBox(p);
+        if (!pb) return false;
+        const testMinY = pb.minY + dy, testMaxY = pb.maxY + dy;
+        return shapes.some((s) => {
+          const ob = neShapeBBox(s);
+          if (!ob) return false;
+          return pb.minX < ob.maxX + gap && pb.maxX > ob.minX - gap &&
+                 testMinY < ob.maxY + gap && testMaxY > ob.minY - gap;
+        });
+      });
+      if (!overlap) break;
+      dy += 20;
+    }
+    if (dy) pasted.forEach((p) => neTranslateShape(p, 0, dy));
+
     shapes.push(...pasted);
     selectedIds = new Set(pasted.map((s) => s.id));
     render();
@@ -1754,10 +2120,11 @@ function undo() {
     const activeTag = document.activeElement && document.activeElement.tagName;
     if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") return;
 
-        if (e.key === "Escape") {
+             if (e.key === "Escape") {
       if (polyDraft) cancelPolygon();
       if (lineDraft) cancelLine();
       if (arrowDraft) cancelArrow();
+      if (arrow90Draft) cancelArrow90Draw();
       return;
     }
 
@@ -1834,7 +2201,7 @@ function undo() {
     }
   }
 
-    function drawArrowDraft(view) {
+       function drawArrowDraft(view) {
     if (!arrowDraft) return;
     ensureArrowMarker();
     const drawPts = arrowDraft.points.map((p) => ({ x: r2dX(p.x, view), y: r2dY(p.y, view) }));
@@ -1848,6 +2215,32 @@ function undo() {
         stroke: arrowDraft.aligned ? "#2ecc71" : "#9aa7ad", "stroke-width": arrowDraft.aligned ? "0.7" : "0.4",
         "stroke-dasharray": arrowDraft.aligned ? "none" : "1,1",
         "marker-end": "url(#neArrowHead)",
+      }));
+    }
+  }
+
+  function drawArrow90Draft(view) {
+    if (!arrow90Draft) return;
+    ensureArrowMarker();
+    const drawPts = arrow90Draft.points.map((p) => ({ x: r2dX(p.x, view), y: r2dY(p.y, view) }));
+    drawPts.forEach((p, i) => {
+      draftLayer.appendChild(neCreateSvgEl("circle", { cx: p.x, cy: p.y, r: i === 0 ? 2 : 1.4, fill: i === 0 ? "#c0392b" : "#2e4752", stroke: "#fff", "stroke-width": "0.3" }));
+    });
+    // troço(s) já fixos entre os pontos colocados até agora
+    if (drawPts.length >= 2) {
+      const d = "M " + drawPts.map((p) => `${p.x} ${p.y}`).join(" L ");
+      draftLayer.appendChild(neCreateSvgEl("path", { d, fill: "none", stroke: "#2e4752", "stroke-width": "0.6" }));
+    }
+    // pré-visualização do troço a seguir, do último ponto colocado até ao rato
+    if (drawPts.length >= 1 && drawPts.length < 3 && arrow90Draft.preview) {
+      const last = drawPts[drawPts.length - 1];
+      const pv = { x: r2dX(arrow90Draft.preview.x, view), y: r2dY(arrow90Draft.preview.y, view) };
+      const isLastLeg = drawPts.length === 2; // já há cauda+canto: este troço leva a ponta com seta
+      draftLayer.appendChild(neCreateSvgEl("line", {
+        x1: last.x, y1: last.y, x2: pv.x, y2: pv.y,
+        stroke: arrow90Draft.aligned ? "#2ecc71" : "#9aa7ad", "stroke-width": arrow90Draft.aligned ? "0.7" : "0.4",
+        "stroke-dasharray": arrow90Draft.aligned ? "none" : "1,1",
+        ...(isLastLeg ? { "marker-end": "url(#neArrowHead)" } : {}),
       }));
     }
   }
@@ -1883,12 +2276,30 @@ function undo() {
       render();
       return;
     }
-        if ((tool === "edge" || tool === "dim") && !drag) {
+              if ((tool === "edge" || tool === "dim") && !drag) {
       updateEdgeHoverFromEvent(e);
+    }
+           if (arrow90Draft) {
+      const p = toSvgPoint(e.clientX, e.clientY);
+      const view = currentView || computeView();
+      const rawReal = { x: d2rX(p.x, view), y: d2rY(p.y, view) };
+      const point = arrow90Draft.points.length
+        ? neArrow90AxisSnap(arrow90Draft.points[arrow90Draft.points.length - 1], rawReal)
+        : rawReal;
+      arrow90Draft.preview = point;
+      arrow90Draft.aligned = true;
+      render();
+      return;
+    }
+    if (tool === "parallel" && !drag && !paraSelection) {
+      updateParallelHoverFromEvent(e);
     }
   });
 
-  svg.addEventListener("pointerleave", () => clearEdgeHover());
+  svg.addEventListener("pointerleave", () => {
+    clearEdgeHover();
+    if (tool === "parallel") { paraHover = null; render(); }
+  });
 
     svg.addEventListener("pointerdown", (e) => {
     if (polyDraft) {
@@ -1916,13 +2327,25 @@ function undo() {
       render();
       return;
     }
-        if (arrowDraft) {
+               if (arrowDraft) {
       const p = toSvgPoint(e.clientX, e.clientY);
       const view = currentView || computeView();
       const rawReal = { x: d2rX(p.x, view), y: d2rY(p.y, view) };
       const { point } = computeDraftSnap(arrowDraft.points, rawReal, view);
       arrowDraft.points.push(point);
       if (arrowDraft.points.length >= 2) { finishArrow(); return; }
+      render();
+      return;
+    }
+         if (arrow90Draft) {
+      const p = toSvgPoint(e.clientX, e.clientY);
+      const view = currentView || computeView();
+      const rawReal = { x: d2rX(p.x, view), y: d2rY(p.y, view) };
+      const point = arrow90Draft.points.length
+        ? neArrow90AxisSnap(arrow90Draft.points[arrow90Draft.points.length - 1], rawReal)
+        : rawReal;
+      arrow90Draft.points.push(point);
+      if (arrow90Draft.points.length >= 3) { finishArrow90Draw(); return; }
       render();
       return;
     }
@@ -1948,23 +2371,51 @@ function undo() {
   function getSelected() { return selectedIds.size === 1 ? getShape([...selectedIds][0]) : null; }
   function select(id) { selectOnly(id); }
 
-  function nextOffset() { return (shapes.length % 8) * 20; }
+  function neTranslateShape(s, dx, dy) {
+    if (s.type === "rect" || s.type === "frisos" || s.type === "text") { s.x += dx; s.y += dy; }
+    else if (s.type === "circle" || s.type === "arrow90") { s.cx += dx; s.cy += dy; }
+    else if (s.type === "polygon") { s.points = s.points.map((p) => ({ x: p.x + dx, y: p.y + dy })); }
+    else if (s.type === "arrow" || s.type === "line" || s.type === "brace") { s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy; }
+  }
+
+  // Empurra a peça recém-criada para baixo até não ficar em cima de
+  // nenhuma peça já existente na folha.
+  function placeShapeFree(shape) {
+    if (!shapes.length) return shape;
+    const gap = 15; // mm reais de folga entre peças
+    const bb0 = neShapeBBox(shape);
+    if (!bb0) return shape;
+    let dy = 0;
+    for (let guard = 0; guard < 300; guard++) {
+      const minY = bb0.minY + dy, maxY = bb0.maxY + dy;
+      const overlap = shapes.some((s) => {
+        const ob = neShapeBBox(s);
+        if (!ob) return false;
+        return bb0.minX < ob.maxX + gap && bb0.maxX > ob.minX - gap &&
+               minY < ob.maxY + gap && maxY > ob.minY - gap;
+      });
+      if (!overlap) break;
+      dy += 20;
+    }
+    if (dy) neTranslateShape(shape, 0, dy);
+    return shape;
+  }
 
     function addRect(wMm, hMm) {
-    const offset = nextOffset();
     const w = (typeof wMm === "number" && wMm > 0) ? wMm : 400;
     const h = (typeof hMm === "number" && hMm > 0) ? hMm : 300;
-    const shape = { id: neUid(), type: "rect", x: 100 + offset, y: 100 + offset, w, h, r: [0, 0, 0, 0], label: "", dimsInside: false, showDims: true, edges: neRectEdgesDefault() };
+    const shape = { id: neUid(), type: "rect", x: 100, y: 100, w, h, r: [0, 0, 0, 0], label: "", dimsInside: false, showDims: true, edges: neRectEdgesDefault() };
+    placeShapeFree(shape);
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
   function addCircle() {
-    const offset = nextOffset();
-    const shape = { id: neUid(), type: "circle", cx: 300 + offset, cy: 300 + offset, radius: 150, label: "", curved: false, curvedText: "", edges: [{ polish: false }] };
+    const shape = { id: neUid(), type: "circle", cx: 300, cy: 300, radius: 150, label: "", curved: false, curvedText: "", edges: [{ polish: false }] };
+    placeShapeFree(shape);
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
     function addArrow() {
-    const offset = nextOffset();
-    const shape = { id: neUid(), type: "arrow", x1: 100 + offset, y1: 100 + offset, x2: 400 + offset, y2: 100 + offset, label: "" };
+    const shape = { id: neUid(), type: "arrow", x1: 100, y1: 100, x2: 400, y2: 100, label: "" };
+    placeShapeFree(shape);
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
     function startArrow() { arrowDraft = { points: [], preview: null, aligned: false }; selectOnly(null); render(); }
@@ -1979,10 +2430,10 @@ function undo() {
     selectOnly(shape.id);
     return shape;
   }
-    function addBrace() {
-    const offset = nextOffset();
+       function addBrace() {
     // vertical (x1===x2) com width negativo aponta para a direita por defeito
-    const shape = { id: neUid(), type: "brace", x1: 100 + offset, y1: 100 + offset, x2: 100 + offset, y2: 300 + offset, width: -20, label: "" };
+    const shape = { id: neUid(), type: "brace", x1: 100, y1: 100, x2: 100, y2: 300, width: -20, label: "" };
+    placeShapeFree(shape);
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
 
@@ -1992,39 +2443,182 @@ function undo() {
   // (sentido horário/anti-horário) fica a perna 2 (a cauda). Estes
   // valores ficam DEFINITIVOS assim que a seta é criada — não há
   // rotação depois, por isso a direção tem de ser escolhida à partida.
-    const NE_ARROW90_PRESETS = {
-    up: { dir1Angle: 270, turn: -1 },    // ponta para cima, cauda para a esquerda
-    down: { dir1Angle: 90, turn: -1 },   // ponta para baixo, cauda para a direita
-    left: { dir1Angle: 180, turn: -1 },  // ponta para a esquerda, cauda para baixo
-    right: { dir1Angle: 0, turn: 1 },    // ponta para a direita, cauda para baixo
-  };
-  window.NE_ARROW90_DIRECTIONS = Object.keys(NE_ARROW90_PRESETS); // ['up','down','left','right']
-  // direction é OBRIGATÓRIO: 'up' | 'down' | 'left' | 'right'.
-  // A interface (toolbar) tem de perguntar/mostrar as 4 opções ANTES de
-  // chamar isto — sem uma direção válida, não se cria nada (devolve null),
-  // para nunca haver uma seta 90º "sem direção escolhida".
-  function addArrow90(direction) {
-    const preset = NE_ARROW90_PRESETS[direction];
-    if (!preset) return null;
-    const offset = nextOffset();
-    const shape = {
-      id: neUid(), type: "arrow90",
-      cx: 250 + offset, cy: 200 + offset,
-      len1: 150, len2: 150,
-      dir1Angle: preset.dir1Angle, turn: preset.turn,
-      label: "",
+  // ---------------------------------------------------------------
+  // SETA 90º AUTOMÁTICA — 2 cliques: 1º = onde começa (cauda), 2º = onde
+  // acaba (ponta, com seta). A dobra de 90º é sempre calculada sozinha
+  // consoante o sítio do 2º clique (pode dobrar para cima, baixo,
+  // esquerda ou direita), sem ser preciso escolher direção à partida.
+  // ---------------------------------------------------------------
+    // Decide se a dobra sai da cauda na horizontal ("h") ou na vertical ("v").
+  // Usa histerese: se já havia um modo escolhido (prevMode), só troca
+  // quando o outro eixo passar a dominar CLARAMENTE (NE_ARROW90_SWITCH_RATIO
+  // vezes maior), não basta ser só um pouco maior. Isto evita que perto da
+  // diagonal a dobra fique a "tremer" de lado com o mínimo movimento do rato.
+  function neArrow90CornerMode(tail, tip, prevMode) {
+    const adx = Math.abs(tip.x - tail.x), ady = Math.abs(tip.y - tail.y);
+    if (prevMode === "h") return ady > adx * NE_ARROW90_SWITCH_RATIO ? "v" : "h";
+    if (prevMode === "v") return adx > ady * NE_ARROW90_SWITCH_RATIO ? "h" : "v";
+    return adx >= ady ? "h" : "v";
+  }
+    // Força o ponto a ficar sempre num dos 4 lados (cima/baixo/esquerda/
+  // direita) em relação ao último ponto colocado — nunca em diagonal.
+  // Ao contrário do computeDraftSnap (usado na Linha/Polígono), que só
+  // alinha quando o rato está perto do eixo, aqui o eixo é sempre
+  // escolhido pelo maior deslocamento, para a seta 90º nunca sair reta
+  // livre.
+  function neArrow90AxisSnap(last, raw) {
+    const dx = raw.x - last.x, dy = raw.y - last.y;
+    if (Math.abs(dx) >= Math.abs(dy)) return { x: raw.x, y: last.y };
+    return { x: last.x, y: raw.y };
+  }
+
+  // tail = ponto inicial (1º clique), corner = canto da dobra (2º clique,
+  // já forçado a eixo pelo snap), tip = ponto final (3º clique, também já
+  // forçado a eixo). Como cada troço vem sempre alinhado a um eixo, a
+  // dobra fica sempre exatamente a 90º — nada é adivinhado.
+  function neArrow90ShapeFromPoints(tail, corner, tip) {
+    const a1 = (Math.atan2(tip.y - corner.y, tip.x - corner.x) * 180) / Math.PI;
+    const a2 = (Math.atan2(tail.y - corner.y, tail.x - corner.x) * 180) / Math.PI;
+    let diff = a2 - a1;
+    while (diff <= -180) diff += 360;
+    while (diff > 180) diff -= 360;
+    return {
+      cx: corner.x, cy: corner.y,
+      len1: Math.max(NE_MIN_REAL, Math.hypot(tip.x - corner.x, tip.y - corner.y)),
+      len2: Math.max(NE_MIN_REAL, Math.hypot(tail.x - corner.x, tail.y - corner.y)),
+      dir1Angle: a1, turn: diff < 0 ? -1 : 1,
     };
-    shapes.push(shape); selectOnly(shape.id); return shape;
+  }
+  function startArrow90Draw() { arrow90Draft = { points: [], preview: null, aligned: false }; selectOnly(null); render(); }
+  function cancelArrow90Draw() { arrow90Draft = null; render(); }
+  function isDrawingArrow90() { return !!arrow90Draft; }
+  function finishArrow90Draw() {
+    if (!arrow90Draft || arrow90Draft.points.length < 3) { arrow90Draft = null; render(); return null; }
+    const [tail, corner, tip] = arrow90Draft.points;
+    const geo = neArrow90ShapeFromPoints(tail, corner, tip);
+    const shape = { id: neUid(), type: "arrow90", ...geo, label: "" };
+    shapes.push(shape);
+    arrow90Draft = null;
+    selectOnly(shape.id);
+    return shape;
   }
         function addText() {
-    const offset = nextOffset();
-    const shape = { id: neUid(), type: "text", x: 100 + offset, y: 100 + offset, content: "Texto", fontSize: 4, rotation: 0 };
+    const shape = { id: neUid(), type: "text", x: 100, y: 100, content: "Texto", fontSize: 4, rotation: 0 };
+    placeShapeFree(shape);
     shapes.push(shape); selectOnly(shape.id); return shape;
   }
     function addFrisos() {
-    const offset = nextOffset();
-    const shape = { id: neUid(), type: "frisos", x: 100 + offset, y: 100 + offset, w: 500, h: 360, label: "", vertical: false };
+    const shape = { id: neUid(), type: "frisos", x: 100, y: 100, w: 500, h: 360, label: "", vertical: false };
+    placeShapeFree(shape);
     shapes.push(shape); selectOnly(shape.id); return shape;
+  }
+    // ---------------------------------------------------------------
+  // PIOS
+  // "Personalizado": pede comprimento, largura e raio (uniforme nos 4
+  // cantos) e cria um retângulo com a etiqueta automática no meio
+  // ("comprimentoxlargura" ou "comprimentoxlargraxraio" se houver raio).
+  // Por omissão vem com o furo de torneira (Ø3,5cm, centrado, 2cm acima
+  // do pio).
+  // ---------------------------------------------------------------
+       // Etiqueta automática do Pio ("comprimentoxlargura" ou "...xraio")
+    function neComputePioAutoLabel(w, h, r) {
+      const labelParts = [neFormatMeasure(w), neFormatMeasure(h)];
+      if (r > 0) labelParts.push(neFormatMeasure(r));
+      return labelParts.join("x");
+    }
+
+    function addPio(comprimentoMm, larguraMm, raioMm, furoAtivo, nomeTexto) {
+    const w = (typeof comprimentoMm === "number" && comprimentoMm > 0) ? comprimentoMm : 500;
+    const h = (typeof larguraMm === "number" && larguraMm > 0) ? larguraMm : 400;
+    const r = (typeof raioMm === "number" && raioMm > 0) ? raioMm : 0;
+
+    const nome = (nomeTexto || "").trim();
+    const label = nome || neComputePioAutoLabel(w, h, r);
+
+    const groupId = neUid();
+    const shape = {
+      id: neUid(), type: "rect", x: 100, y: 100, w, h,
+      r: [r, r, r, r], label, dimsInside: false, showDims: false, // "Pio" nunca mostra medidas por omissão
+      edges: neRectEdgesDefault(), groupId,
+      isPio: true, pioNome: nome, pioAutoLabel: !nome,
+    };
+    placeShapeFree(shape);
+    shapes.push(shape);
+
+    if (furoAtivo !== false) {
+      const holeDiameter = 50; // mm — furo de torneira (Ø3,5 cm)
+      const holeOffsetY = 40;  // mm — um pouco mais afastado do topo do pio
+      const furo = {
+        id: neUid(), type: "circle",
+        cx: shape.x + shape.w / 2,
+        cy: shape.y - holeOffsetY,
+        radius: holeDiameter / 2,
+        label: "", curved: false, curvedText: "",
+        edges: [{ polish: false }], groupId,
+      };
+      shapes.push(furo);
+    }
+
+    selectOnly(shape.id);
+    return shape;
+  }
+
+  // Devolve se o Pio selecionado tem furo (para popular o checkbox no painel).
+  function getPioFuroInfo() {
+    const s = getSelectedShapes().find((x) => x.type === "rect" && x.isPio) || getSelected();
+    if (!s || !s.isPio || !s.groupId) return null;
+    const furo = shapes.find((x) => x.groupId === s.groupId && x.type === "circle");
+    return { hasFuro: !!furo };
+  }
+
+  // Ativa/desativa o furo do Pio selecionado, criando ou removendo o
+  // círculo do grupo.
+    function setPioFuroAtivo(ativo) {
+    const s = getSelectedShapes().find((x) => x.type === "rect" && x.isPio) || getSelected();
+    if (!s || !s.isPio || !s.groupId) return;
+    pushUndo();
+    const furoIdx = shapes.findIndex((x) => x.groupId === s.groupId && x.type === "circle");
+    if (ativo) {
+      if (furoIdx >= 0) return; // já tem
+      const holeDiameter = 50;
+      const holeOffsetY = 40;
+      const furo = {
+        id: neUid(), type: "circle",
+        cx: s.x + s.w / 2,
+        cy: s.y - holeOffsetY,
+        radius: holeDiameter / 2,
+        label: "", curved: false, curvedText: "",
+        edges: [{ polish: false }], groupId: s.groupId,
+      };
+      shapes.push(furo);
+    } else if (furoIdx >= 0) {
+      shapes.splice(furoIdx, 1);
+    }
+    render();
+  }
+    const NE_RODAMAO_W = 350; // mm — largura por defeito do Rodamão (0,35 m), editável em "Mais propriedades"
+  const NE_RODAMAO_H = 150; // mm — altura por defeito do Rodamão (0,15 m), editável em "Mais propriedades"
+
+  function addRodamao(comprimentoTexto, larguraTexto, espessuraTexto, quantidade) {
+    const qtd = (typeof quantidade === "number" && quantidade > 0) ? Math.round(quantidade) : 1;
+
+    // O retângulo nasce com o tamanho por defeito (35x15 cm) — pode
+    // depois ser alterado em "Mais propriedades" ou arrastando as pegas.
+    // Comprimento/largura/espessura escritos no modal são só TEXTO livre
+    // para compor a etiqueta dentro da peça, não o tamanho real.
+    const labelParts = [comprimentoTexto, larguraTexto].filter((v) => v !== undefined && v !== null && v !== "");
+    if (espessuraTexto !== undefined && espessuraTexto !== null && espessuraTexto !== "") labelParts.push(espessuraTexto);
+    const label = labelParts.join(" x ");
+
+       const shape = {
+      id: neUid(), type: "rect", x: 100, y: 100, w: NE_RODAMAO_W, h: NE_RODAMAO_H, r: [0, 0, 0, 0],
+      label, dimsInside: false, showDims: false, edges: neRectEdgesDefault(),
+      isRodamao: true, quantidade: qtd, showRect: true,
+    };
+    placeShapeFree(shape);
+    shapes.push(shape);
+    selectOnly(shape.id);
+    return shape;
   }
 
   function startPolygon() { polyDraft = { points: [], preview: null, aligned: false }; selectOnly(null); render(); }
@@ -2190,19 +2784,35 @@ function rotateOrFlipSelected(kind) {
   targets.forEach((s) => applyFlipRotateToShape(s, kind, pivot));
   render();
 }
-  function updateSelected(props) {
-    const s = getSelected();
+   function updateSelected(props) {
+    const s = getSelectedShapes().find((x) => x.type === "rect" && x.isPio) || getSelected();
     if (!s) return;
-    pushUndoDebounced();  
-    if (s.type === "rect") {
+    pushUndoDebounced();
+      if (s.type === "rect") {
       if (props.w !== undefined) s.w = Math.max(NE_MIN_REAL, Math.round(props.w * 10) / 10);
       if (props.h !== undefined) s.h = Math.max(NE_MIN_REAL, Math.round(props.h * 10) / 10);
       if (props.x !== undefined) s.x = Math.round(props.x);
       if (props.y !== undefined) s.y = Math.round(props.y);
-      if (props.r !== undefined) s.r = props.r;
+            if (props.quantidade !== undefined) s.quantidade = Math.max(1, Math.round(props.quantidade));
+      if (props.espessura !== undefined) s.espessura = Math.max(0, props.espessura);
+           if (props.r !== undefined) s.r = props.r;
             if (props.label !== undefined) s.label = props.label;
       if (props.dimsInside !== undefined) s.dimsInside = props.dimsInside;
       if (props.showDims !== undefined) s.showDims = props.showDims;
+      if (props.showRect !== undefined) s.showRect = props.showRect;
+
+      if (s.isPio) {
+        if (props.pioNome !== undefined) {
+          s.pioNome = props.pioNome;
+          s.pioAutoLabel = !props.pioNome.trim();
+        }
+        if (s.pioAutoLabel) {
+          const rVal = Array.isArray(s.r) ? (s.r[0] || 0) : 0;
+          s.label = neComputePioAutoLabel(s.w, s.h, rVal);
+        } else {
+          s.label = (s.pioNome || "").trim();
+        }
+      }
     } else if (s.type === "circle") {
       if (props.radius !== undefined) s.radius = Math.max(NE_MIN_REAL / 2, Math.round(props.radius * 10) / 10);
       if (props.label !== undefined) s.label = props.label;
@@ -2224,26 +2834,37 @@ function rotateOrFlipSelected(kind) {
     render();
   }
 
-    function getDimSelection() {
+      function getDimSelection() {
     if (!dimSelection) return null;
     const s = getShape(dimSelection.shapeId);
-    if (!s || !s.edges || !s.edges[dimSelection.edgeIdx]) return null;
+    if (!s) return null;
+    if (dimSelection.edgeIdx === null) {
+      return { shapeId: s.id, edgeIdx: null, dimValue: s.dimValue ?? null, dimInside: undefined, shapeLevel: true };
+    }
+    if (!s.edges || !s.edges[dimSelection.edgeIdx]) return null;
     return {
       shapeId: s.id, edgeIdx: dimSelection.edgeIdx,
       dimValue: s.edges[dimSelection.edgeIdx].dimValue ?? null,
       dimInside: s.edges[dimSelection.edgeIdx].dimInside,
+      shapeLevel: false,
     };
   }
-  function setDimValue(mm) {
+   function setDimValue(mm) {
     if (!dimSelection) return;
     const s = getShape(dimSelection.shapeId);
-    if (!s || !s.edges || !s.edges[dimSelection.edgeIdx]) return;
+    if (!s) return;
     pushUndoDebounced();
+    if (dimSelection.edgeIdx === null) {
+      s.dimValue = (mm === null || isNaN(mm)) ? null : mm;
+      render();
+      return;
+    }
+    if (!s.edges || !s.edges[dimSelection.edgeIdx]) return;
     s.edges[dimSelection.edgeIdx].dimValue = (mm === null || isNaN(mm)) ? null : mm;
     render();
   }
 function setDimInside(mode) {
-  if (!dimSelection) return;
+  if (!dimSelection || dimSelection.edgeIdx === null) return;
   const s = getShape(dimSelection.shapeId);
   if (!s || !s.edges || !s.edges[dimSelection.edgeIdx]) return;
   pushUndoDebounced();
@@ -2262,11 +2883,12 @@ function setDimInside(mode) {
     shapes = Array.isArray(newShapes) ? JSON.parse(JSON.stringify(newShapes)) : [];
     shapes.forEach((s) => {
       if (!s.type) s.type = "rect";
-            if (s.type === "rect") {
+                   if (s.type === "rect") {
         if (!Array.isArray(s.r)) s.r = [s.r || 0, s.r || 0, s.r || 0, s.r || 0];
         if (!s.edges) s.edges = neRectEdgesDefault();
         if (s.dimsInside === undefined) s.dimsInside = false;
         if (s.showDims === undefined) s.showDims = true;
+        if (s.isRodamao && s.showRect === undefined) s.showRect = true;
       }
             if (s.type === "circle" && !s.edges) s.edges = [{ polish: false }];
       if (s.type === "polygon" && !s.edges) s.edges = nePolygonEdgesFor(s.points || []);
@@ -2307,14 +2929,14 @@ function setDimInside(mode) {
     function fitToPage() { fixedOrigin = null; fixedDen = null; render(); }
   function onSelectionChange(cb) { onChangeCb = cb; }
   function getSvgElement() { return svg; }
-        function setTool(t) {
+         function setTool(t) {
     tool = t;
-    if (t === "edge" || t === "dim") {
+    clearEdgeHover();
+    if (t !== "dim") { dimSelection = null; emitDimChange(); }
+    if (t !== "parallel") { paraSelection = null; paraHover = null; emitParallelChange(); }
+    if (t === "edge" || t === "dim" || t === "parallel") {
       selectOnly(null);   // limpa seleção + já chama render() internamente
     } else {
-      clearEdgeHover();
-      dimSelection = null;
-      emitDimChange();
       render();
     }
   }
@@ -2326,11 +2948,13 @@ function setDimInside(mode) {
 
   render();
 
-    return {
-        addRect, addCircle, addArrow, addBrace, addArrow90, addText, addFrisos,
+        return {
+             addRect, addCircle, addArrow, addBrace, addText, addFrisos, addPio, addRodamao,
+    getPioFuroInfo, setPioFuroAtivo,
     startPolygon, cancelPolygon, finishPolygon, isDrawingPolygon,
         startLine, cancelLine, finishLine, isDrawingLine,
     startArrow, cancelArrow, finishArrow, isDrawingArrow,
+    startArrow90Draw, cancelArrow90Draw, finishArrow90Draw, isDrawingArrow90,
     deleteSelected, clearAll, updateSelected,
     bringForward, sendBackward, bringToFront, sendToBack,
     getShapes, setShapes, getSelected, getSelectedShapes, select,
@@ -2338,7 +2962,9 @@ function setDimInside(mode) {
         setTool, getTool, setScale, getScaleInfo, setShowGrid, getShowGrid, fitToPage, selectAll,
     copySelected, pasteClipboard,
     rotateOrFlipSelected, undo,
-        getDimSelection, setDimValue, setDimInside, clearDimSelection, onDimSelectionChange,
+                getDimSelection, setDimValue, setDimInside, clearDimSelection, onDimSelectionChange,
+    onParallelSelectionChange: (cb) => { onParallelChangeCb = cb; },
+    createParallelLine, clearParallelSelection,
   };
 }
 

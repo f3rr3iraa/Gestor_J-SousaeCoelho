@@ -35,7 +35,6 @@ async function initHomeSpaceSupabase() {
               <td>${marcaenomeeespessura}</td>
               <td>${item.comprimento ?? ""}</td>
               <td>${item.largura ?? ""}</td>
-              <td>${item.lote ?? ""}</td>
               <td>${item.tipo}</td>
               <td>${item.foto
                 ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
@@ -49,7 +48,7 @@ async function initHomeSpaceSupabase() {
             </tr>`;
           })
           .join("")
-        : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
+        : `<tr><td colspan="8">Nenhum pedido encontrado.</td></tr>`;
 
     }
 
@@ -69,7 +68,6 @@ async function initHomeSpaceSupabase() {
               <td>${marcaenomeeespessura}</td>
               <td>${item.comprimento ?? ""}</td>
               <td>${item.largura ?? ""}</td>
-              <td>${item.lote ?? ""}</td>
               <td>${item.tipo}</td>
               <td>${item.foto
                 ? `<img src="${item.foto}" style="max-width:120px;height:60px;object-fit:cover;border-radius:4px;">`
