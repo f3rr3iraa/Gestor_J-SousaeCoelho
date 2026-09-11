@@ -190,7 +190,7 @@ function aplicarFiltrosAtuais() {
     .trim();
   const tipoValor = filtroTipo.value.trim().toLowerCase();
 
-  return (window.dadosOriginais || []).filter((item) => {
+    return (window.dadosOriginais || []).filter((item) => {
     // === FILTRO DE REFERÊNCIA ===
     let refOk = true;
     if (refValor) {
@@ -203,9 +203,14 @@ function aplicarFiltrosAtuais() {
     const marcaOk =
       !marcaValor ||
       (item.marca || "").trim().toLowerCase() === marcaValor.trim().toLowerCase();
-    const nomeOk =
-      !nomeValor ||
-      (item.marca_nome_espessura_clean || "").includes(nomeValor);
+
+    // 🔹 Calcular o campo limpo aqui, em vez de depender da view inexistente
+    const nomeClean = `${item.marca ?? ""}${item.nome ?? ""}${item.espessura ?? ""}`
+      .toLowerCase()
+      .replace(/-/g, "")
+      .replace(/\s+/g, "");
+    const nomeOk = !nomeValor || nomeClean.includes(nomeValor);
+
     const tipoOk =
       !tipoValor || (item.tipo || "").toLowerCase() === tipoValor;
 
