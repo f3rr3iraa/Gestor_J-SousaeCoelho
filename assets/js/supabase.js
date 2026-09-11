@@ -484,6 +484,7 @@ function configurarEventosTabela() {
         .update({
           estado: "on",
           data_off: null,
+          cliente: null,
         })
         .eq("id", itemToReactivate.id);
 
