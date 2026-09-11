@@ -722,8 +722,8 @@ td img {
 .produto-row:hover {
   background-color: #f8f9fa;
 }
-.btn-edit,
-.btn-remove {
+#produtosTableBody .btn-edit,
+#produtosTableBody .btn-remove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -738,26 +738,26 @@ td img {
   padding: 0;
 }
 
-.btn-edit {
+#produtosTableBody .btn-edit {
   background-color: #0d6dfc;
   color: white;
 }
 
-.btn-edit:hover {
+#produtosTableBody .btn-edit:hover {
   background-color: #0b5ed7;
 }
 
-.btn-remove {
+#produtosTableBody .btn-remove {
   background-color: #dc3545;
   color: white;
 }
 
-.btn-remove:hover {
+#produtosTableBody .btn-remove:hover {
   background-color: #c82333;
 }
 
-.btn-edit:active,
-.btn-remove:active {
+#produtosTableBody .btn-edit:active,
+#produtosTableBody .btn-remove:active {
   transform: scale(0.95);
 }
 /* ================= MODAL LIMPAR ORÇAMENTO ================= */
@@ -1692,17 +1692,17 @@ td img {
 
 
 /* ================= BOTÕES DE AÇÃO (EDITAR E ELIMINAR) - VERTICAIS ================= */
-.produto-row td:last-child {
+#produtosTableBody .produto-row td:last-child {
   vertical-align: middle;
 }
 
-.produto-row td:last-child .btn {
+#produtosTableBody .produto-row td:last-child .btn {
   display: block;
   margin-bottom: 5px;
   width: 100%;
 }
 
-.produto-row td:last-child .btn:last-child {
+#produtosTableBody .produto-row td:last-child .btn:last-child {
   margin-bottom: 0;
   
 }
