@@ -484,17 +484,14 @@ function configurarEventosTabela() {
         tipo: document.getElementById("filtroTipo")?.value || ""
       };
 
-            const { data: updateData, error } = await supabaseClient
+      const { error } = await supabaseClient
         .from("items")
         .update({
           estado: "on",
           data_off: null,
           cliente: null,
         })
-        .eq("id", itemToReactivate.id)
-        .select();
-
-      console.log("Resultado do update:", { updateData, error, id: itemToReactivate.id });
+        .eq("id", itemToReactivate.id);
 
       if (error) {
         showMessage(`Erro ao reativar: ${error.message}`, "danger");
