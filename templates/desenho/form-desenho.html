@@ -125,9 +125,20 @@
                               <button type="button" class="btn-form ne-btn-sm" id="neAddBrace" title="Adicionar chaveta { }">
           <i class="bi bi-braces me-1"></i> Chaveta
         </button>
-                <button type="button" class="btn-form ne-btn-sm" id="neAddFrisos" title="Adicionar grupo de 5 frisos horizontais">
-          <i class="bi bi-stack me-1"></i> Frisos
-        </button>
+        <div class="btn-group" role="group">
+  <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neAddExtraPiosBtn"
+          data-bs-toggle="dropdown" aria-expanded="false" title="Adicionar frisos ou rampa">
+    <i class="bi bi-stack me-1"></i> Extra Pios
+  </button>
+  <ul class="dropdown-menu" aria-labelledby="neAddExtraPiosBtn">
+    <li><a class="dropdown-item ne-extra-pio-option" href="#" data-extra="frisos">
+      <i class="bi bi-stack me-2"></i>Frisos
+    </a></li>
+    <li><a class="dropdown-item ne-extra-pio-option" href="#" data-extra="rampa">
+      <i class="bi bi-bezier2 me-2"></i>Rampa
+    </a></li>
+  </ul>
+</div>
         <div class="btn-group" role="group">
           <button type="button" class="btn-form ne-btn-sm dropdown-toggle" id="neAddPioBtn"
                   data-bs-toggle="dropdown" aria-expanded="false" title="Adicionar pio">
@@ -139,8 +150,11 @@
             </a></li>
           </ul>
         </div>
-        <button type="button" class="btn-form ne-btn-sm" id="neAddRodamao" title="Adicionar rodamão">
+                <button type="button" class="btn-form ne-btn-sm" id="neAddRodamao" title="Adicionar rodamão">
 <i class="bi bi-border-width me-1"></i> Rodamão
+</button>
+        <button type="button" class="btn-form ne-btn-sm" id="neAddPeitoril" title="Adicionar peitoril (só texto)">
+<i class="bi bi-fonts me-1"></i> Peitoril
 </button>
         <button type="button" class="btn-form ne-btn-sm" id="neAddText" title="Adicionar texto">
           <i class="bi bi-fonts me-1"></i> Texto
@@ -154,6 +168,9 @@
         <button type="button" class="btn-form ne-btn-sm" id="neToggleEdgeMode" title="Selecionar uma linha para marcar polimento">
           <i class="bi bi-vector-pen me-1"></i> Marcar polimento
         </button>
+        <button type="button" class="btn-form ne-btn-sm" id="neToggleMEMode" title="Selecionar uma linha para marcar ME">
+  <i class="bi bi-vector-pen me-1"></i> Marcar ME
+</button>
         <button type="button" class="btn-form ne-btn-sm" id="neToggleDimMode" title="Selecionar uma linha para escrever a medida">
           <i class="bi bi-rulers me-1"></i> Medida
         </button>
@@ -308,7 +325,7 @@
               <input type="text" id="neH" class="input w-100" placeholder="Ex: 54 cm">
             </div>
 
-                        <label class="text mt-3 mb-2 d-block">Raio dos cantos (mm)</label>
+                               <label class="text mt-3 mb-2 d-block">Raio dos cantos (cm)</label>
             <div class="form-check mb-0">
               <input class="form-check-input" type="checkbox" id="neRGroup">
               <label class="form-check-label text" for="neRGroup">Todos em grupo</label>
@@ -316,36 +333,53 @@
 
                         <div class="coolinput mt-1 d-none" id="neRAllWrap">
               <label class="text">Todos os cantos</label>
-              <input type="number" step="1" min="0" id="neRAll" class="input w-100">
+              <input type="number" step="0.1" min="0" id="neRAll" class="input w-100">
             </div>
 
                         <div class="ne-corner-grid mt-1" id="neRGridWrap">
                             <div class="coolinput">
                 <label class="text">Sup. esq.</label>
-                <input type="number" step="1" min="0" id="neRTL" class="input w-100">
+                <input type="number" step="0.1" min="0" id="neRTL" class="input w-100">
               </div>
               <div class="coolinput">
                 <label class="text">Sup. dir.</label>
-                <input type="number" step="1" min="0" id="neRTR" class="input w-100">
+                <input type="number" step="0.1" min="0" id="neRTR" class="input w-100">
               </div>
               <div class="coolinput">
                 <label class="text">Inf. esq.</label>
-                <input type="number" step="1" min="0" id="neRBL" class="input w-100">
+                <input type="number" step="0.1" min="0" id="neRBL" class="input w-100">
               </div>
               <div class="coolinput">
                 <label class="text">Inf. dir.</label>
-                <input type="number" step="1" min="0" id="neRBR" class="input w-100">
+                <input type="number" step="0.1" min="0" id="neRBR" class="input w-100">
               </div>
             </div>
-            <div class="coolinput mt-2">
+                       <div class="coolinput mt-2">
               <label class="text">Etiqueta / referência</label>
               <input type="text" id="neLabelRect" class="input w-100" placeholder="Ex: Peça 1">
             </div>
 
-                        <div class="form-check mt-2">
-              <input class="form-check-input" type="checkbox" id="neDimsInside">
-              <label class="form-check-label text" for="neDimsInside">Cotas por dentro da peça</label>
+            <div class="coolinput mt-2">
+              <label class="text">Medida da largura</label>
+              <select id="neWDimMode" class="input w-100">
+                <option value="auto">Automática</option>
+                <option value="top-out">Cima (fora)</option>
+                <option value="bottom-out">Baixo (fora)</option>
+                <option value="top-in">Cima (dentro)</option>
+                <option value="bottom-in">Baixo (dentro)</option>
+              </select>
             </div>
+            <div class="coolinput mt-2">
+              <label class="text">Medida da altura</label>
+              <select id="neHDimMode" class="input w-100">
+                <option value="auto">Automática</option>
+                <option value="left-out">Esquerda (fora)</option>
+                <option value="right-out">Direita (fora)</option>
+                <option value="left-in">Esquerda (dentro)</option>
+                <option value="right-in">Direita (dentro)</option>
+              </select>
+            </div>
+
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" id="neShowDims" checked>
               <label class="form-check-label text" for="neShowDims">Mostrar medidas</label>
@@ -362,17 +396,32 @@
               <label class="text">Largura</label>
               <input type="text" id="nePioHField" class="input w-100" placeholder="Ex: 45 cm ou 0.45">
             </div>
-            <div class="coolinput">
-              <label class="text">Raio dos cantos (mm)</label>
-              <input type="number" step="1" min="0" id="nePioRaioField" class="input w-100" placeholder="Ex: 20 (opcional)">
+                        <div class="coolinput">
+              <label class="text">Raio dos cantos (cm)</label>
+              <input type="number" step="0.1" min="0" id="nePioRaioField" class="input w-100" placeholder="Ex: 2 (opcional)">
             </div>
             <div class="coolinput">
               <label class="text">Nome do pio</label>
               <input type="text" id="nePioNomeField" class="input w-100" placeholder="Deixa vazio para usar as medidas">
             </div>
-                          <div class="form-check mt-2">
+                                                  <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" id="nePioFuroField" checked>
               <label class="form-check-label text" for="nePioFuroField">Furo de torneira (Ø3,5 cm, centrado, 2 cm acima do pio)</label>
+            </div>
+            <div class="coolinput mt-2">
+              <label class="text">Extra</label>
+              <select id="nePioExtraTipoField" class="input w-100">
+                <option value="">Nenhum</option>
+                <option value="frisos">Frisos</option>
+                <option value="rampa">Rampa</option>
+              </select>
+            </div>
+            <div class="coolinput mt-2 d-none" id="nePioExtraLadoFieldWrap">
+              <label class="text">Lado</label>
+              <select id="nePioExtraLadoField" class="input w-100">
+                     <option value="direita">Direito</option>
+    <option value="esquerda">Esquerdo</option>
+              </select>
             </div>
           </div>
 
@@ -382,14 +431,38 @@
     <label class="text">Quantidade</label>
     <input type="number" min="1" step="1" id="neRodQuantidade" class="input w-100">
   </div>
-  <div class="coolinput">
-    <label class="text">Texto (dentro da peça)</label>
-    <input type="text" id="neLabelRodamao" class="input w-100" placeholder="Ex: 1.01 x 43.3 x 12">
+    <div class="coolinput">
+    <label class="text">Comprimento</label>
+    <input type="text" id="neRodComp" class="input w-100" placeholder="Ex: 1 ou 0.25">
+  </div>
+  <div class="coolinput mt-2">
+    <label class="text">Largura</label>
+    <input type="text" id="neRodLarg" class="input w-100" placeholder="Ex: 0.15">
+  </div>
+  <div class="coolinput mt-2">
+    <label class="text">Espessura</label>
+    <input type="text" id="neRodEsp" class="input w-100" placeholder="Ex: 0.02">
   </div>
 
-    <div class="form-check mt-2">
-    <input class="form-check-input" type="checkbox" id="neRodDimsInside">
-    <label class="form-check-label text" for="neRodDimsInside">Cotas por dentro da peça</label>
+        <div class="coolinput mt-2">
+    <label class="text">Medida da largura</label>
+    <select id="neRodWDimMode" class="input w-100">
+      <option value="auto">Automática</option>
+      <option value="top-out">Cima (fora)</option>
+      <option value="bottom-out">Baixo (fora)</option>
+      <option value="top-in">Cima (dentro)</option>
+      <option value="bottom-in">Baixo (dentro)</option>
+    </select>
+  </div>
+  <div class="coolinput mt-2">
+    <label class="text">Medida da altura</label>
+    <select id="neRodHDimMode" class="input w-100">
+      <option value="auto">Automática</option>
+      <option value="left-out">Esquerda (fora)</option>
+      <option value="right-out">Direita (fora)</option>
+      <option value="left-in">Esquerda (dentro)</option>
+      <option value="right-in">Direita (dentro)</option>
+    </select>
   </div>
    <div class="form-check mt-2">
     <input class="form-check-input" type="checkbox" id="neRodShowDims">
@@ -405,40 +478,33 @@
   </button>
 
   <div id="neRodMaisProp" class="d-none mt-2">
-    <div class="coolinput mt-1">
-      <label class="text">Comprimento</label>
-      <input type="text" id="neRodW" class="input w-100" placeholder="Ex: 45 cm">
-    </div>
-    <div class="coolinput mt-1">
-      <label class="text">Largura</label>
-      <input type="text" id="neRodH" class="input w-100" placeholder="Ex: 10 cm">
-    </div>
+    
 
-    <label class="text mt-3 mb-2 d-block">Raio dos cantos (mm)</label>
+       <label class="text mt-3 mb-2 d-block">Raio dos cantos (cm)</label>
     <div class="form-check mb-0">
       <input class="form-check-input" type="checkbox" id="neRodRGroup">
       <label class="form-check-label text" for="neRodRGroup">Todos em grupo</label>
     </div>
     <div class="coolinput mt-1 d-none" id="neRodRAllWrap">
       <label class="text">Todos os cantos</label>
-      <input type="number" step="1" min="0" id="neRodRAll" class="input w-100">
+      <input type="number" step="0.1" min="0" id="neRodRAll" class="input w-100">
     </div>
     <div class="ne-corner-grid mt-1" id="neRodRGridWrap">
       <div class="coolinput">
         <label class="text">Sup. esq.</label>
-        <input type="number" step="1" min="0" id="neRodRTL" class="input w-100">
+        <input type="number" step="0.1" min="0" id="neRodRTL" class="input w-100">
       </div>
       <div class="coolinput">
         <label class="text">Sup. dir.</label>
-        <input type="number" step="1" min="0" id="neRodRTR" class="input w-100">
+        <input type="number" step="0.1" min="0" id="neRodRTR" class="input w-100">
       </div>
       <div class="coolinput">
         <label class="text">Inf. esq.</label>
-        <input type="number" step="1" min="0" id="neRodRBL" class="input w-100">
+        <input type="number" step="0.1" min="0" id="neRodRBL" class="input w-100">
       </div>
       <div class="coolinput">
         <label class="text">Inf. dir.</label>
-        <input type="number" step="1" min="0" id="neRodRBR" class="input w-100">
+        <input type="number" step="0.1" min="0" id="neRodRBR" class="input w-100">
       </div>
     </div>
   </div>
@@ -481,9 +547,10 @@
             <div class="coolinput">
               <label class="text">Texto da seta</label>
               <input type="text" id="neLabelArrow" class="input w-100" placeholder="Ex: 50 cm">
-            </div>
-            <div class="ne-panel-hint">Arrasta as duas pontas para posicionar a seta.</div>
-          </div>
+            <!-- SETA 90º -->
+<div id="neFieldsArrow90" class="d-none">
+  <div class="ne-panel-hint">Arrasta as duas pontas para esticar ou encolher cada troço.</div>
+</div>
 
           <!-- SETA 90º -->
                     <!-- LINHA -->
@@ -627,13 +694,28 @@
           <label class="text">Largura</label>
           <input type="text" id="nePioLargura" class="input w-100" placeholder="Ex: 45 cm ou 0.45">
         </div>
-               <div class="coolinput mb-3">
-          <label class="text">Raio dos cantos (mm)</label>
-          <input type="number" step="1" min="0" id="nePioRaio" class="input w-100" placeholder="Ex: 20 (opcional)">
+                        <div class="coolinput mb-3">
+          <label class="text">Raio dos cantos (cm)</label>
+          <input type="number" step="0.1" min="0" id="nePioRaio" class="input w-100" placeholder="Ex: 2 (opcional)">
         </div>
-        <div class="coolinput mb-3">
+             <div class="coolinput mb-3">
           <label class="text">Nome do pio</label>
           <input type="text" id="nePioNome" class="input w-100" placeholder="Ex: Pio 1 - Cozinha (deixa vazio para usar as medidas)">
+        </div>
+        <div class="coolinput mb-3">
+          <label class="text">Extra</label>
+          <select id="nePioExtraTipo" class="input w-100">
+            <option value="">Nenhum</option>
+            <option value="frisos">Frisos</option>
+            <option value="rampa">Rampa</option>
+          </select>
+        </div>
+        <div class="coolinput mb-3 d-none" id="nePioExtraLadoWrap">
+          <label class="text">Lado</label>
+          <select id="nePioExtraLado" class="input w-100">
+            <option value="direita">Direito</option>
+            <option value="esquerda">Esquerdo</option>
+          </select>
         </div>
                 <div class="form-check">
           <input class="form-check-input" type="checkbox" id="nePioFuro" checked>
@@ -650,17 +732,50 @@
   </div>
 </div>
 
+<!-- Modal: quantos rodamões diferentes vais adicionar -->
+<div class="modal fade" id="neModalRodamaoTotal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="neRodamaoTotalTitulo"><i class="bi bi-border-width me-2"></i>Rodamões a adicionar</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="coolinput">
+          <label class="text">Quantos rodamões com medidas diferentes?</label>
+          <input type="number" min="1" step="1" id="neRodamaoTotalInput" class="input w-100" value="1">
+        </div>
+        <div class="ne-panel-hint mt-2">
+          Vais preencher as medidas de cada um, um a um. Ficam colocados
+          uns por baixo dos outros na folha.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="neRodamaoTotalConfirm">
+          <i class="bi bi-arrow-right me-2"></i> Continuar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para introduzir os dados do Rodamão -->
 <div class="modal fade" id="neModalAddRodamao" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-border-width me-2"></i>Novo rodamão</h5>
+        <h5 class="modal-title" id="neRodamaoModalTitulo"><i class="bi bi-border-width me-2"></i>Novo rodamão</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
-      <div class="modal-body">
+            <div class="modal-body">
+        <div class="ne-panel-hint mb-2" id="neRodamaoProgresso"></div>
         <div class="coolinput mb-3">
-          <label class="text">Quantidade</label>
+          <label class="text">Total de rodamões (medidas diferentes)</label>
+          <input type="number" min="1" step="1" id="neRodamaoTotalEdit" class="input w-100" value="1">
+        </div>
+        <div class="coolinput mb-3">
+          <label class="text">Quantidade (deste rodamão)</label>
           <input type="number" min="1" step="1" id="neRodamaoQuantidade" class="input w-100" value="1">
         </div>
         <div class="coolinput mb-3">

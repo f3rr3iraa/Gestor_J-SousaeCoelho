@@ -73,12 +73,10 @@ function neBBoxOf(shapes) {
     maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
   };
    shapes.forEach((s) => {
-        if (s.type === "rect" || !s.type) {
+                if (s.type === "rect" && s.isRodamao) {
+      consider(s.x, s.y);
+    } else if (s.type === "rect" || !s.type) {
       consider(s.x, s.y); consider(s.x + s.w, s.y + s.h);
-      if (s.isRodamao) {
-        const extra = (window.neRodamaoLabelWidthEstimate ? window.neRodamaoLabelWidthEstimate(s.quantidade, s.label) : 40) + 3;
-        consider(s.x - extra, s.y);
-      }
     }
     else if (s.type === "frisos") { consider(s.x, s.y); consider(s.x + s.w, s.y + s.h); }
     else if (s.type === "circle") { consider(s.cx - s.radius, s.cy - s.radius); consider(s.cx + s.radius, s.cy + s.radius); }
@@ -206,9 +204,12 @@ function neEdgeSideBlockedPrint(s, edgeIdx, verts, allShapes) {
 function neCCount(drawnLen) {
   return Math.min(Math.max(Math.round(drawnLen / 15), 1), 24);
 }
+function neMECount(drawnLen) {
+  return Math.min(Math.max(Math.round(drawnLen / 40), 1), 8);
+}
 
 function neRodamaoLabelMarkup(anchorX, cy, quantidade, label) {
-  const fontSize = 3.2;
+  const fontSize = window.NE_ROD_FONT || 4;
   const qtdRaw = String(quantidade ?? 1);
   const restRaw = label ? ` - ${label}` : "";
   const circleR = Math.max(2.2, fontSize * 0.5 + 0.5 * qtdRaw.length + 0.6);
@@ -266,7 +267,18 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
   // Sem centrar: o desenho fica encostado ao canto definido pelas margens,
   // exatamente como aparece no editor do formulário (nunca centra os
   // objetos, mesmo que só haja uma peça).
-  const r2dX = (rx) => (rx - bbox.minX) / den + NE_P_MARGIN_L;
+    // reserva à esquerda o bloco "círculo + texto" do rodamão (mm de papel)
+  let padDrawPrint = 0;
+  shapes.forEach((s) => {
+    if ((s.type === "rect" || !s.type) && s.isRodamao) {
+      const w = window.neRodamaoLabelWidthEstimate
+        ? window.neRodamaoLabelWidthEstimate(s.quantidade, s.label) : 40;
+      padDrawPrint = Math.max(padDrawPrint, w + 4);
+    }
+  });
+  const minXPrint = bbox.minX - padDrawPrint * den;
+
+  const r2dX = (rx) => (rx - minXPrint) / den + NE_P_MARGIN_L;
   const r2dY = (ry) => (ry - bbox.minY) / den + NE_P_MARGIN_T;
   const r2dLen = (rl) => rl / den;
   const fmt = window.neFormatMeasure || ((mm) => `${mm} mm`);
@@ -300,44 +312,49 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
   }
 
    function polishMarksFor(s, verts) {
-    if (!s.edges || !verts.length) return "";
-    let out = "";
-    s.edges.forEach((edge, i) => {
-      if (!edge || !edge.polish) return;
-      const a = verts[i], b = verts[(i + 1) % verts.length];
-      const da = { x: r2dX(a.x), y: r2dY(a.y) };
-      const db = { x: r2dX(b.x), y: r2dY(b.y) };
-      const segments = nePolishSegmentsPrint(edge.polish);
-      const lastT = edge.polishLastT;
-      const tol = 0.03;
-      segments.forEach((seg) => {
-        let tickT = null;
-        if (lastT !== undefined && lastT !== null) {
-          if (Math.abs(lastT - seg.to) < tol) tickT = seg.to;
-          else if (Math.abs(lastT - seg.from) < tol) tickT = seg.from;
-        }
-        if (tickT === null) {
-          if (seg.to < 0.99) tickT = seg.to;
-          else if (seg.from > 0.01) tickT = seg.from;
-        }
-        if (tickT !== null) out += polishTickMarkup(da, db, tickT);
+  return marksForKey(s, verts, "polish") + marksForKey(s, verts, "me");
+}
 
-        const pa = { x: a.x + (b.x - a.x) * seg.from, y: a.y + (b.y - a.y) * seg.from };
-        const pb = { x: a.x + (b.x - a.x) * seg.to, y: a.y + (b.y - a.y) * seg.to };
-        const sda = { x: r2dX(pa.x), y: r2dY(pa.y) };
-        const sdb = { x: r2dX(pb.x), y: r2dY(pb.y) };
-        const segLen = Math.hypot(sdb.x - sda.x, sdb.y - sda.y);
-        const count = neCCount(segLen);
-        for (let k = 1; k <= count; k++) {
-          const t = k / (count + 1);
-          const px = sda.x + (sdb.x - sda.x) * t;
-          const py = sda.y + (sdb.y - sda.y) * t;
-          out += `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.6" font-weight="700" fill="#c0392b">C</text>`;
-        }
-      });
+function marksForKey(s, verts, key) {
+  if (!s.edges || !verts.length) return "";
+  const isME = key === "me";
+  let out = "";
+  s.edges.forEach((edge, i) => {
+    if (!edge || !edge[key]) return;
+    const a = verts[i], b = verts[(i + 1) % verts.length];
+    const da = { x: r2dX(a.x), y: r2dY(a.y) };
+    const db = { x: r2dX(b.x), y: r2dY(b.y) };
+    const segments = nePolishSegmentsPrint(edge[key]);
+    const lastT = isME ? edge.meLastT : edge.polishLastT;
+    const tol = 0.03;
+    segments.forEach((seg) => {
+      let tickT = null;
+      if (lastT !== undefined && lastT !== null) {
+        if (Math.abs(lastT - seg.to) < tol) tickT = seg.to;
+        else if (Math.abs(lastT - seg.from) < tol) tickT = seg.from;
+      }
+      if (tickT === null) {
+        if (seg.to < 0.99) tickT = seg.to;
+        else if (seg.from > 0.01) tickT = seg.from;
+      }
+      if (tickT !== null) out += polishTickMarkup(da, db, tickT);
+
+      const pa = { x: a.x + (b.x - a.x) * seg.from, y: a.y + (b.y - a.y) * seg.from };
+      const pb = { x: a.x + (b.x - a.x) * seg.to, y: a.y + (b.y - a.y) * seg.to };
+      const sda = { x: r2dX(pa.x), y: r2dY(pa.y) };
+      const sdb = { x: r2dX(pb.x), y: r2dY(pb.y) };
+      const segLen = Math.hypot(sdb.x - sda.x, sdb.y - sda.y);
+      const count = isME ? neMECount(segLen) : neCCount(segLen);
+      for (let k = 1; k <= count; k++) {
+        const t = k / (count + 1);
+        const px = sda.x + (sdb.x - sda.x) * t;
+        const py = sda.y + (sdb.y - sda.y) * t;
+        out += `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${isME ? 3.6 : 4.6}" font-weight="700" fill="#c0392b">${isME ? "ME" : "C"}</text>`;
+      }
     });
-    return out;
-  }
+  });
+  return out;
+}
 
     function neDimLineMarkup(p1, p2, color) {
     const dx = p2.x - p1.x, dy = p2.y - p1.y;
@@ -361,6 +378,46 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
       if (angDeg >= 90) angDeg -= 180; else if (angDeg < -90) angDeg += 180;
       return `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B" transform="rotate(${angDeg} ${tx} ${ty})">${neEscapeXml(fmt(dimValue))}</text>`;
     }
+
+    function lineStyleLabelMarkup(s) {
+  const hasLabel = !!s.label && s.type === "line";
+  const hasDim = s.dimValue !== undefined && s.dimValue !== null;
+  if (!hasLabel && !hasDim) return "";
+
+  let x1, y1, x2, y2;
+  if (s.type === "arrow90") {
+    const p = neArrow90PointsPrint(s);
+    x1 = p.cx; y1 = p.cy; x2 = p.x1; y2 = p.y1;
+  } else {
+    x1 = s.x1; y1 = s.y1; x2 = s.x2; y2 = s.y2;
+  }
+
+  const da = { x: r2dX(x1), y: r2dY(y1) };
+  const db = { x: r2dX(x2), y: r2dY(y2) };
+  const midX = (da.x + db.x) / 2, midY = (da.y + db.y) / 2;
+
+  let angDeg = (Math.atan2(db.y - da.y, db.x - da.x) * 180) / Math.PI;
+  if (angDeg >= 90) angDeg -= 180;
+  else if (angDeg < -90) angDeg += 180;
+
+  const rad = (angDeg * Math.PI) / 180;
+  const nx = -Math.sin(rad), ny = Math.cos(rad);
+  const dir = s.dimSide === "above" ? -1 : 1;
+
+  const lines = [];
+  if (hasLabel) lines.push({ text: s.label, size: "3.2" });
+  if (hasDim) lines.push({ text: fmt(s.dimValue), size: "4.4" });
+
+  const gap = 3.4, lineHeight = 4.6;
+  const n = lines.length;
+  let out = "";
+  lines.forEach((ln, i) => {
+    const dist = dir === 1 ? gap + i * lineHeight : gap + (n - 1 - i) * lineHeight;
+    const tx = midX + nx * dir * dist, ty = midY + ny * dir * dist;
+    out += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="${ln.size}" letter-spacing="0.5" fill="#22333B" transform="rotate(${angDeg} ${tx} ${ty})">${neEscapeXml(ln.text)}</text>`;
+  });
+  return out;
+}
 
         function manualDimsMarkup(s, verts) {
     if (!s.edges || !verts.length) return "";
@@ -404,39 +461,52 @@ function neBuildPrintSvgMarkup(nota, shapes, copyLabel) {
     return out;
   }
 
-    function rectDimsMarkup(s, x, y, w, h, allShapes) {
-    const forceInside = !!s.dimsInside;
-    const blocked = neSidesBlockedPrint(s, allShapes);
+   function neResolveWDimModePrint(s, blocked) {
+  const mode = s.wDimMode || (s.dimsInside ? "top-in" : "auto");
+  if (mode !== "auto") return mode;
+  if (!blocked.top) return "top-out";
+  if (!blocked.bottom) return "bottom-out";
+  return "top-in";
+}
+function neResolveHDimModePrint(s, blocked) {
+  const mode = s.hDimMode || (s.dimsInside ? "left-in" : "auto");
+  if (mode !== "auto") return mode;
+  if (!blocked.left) return "left-out";
+  if (!blocked.right) return "right-out";
+  return "left-in";
+}
 
-    let wMode = "top";
-    if (forceInside || (blocked.top && blocked.bottom)) wMode = "inside";
-    else if (blocked.top) wMode = "bottom";
+function rectDimsMarkup(s, x, y, w, h, allShapes) {
+  const blocked = neSidesBlockedPrint(s, allShapes);
+  const wMode = neResolveWDimModePrint(s, blocked);
+  const hMode = neResolveHDimModePrint(s, blocked);
 
-    const topY = wMode === "inside" ? y + 5 : wMode === "bottom" ? y + h + 3 : Math.max(2, y - 3);
-    let out = "";
-       if (wMode !== "inside") {
-      out += neDimLineMarkup({ x, y: topY }, { x: x + w, y: topY }, "#22333B");
-    }
-    const wLabelY = wMode === "top" ? topY - 1.2 : wMode === "inside" ? topY : topY + 4.6;
-    out += `<text x="${x + w / 2}" y="${wLabelY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B">${neEscapeXml(fmt(s.w))}</text>`;
+  const wIn = wMode === "top-in" || wMode === "bottom-in";
+  const topY = wMode === "top-out" ? Math.max(2, y - 3)
+    : wMode === "bottom-out" ? y + h + 3
+    : wMode === "top-in" ? y + 5
+    : y + h - 5;
+  let out = "";
+  if (!wIn) out += neDimLineMarkup({ x, y: topY }, { x: x + w, y: topY }, "#22333B");
+  const wLabelY = wMode === "top-out" ? topY - 1.2 : wMode === "bottom-out" ? topY + 4.6 : topY;
+  out += `<text x="${x + w / 2}" y="${wLabelY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B">${neEscapeXml(fmt(s.w))}</text>`;
 
-    let hMode = "left";
-    if (forceInside || (blocked.left && blocked.right)) hMode = "inside";
-    else if (blocked.left) hMode = "right";
-
-    const leftX = hMode === "inside" ? x + 5 : hMode === "right" ? x + w + 3.2 : Math.max(2, x - 3.2);
-        if (hMode !== "inside") {
-      out += neDimLineMarkup({ x: leftX, y }, { x: leftX, y: y + h }, "#22333B");
-    }
-    const hLabelX = hMode === "left" ? leftX - 2.6 : hMode === "right" ? leftX + 2.6 : leftX;
-    out += `<text x="${hLabelX}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B" transform="rotate(-90 ${hLabelX} ${y + h / 2})">${neEscapeXml(fmt(s.h))}</text>`;
-
-    return out;
-  }
+  const hIn = hMode === "left-in" || hMode === "right-in";
+  const leftX = hMode === "left-out" ? Math.max(2, x - 3.2)
+    : hMode === "right-out" ? x + w + 3.2
+    : hMode === "left-in" ? x + 5
+    : x + w - 5;
+  if (!hIn) out += neDimLineMarkup({ x: leftX, y }, { x: leftX, y: y + h }, "#22333B");
+  const hLabelX = hMode === "left-out" ? leftX - 2.6 : hMode === "right-out" ? leftX + 2.6 : leftX;
+  out += `<text x="${hLabelX}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="4.4" letter-spacing="0.5" fill="#22333B" transform="rotate(-90 ${hLabelX} ${y + h / 2})">${neEscapeXml(fmt(s.h))}</text>`;
+  return out;
+}
 
     shapes.forEach((s) => {
     if (s.type === "rect" || !s.type) {
-      const x = r2dX(s.x), y = r2dY(s.y), w = r2dLen(s.w), h = r2dLen(s.h);
+            const x = r2dX(s.x), y = r2dY(s.y);
+      const w = s.isRodamao ? 20 : r2dLen(s.w);
+      const h = s.isRodamao ? 10 : r2dLen(s.h);
       const r = Array.isArray(s.r) ? s.r.map((v) => r2dLen(v || 0)) : [0, 0, 0, 0];
       const showRect = s.showRect !== false;
       if (showRect) {
@@ -466,6 +536,14 @@ dimsMarkup += manualDimsMarkup(s, neVerticesOf(s));
                       polishMarkup += `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="4.6" font-weight="700" fill="#c0392b">C</text>`;
         }
       }
+            if (s.edges && s.edges[0] && s.edges[0].me) {
+        const countME = neMECount(2 * Math.PI * r);
+        for (let i = 0; i < countME; i++) {
+          const ang = (i / countME) * Math.PI * 2 - Math.PI / 2;
+          const px = cx + Math.cos(ang) * (r + 2.4), py = cy + Math.sin(ang) * (r + 2.4);
+          polishMarkup += `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="3.6" font-weight="700" fill="#c0392b">ME</text>`;
+        }
+      }
     } else if (s.type === "polygon") {
       const pts = (s.points || []).map((p) => `${r2dX(p.x)} ${r2dY(p.y)}`).join(" L ");
       shapesMarkup += `<path d="M ${pts} Z" fill="#f8f9fa" stroke="#22333B" stroke-width="0.6"/>`;
@@ -479,12 +557,12 @@ dimsMarkup += manualDimsMarkup(s, neVerticesOf(s));
     } else if (s.type === "arrow") {
       const x1 = r2dX(s.x1), y1 = r2dY(s.y1), x2 = r2dX(s.x2), y2 = r2dY(s.y2);
       shapesMarkup += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#22333B" stroke-width="0.6" marker-end="url(#neArrowHeadPrint)"/>`;
-      if (s.label) shapesMarkup += `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 1.5}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
+      dimsMarkup += lineStyleLabelMarkup(s);
     } else if (s.type === "line") {
       const x1 = r2dX(s.x1), y1 = r2dY(s.y1), x2 = r2dX(s.x2), y2 = r2dY(s.y2);
       const dashAttr = s.dashed ? ` stroke-dasharray="2,1.4"` : "";
       shapesMarkup += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#22333B" stroke-width="0.6"${dashAttr}/>`;
-      if (s.label) shapesMarkup += `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 1.5}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
+      dimsMarkup += lineStyleLabelMarkup(s);
     } else if (s.type === "brace") {
       const width = s.width || 20;
       const rp = window.neBracePoints(s.x1, s.y1, s.x2, s.y2, width);
@@ -504,7 +582,7 @@ dimsMarkup += manualDimsMarkup(s, neVerticesOf(s));
   const p90 = neArrow90PointsPrint(s);
   const x1 = r2dX(p90.x1), y1 = r2dY(p90.y1), cx = r2dX(p90.cx), cy = r2dY(p90.cy), x2 = r2dX(p90.x2), y2 = r2dY(p90.y2);
   shapesMarkup += `<path d="M ${x2} ${y2} L ${cx} ${cy} L ${x1} ${y1}" fill="none" stroke="#22333B" stroke-width="0.6" marker-end="url(#neArrowHeadPrint)"/>`;
-  if (s.label) shapesMarkup += `<text x="${(cx + x1) / 2}" y="${(cy + y1) / 2 - 1.5}" text-anchor="middle" font-size="3.2" fill="#22333B">${neEscapeXml(s.label)}</text>`;
+  dimsMarkup += lineStyleLabelMarkup(s);
               } else if (s.type === "text") {
       const x = r2dX(s.x), y = r2dY(s.y);
       const rot = s.rotation || 0;

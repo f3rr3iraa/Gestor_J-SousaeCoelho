@@ -47,6 +47,9 @@ window.initNotaEncomendaForm = async function () {
   const fPioRaioField = document.getElementById("nePioRaioField");
   const fPioNomeField = document.getElementById("nePioNomeField");
   const fPioFuroField = document.getElementById("nePioFuroField");
+  const fPioExtraTipoField = document.getElementById("nePioExtraTipoField");
+  const fPioExtraLadoField = document.getElementById("nePioExtraLadoField");
+  const fPioExtraLadoFieldWrap = document.getElementById("nePioExtraLadoFieldWrap");
   const allPanels = [panelRect, panelCircle, panelPolygon, panelArrow, panelText, panelLine, panelBrace, panelPio];
 
   const fW = document.getElementById("neW");
@@ -67,9 +70,8 @@ window.initNotaEncomendaForm = async function () {
   const fCurvedText = document.getElementById("neCurvedText");
 
   const fLabelPolygon = document.getElementById("neLabelPolygon");
-  const fLabelArrow = document.getElementById("neLabelArrow");
-  const fLabelArrow90 = document.getElementById("neLabelArrow90");
-    const fDimsInside = document.getElementById("neDimsInside");
+       const fWDimMode = document.getElementById("neWDimMode");
+  const fHDimMode = document.getElementById("neHDimMode");
   const fShowDims = document.getElementById("neShowDims");
 
   const fTextContent = document.getElementById("neTextContent");
@@ -85,6 +87,7 @@ window.initNotaEncomendaForm = async function () {
       const edgeModeBtn = document.getElementById("neToggleEdgeMode");
   const dimModeBtn = document.getElementById("neToggleDimMode");
   const parallelModeBtn = document.getElementById("neToggleParallelMode");
+  const meModeBtn = document.getElementById("neToggleMEMode");
   const dimPanel = document.getElementById("neDimPanel");
   const fDimValue = document.getElementById("neDimValue");
   const showGridChk = document.getElementById("neShowGrid");
@@ -98,13 +101,15 @@ window.initNotaEncomendaForm = async function () {
   const fModalDimValue = document.getElementById("neModalDimValueInput");
   const fMarcarPorAcabar = document.getElementById("neMarcarPorAcabar");
     const fRodQuantidade = document.getElementById("neRodQuantidade");
-  const fLabelRodamao = document.getElementById("neLabelRodamao");
-  const fRodDimsInside = document.getElementById("neRodDimsInside");
+    const fRodComp = document.getElementById("neRodComp");
+  const fRodLarg = document.getElementById("neRodLarg");
+  const fRodEsp = document.getElementById("neRodEsp");
+    const fRodWDimMode = document.getElementById("neRodWDimMode");
+  const fRodHDimMode = document.getElementById("neRodHDimMode");
   const fRodShowDims = document.getElementById("neRodShowDims");
   const fRodShowRect = document.getElementById("neRodShowRect");
     const fRodMaisPropBtn = document.getElementById("neRodMaisPropBtn");
-  const fRodW = document.getElementById("neRodW");
-  const fRodH = document.getElementById("neRodH");
+
   const fRodMaisProp = document.getElementById("neRodMaisProp");
   const fRodRGroup = document.getElementById("neRodRGroup");
   const fRodRAllWrap = document.getElementById("neRodRAllWrap");
@@ -118,15 +123,17 @@ window.initNotaEncomendaForm = async function () {
   allPanels.push(panelFrisos);
   allPanels.push(panelRodamao);
 
-    function neDesativarModosEdgeDim() {
-    if (editor.getTool() !== "select") editor.setTool("select");
-    edgeModeBtn.classList.remove("ne-tool-active");
-    edgeModeBtn.style.backgroundColor = "";
-    dimModeBtn.classList.remove("ne-tool-active");
-    dimModeBtn.style.backgroundColor = "";
-    parallelModeBtn.classList.remove("ne-tool-active");
-    parallelModeBtn.style.backgroundColor = "";
-  }
+   function neDesativarModosEdgeDim() {
+  if (editor.getTool() !== "select") editor.setTool("select");
+  edgeModeBtn.classList.remove("ne-tool-active");
+  edgeModeBtn.style.backgroundColor = "";
+  meModeBtn.classList.remove("ne-tool-active");
+  meModeBtn.style.backgroundColor = "";
+  dimModeBtn.classList.remove("ne-tool-active");
+  dimModeBtn.style.backgroundColor = "";
+  parallelModeBtn.classList.remove("ne-tool-active");
+  parallelModeBtn.style.backgroundColor = "";
+}
 
   // ---------------------------------------------------------------
   // ESTADO INICIAL
@@ -149,7 +156,15 @@ window.initNotaEncomendaForm = async function () {
 
     const editor = window.createNotaEditor(sheetContainer);
 
-      // Nunca deixar o Enter submeter o formulário (só clicando no botão
+    // Conversão de exibição: os cantos são guardados sempre em mm
+    // internamente, mas o utilizador escreve/vê sempre em cm.
+    function neRadiusMmToCm(mm) { return Math.round(mm || 0) / 10; }
+    function neRadiusCmToMm(cmValue) {
+      const cm = parseFloat(cmValue);
+      return isNaN(cm) ? 0 : cm * 10;
+    }
+
+      // Nunca deixar o Enter submeter o formulário
   // "Guardar Nota"). Nos campos onde o Enter já tem uma ação própria
   // (avançar para o campo seguinte), essa ação continua a funcionar,
   // porque estes handlers já chamam preventDefault antes de chegar aqui.
@@ -273,6 +288,8 @@ window.initNotaEncomendaForm = async function () {
     scaleInfo.textContent = `Escala usada: 1:${Math.round(info.den)}${info.auto ? " (automática)" : ""}`;
   }
 
+  let neDimPanelAtivo = false;
+  
      let neUltimoSelecionadoId = null;
 
       editor.onSelectionChange((selectedList) => {
@@ -282,14 +299,21 @@ window.initNotaEncomendaForm = async function () {
        if (!editor.isDrawingLine()) lineBar.classList.add("d-none");
     if (!editor.isDrawingPolygon()) polyBar.classList.add("d-none");
     if (!editor.isDrawingArrow()) arrowBar.classList.add("d-none");
-    if (!editor.isDrawingArrow90()) arrow90Bar.classList.add("d-none");
+       if (!editor.isDrawingArrow90()) arrow90Bar.classList.add("d-none");
+
+        // painel de medida ativo (seta / modo Medida): é ele que manda
+    if (neDimPanelAtivo) {
+      panelEmpty.classList.add("d-none");
+      neUltimoSelecionadoId = null;
+      return;
+    }
 
     if (!selectedList || selectedList.length === 0) {
       panelEmpty.classList.remove("d-none");
       neUltimoSelecionadoId = null;
       return;
     }
-      panelEmpty.classList.add("d-none");
+    panelEmpty.classList.add("d-none");
 
     let selected = selectedList[0];
 
@@ -298,7 +322,7 @@ window.initNotaEncomendaForm = async function () {
       // retângulo selecionado, para continuar a mostrar o painel de
       // propriedades do Pio em vez do aviso de seleção múltipla.
       const pioRect = selectedList.find((s) => s.type === "rect" && s.isPio);
-      const isGrupoPio = pioRect && selectedList.length === 2 &&
+      const isGrupoPio = pioRect && selectedList.length >= 2 &&
         selectedList.every((s) => s.groupId === pioRect.groupId);
 
       if (isGrupoPio) {
@@ -318,48 +342,54 @@ window.initNotaEncomendaForm = async function () {
       panelRodamao.classList.remove("d-none");
       if (!mudouSelecao) return;
             fRodQuantidade.value = selected.quantidade || 1;
-      fLabelRodamao.value = selected.label || "";
-            fRodDimsInside.checked = !!selected.dimsInside;
+            fRodComp.value = selected.rodComp ?? "";
+      fRodLarg.value = selected.rodLarg ?? "";
+      fRodEsp.value = selected.rodEsp ?? "";
+             fRodWDimMode.value = selected.wDimMode || "auto";
+      fRodHDimMode.value = selected.hDimMode || "auto";
       fRodShowDims.checked = selected.showDims !== false;
       fRodShowRect.checked = selected.showRect !== false;
-      fRodW.value = window.neFormatMeasureInput(selected.w);
-      fRodH.value = window.neFormatMeasureInput(selected.h);
       const rRod = selected.r || [0, 0, 0, 0];
-      fRodRTL.value = Math.round(rRod[0] || 0);
-      fRodRTR.value = Math.round(rRod[1] || 0);
-      fRodRBR.value = Math.round(rRod[2] || 0);
-      fRodRBL.value = Math.round(rRod[3] || 0);
+      fRodRTL.value = neRadiusMmToCm(rRod[0]);
+      fRodRTR.value = neRadiusMmToCm(rRod[1]);
+      fRodRBR.value = neRadiusMmToCm(rRod[2]);
+      fRodRBL.value = neRadiusMmToCm(rRod[3]);
       const rRodIguais = rRod.every((v) => Math.round(v || 0) === Math.round(rRod[0] || 0));
-      fRodRAll.value = rRodIguais ? Math.round(rRod[0] || 0) : "";
+      fRodRAll.value = rRodIguais ? neRadiusMmToCm(rRod[0]) : "";
       fRodRGroup.checked = false;
       neAplicarModoRodRGroup(false);
       fRodMaisProp.classList.add("d-none");
-        } else if (selected.type === "rect" && selected.isPio) {
+              } else if (selected.type === "rect" && selected.isPio) {
       panelPio.classList.remove("d-none");
       if (!mudouSelecao) return;
       fPioWField.value = window.neFormatMeasureInput(selected.w);
       fPioHField.value = window.neFormatMeasureInput(selected.h);
       const rPio = selected.r || [0, 0, 0, 0];
-      fPioRaioField.value = Math.round(rPio[0] || 0);
+      fPioRaioField.value = neRadiusMmToCm(rPio[0]);
       fPioNomeField.value = selected.pioNome || "";
            const furoInfo = editor.getPioFuroInfo();
       fPioFuroField.checked = !!(furoInfo && furoInfo.hasFuro);
+      const extraInfo = editor.getPioExtraInfo();
+      fPioExtraTipoField.value = extraInfo && extraInfo.tipo ? extraInfo.tipo : "";
+      fPioExtraLadoField.value = extraInfo && extraInfo.lado ? extraInfo.lado : "direita";
+      fPioExtraLadoFieldWrap.classList.toggle("d-none", !fPioExtraTipoField.value);
     } else if (selected.type === "rect") {
       panelRect.classList.remove("d-none");
       if (!mudouSelecao) return;
       fW.value = window.neFormatMeasureInput(selected.w);
       fH.value = window.neFormatMeasureInput(selected.h);
       const r = selected.r || [0, 0, 0, 0];
-            fRTL.value = Math.round(r[0] || 0);
-      fRTR.value = Math.round(r[1] || 0);
-      fRBR.value = Math.round(r[2] || 0);
-      fRBL.value = Math.round(r[3] || 0);
+      fRTL.value = neRadiusMmToCm(r[0]);
+      fRTR.value = neRadiusMmToCm(r[1]);
+      fRBR.value = neRadiusMmToCm(r[2]);
+      fRBL.value = neRadiusMmToCm(r[3]);
       const rIguais = r.every((v) => Math.round(v || 0) === Math.round(r[0] || 0));
-      fRAll.value = rIguais ? Math.round(r[0] || 0) : "";
+      fRAll.value = rIguais ? neRadiusMmToCm(r[0]) : "";
       fRGroup.checked = false;
       neAplicarModoRGroup(false);
-      fLabelRect.value = selected.label || "";
-      fDimsInside.checked = !!selected.dimsInside;
+            fLabelRect.value = selected.label || "";
+      fWDimMode.value = selected.wDimMode || "auto";
+      fHDimMode.value = selected.hDimMode || "auto";
       fShowDims.checked = selected.showDims !== false;
     } else if (selected.type === "circle") {
       panelCircle.classList.remove("d-none");
@@ -372,14 +402,10 @@ window.initNotaEncomendaForm = async function () {
       panelPolygon.classList.remove("d-none");
       if (!mudouSelecao) return;
       fLabelPolygon.value = selected.label || "";
-    } else if (selected.type === "arrow") {
+       } else if (selected.type === "arrow") {
       panelArrow.classList.remove("d-none");
-      if (!mudouSelecao) return;
-      fLabelArrow.value = selected.label || "";
     } else if (selected.type === "arrow90") {
       panelArrow90.classList.remove("d-none");
-      if (!mudouSelecao) return;
-      fLabelArrow90.value = selected.label || "";
     } else if (selected.type === "line") {
       panelLine.classList.remove("d-none");
       if (!mudouSelecao) return;
@@ -423,37 +449,30 @@ window.initNotaEncomendaForm = async function () {
   fRGroup.addEventListener("change", () => {
     neAplicarModoRGroup(fRGroup.checked);
     if (fRGroup.checked) {
-      // ao entrar no modo "grupo", usa o valor do canto Sup. esq. como
-      // ponto de partida e aplica-o já a todos os cantos
-      const n = parseFloat(fRTL.value) || 0;
-      fRAll.value = n;
-      fRTL.value = n; fRTR.value = n; fRBR.value = n; fRBL.value = n;
-      editor.updateSelected({ r: [n, n, n, n] });
+      const cm = parseFloat(fRTL.value) || 0;
+      fRAll.value = cm;
+      fRTL.value = cm; fRTR.value = cm; fRBR.value = cm; fRBL.value = cm;
+      const mm = neRadiusCmToMm(cm);
+      editor.updateSelected({ r: [mm, mm, mm, mm] });
     }
   });
 
   [fRTL, fRTR, fRBR, fRBL].forEach((input) => {
     input.addEventListener("input", () => {
       editor.updateSelected({
-        r: [parseFloat(fRTL.value) || 0, parseFloat(fRTR.value) || 0, parseFloat(fRBR.value) || 0, parseFloat(fRBL.value) || 0],
+        r: [neRadiusCmToMm(fRTL.value), neRadiusCmToMm(fRTR.value), neRadiusCmToMm(fRBR.value), neRadiusCmToMm(fRBL.value)],
       });
     });
   });
   fRAll.addEventListener("input", () => {
-    const n = parseFloat(fRAll.value) || 0;
-    fRTL.value = n; fRTR.value = n; fRBR.value = n; fRBL.value = n;
-    editor.updateSelected({ r: [n, n, n, n] });
-  });
-  fRAll.addEventListener("input", () => {
-    const n = parseFloat(fRAll.value) || 0;
-    fRTL.value = n;
-    fRTR.value = n;
-    fRBR.value = n;
-    fRBL.value = n;
-    editor.updateSelected({ r: [n, n, n, n] });
+    const cm = parseFloat(fRAll.value) || 0;
+    fRTL.value = cm; fRTR.value = cm; fRBR.value = cm; fRBL.value = cm;
+    const mm = neRadiusCmToMm(cm);
+    editor.updateSelected({ r: [mm, mm, mm, mm] });
   });
   fLabelRect.addEventListener("input", () => editor.updateSelected({ label: fLabelRect.value }));
-    fDimsInside.addEventListener("change", () => editor.updateSelected({ dimsInside: fDimsInside.checked }));
+      fWDimMode.addEventListener("change", () => editor.updateSelected({ wDimMode: fWDimMode.value }));
+  fHDimMode.addEventListener("change", () => editor.updateSelected({ hDimMode: fHDimMode.value }));
   fShowDims.addEventListener("change", () => editor.updateSelected({ showDims: fShowDims.checked }));
 
   // PIO — painel dedicado, iguala os campos ao modal "Novo pio personalizado"
@@ -466,14 +485,21 @@ window.initNotaEncomendaForm = async function () {
     if (!isNaN(mm) && mm > 0) editor.updateSelected({ h: mm });
   });
   fPioRaioField.addEventListener("input", () => {
-    const n = parseFloat(fPioRaioField.value) || 0;
-    editor.updateSelected({ r: [n, n, n, n] });
+    const mm = neRadiusCmToMm(fPioRaioField.value);
+    editor.updateSelected({ r: [mm, mm, mm, mm] });
   });
     fPioNomeField.addEventListener("input", () => {
     const temNome = fPioNomeField.value.trim().length > 0;
-    editor.updateSelected({ pioNome: fPioNomeField.value, showDims: !temNome, dimsInside: true });
+        editor.updateSelected({ pioNome: fPioNomeField.value, showDims: !temNome, wDimMode: "top-in", hDimMode: "left-in" });
   });
-  fPioFuroField.addEventListener("change", () => editor.setPioFuroAtivo(fPioFuroField.checked));
+   fPioFuroField.addEventListener("change", () => editor.setPioFuroAtivo(fPioFuroField.checked));
+  fPioExtraTipoField.addEventListener("change", () => {
+    fPioExtraLadoFieldWrap.classList.toggle("d-none", !fPioExtraTipoField.value);
+    editor.setPioExtra(fPioExtraTipoField.value || null, fPioExtraLadoField.value);
+  });
+  fPioExtraLadoField.addEventListener("change", () => {
+    editor.setPioExtra(fPioExtraTipoField.value || null, fPioExtraLadoField.value);
+  });
   fRadius.addEventListener("input", () => {
     const mm = window.neParseMeasure(fRadius.value);
     if (!isNaN(mm) && mm > 0) editor.updateSelected({ radius: mm });
@@ -483,8 +509,6 @@ window.initNotaEncomendaForm = async function () {
   fCurvedText.addEventListener("input", () => editor.updateSelected({ curvedText: fCurvedText.value }));
 
   fLabelPolygon.addEventListener("input", () => editor.updateSelected({ label: fLabelPolygon.value }));
-    fLabelArrow.addEventListener("input", () => editor.updateSelected({ label: fLabelArrow.value }));
-  fLabelArrow90.addEventListener("input", () => editor.updateSelected({ label: fLabelArrow90.value }));
    fLabelLine.addEventListener("input", () => editor.updateSelected({ label: fLabelLine.value }));
   fDashedLine.addEventListener("change", () => editor.updateSelected({ dashed: fDashedLine.checked }));
 
@@ -546,7 +570,16 @@ window.initNotaEncomendaForm = async function () {
   });
    document.getElementById("neAddBrace").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addBrace(); refreshScaleInfo(); });
   document.getElementById("neAddText").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addText(); refreshScaleInfo(); });
-  document.getElementById("neAddFrisos").addEventListener("click", () => { neDesativarModosEdgeDim(); editor.addFrisos(); refreshScaleInfo(); });
+document.querySelectorAll(".ne-extra-pio-option").forEach((el) => {
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    neDesativarModosEdgeDim();
+    const tipo = el.getAttribute("data-extra");
+    if (tipo === "frisos") editor.addFrisos();
+    else if (tipo === "rampa") editor.addRampa();
+    refreshScaleInfo();
+  });
+});
   fLabelFrisos.addEventListener("input", () => editor.updateSelected({ label: fLabelFrisos.value }));
 
   showGridChk.addEventListener("change", () => editor.setShowGrid(showGridChk.checked));
@@ -583,7 +616,14 @@ window.initNotaEncomendaForm = async function () {
   const pioFuro = document.getElementById("nePioFuro");
   const pioNome = document.getElementById("nePioNome");
 
-   document.querySelectorAll(".ne-pio-option").forEach((el) => {
+     const pioExtraTipo = document.getElementById("nePioExtraTipo");
+  const pioExtraLado = document.getElementById("nePioExtraLado");
+  const pioExtraLadoWrap = document.getElementById("nePioExtraLadoWrap");
+  pioExtraTipo.addEventListener("change", () => {
+    pioExtraLadoWrap.classList.toggle("d-none", !pioExtraTipo.value);
+  });
+
+  document.querySelectorAll(".ne-pio-option").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       neDesativarModosEdgeDim();
@@ -593,6 +633,9 @@ window.initNotaEncomendaForm = async function () {
       pioRaio.value = "";
       pioNome.value = "";
       pioFuro.checked = true;
+      pioExtraTipo.value = "";
+      pioExtraLado.value = "direita";
+      pioExtraLadoWrap.classList.add("d-none");
       pioModal.show();
     });
   });
@@ -605,8 +648,8 @@ window.initNotaEncomendaForm = async function () {
       showMessage("Escreve o comprimento e a largura antes de adicionar (ex: 60 cm ou 0.60).", "danger");
       return;
     }
-    const raio = parseFloat(pioRaio.value) || 0;
-    editor.addPio(comp, larg, raio, pioFuro.checked, pioNome.value.trim());
+    const raioMm = neRadiusCmToMm(pioRaio.value);
+    editor.addPio(comp, larg, raioMm, pioFuro.checked, pioNome.value.trim(), pioExtraTipo.value || null, pioExtraLado.value);
     pioModal.hide();
     refreshScaleInfo();
   });
@@ -644,23 +687,25 @@ window.initNotaEncomendaForm = async function () {
   fRodRGroup.addEventListener("change", () => {
     neAplicarModoRodRGroup(fRodRGroup.checked);
     if (fRodRGroup.checked) {
-      const n = parseFloat(fRodRTL.value) || 0;
-      fRodRAll.value = n;
-      fRodRTL.value = n; fRodRTR.value = n; fRodRBR.value = n; fRodRBL.value = n;
-      editor.updateSelected({ r: [n, n, n, n] });
+      const cm = parseFloat(fRodRTL.value) || 0;
+      fRodRAll.value = cm;
+      fRodRTL.value = cm; fRodRTR.value = cm; fRodRBR.value = cm; fRodRBL.value = cm;
+      const mm = neRadiusCmToMm(cm);
+      editor.updateSelected({ r: [mm, mm, mm, mm] });
     }
   });
   [fRodRTL, fRodRTR, fRodRBR, fRodRBL].forEach((input) => {
     input.addEventListener("input", () => {
       editor.updateSelected({
-        r: [parseFloat(fRodRTL.value) || 0, parseFloat(fRodRTR.value) || 0, parseFloat(fRodRBR.value) || 0, parseFloat(fRodRBL.value) || 0],
+        r: [neRadiusCmToMm(fRodRTL.value), neRadiusCmToMm(fRodRTR.value), neRadiusCmToMm(fRodRBR.value), neRadiusCmToMm(fRodRBL.value)],
       });
     });
   });
   fRodRAll.addEventListener("input", () => {
-    const n = parseFloat(fRodRAll.value) || 0;
-    fRodRTL.value = n; fRodRTR.value = n; fRodRBR.value = n; fRodRBL.value = n;
-    editor.updateSelected({ r: [n, n, n, n] });
+    const cm = parseFloat(fRodRAll.value) || 0;
+    fRodRTL.value = cm; fRodRTR.value = cm; fRodRBR.value = cm; fRodRBL.value = cm;
+    const mm = neRadiusCmToMm(cm);
+    editor.updateSelected({ r: [mm, mm, mm, mm] });
   });
 
   fRodMaisPropBtn.addEventListener("click", () => {
@@ -672,18 +717,21 @@ window.initNotaEncomendaForm = async function () {
     if (!isNaN(v) && v > 0) editor.updateSelected({ quantidade: v });
   });
 
-   fLabelRodamao.addEventListener("input", () => editor.updateSelected({ label: fLabelRodamao.value }));
-  fRodDimsInside.addEventListener("change", () => editor.updateSelected({ dimsInside: fRodDimsInside.checked }));
+   
+    fRodWDimMode.addEventListener("change", () => editor.updateSelected({ wDimMode: fRodWDimMode.value }));
+  fRodHDimMode.addEventListener("change", () => editor.updateSelected({ hDimMode: fRodHDimMode.value }));
   fRodShowDims.addEventListener("change", () => editor.updateSelected({ showDims: fRodShowDims.checked }));
   fRodShowRect.addEventListener("change", () => editor.updateSelected({ showRect: fRodShowRect.checked }));
   
-    fRodW.addEventListener("input", () => {
-    const mm = window.neParseMeasure(fRodW.value);
-    if (!isNaN(mm) && mm > 0) editor.updateSelected({ w: mm });
-  });
-  fRodH.addEventListener("input", () => {
-    const mm = window.neParseMeasure(fRodH.value);
-    if (!isNaN(mm) && mm > 0) editor.updateSelected({ h: mm });
+      [[fRodComp, "rodComp"], [fRodLarg, "rodLarg"], [fRodEsp, "rodEsp"]].forEach(([el, key]) => {
+    el.addEventListener("input", () => editor.updateSelected({ [key]: el.value }));
+    el.addEventListener("change", () => {
+      const mm = window.neParseMeasure(el.value);
+      if (!isNaN(mm)) {
+        el.value = window.neFormatMeasure(mm);
+        editor.updateSelected({ [key]: el.value });
+      }
+    });
   });
 
   const rodamaoModalEl = document.getElementById("neModalAddRodamao");
@@ -693,23 +741,96 @@ window.initNotaEncomendaForm = async function () {
   const rodLarguraModal = document.getElementById("neRodamaoLargura");
   const rodEspessuraModal = document.getElementById("neRodamaoEspessura");
 
-    [rodComprimentoModal, rodLarguraModal, rodEspessuraModal, fLabelRodamao].forEach(neSubstituirPontoPorVirgula);
+       [rodComprimentoModal, rodLarguraModal, rodEspessuraModal].forEach(neSubstituirPontoPorVirgula);
 
     
-   document.getElementById("neAddRodamao").addEventListener("click", () => {
-    neDesativarModosEdgeDim();
+   const rodamaoTotalModalEl = document.getElementById("neModalRodamaoTotal");
+  const rodamaoTotalModal = new bootstrap.Modal(rodamaoTotalModalEl);
+  const rodTotalInput = document.getElementById("neRodamaoTotalInput");
+  const rodTotalEdit = document.getElementById("neRodamaoTotalEdit");
+  const rodProgresso = document.getElementById("neRodamaoProgresso");
+
+  let neRodTotal = 1;      // quantos rodamões diferentes vão ser adicionados
+  let neRodFeitos = 0;     // quantos já foram adicionados nesta sequência
+  let neAbrirRodamaoDepois = false;
+
+  function neAtualizarProgressoRodamao() {
+    rodTotalEdit.value = neRodTotal;
+        rodProgresso.textContent = `${neNomeRod()} ${Math.min(neRodFeitos + 1, neRodTotal)} de ${neRodTotal}`;
+  }
+
+  function neLimparCamposRodamao() {
     rodQuantidadeModal.value = 1;
     rodComprimentoModal.value = "";
     rodLarguraModal.value = "";
     rodEspessuraModal.value = "";
+  }
+
+    let neModoPeitoril = false;
+  function neNomeRod() { return neModoPeitoril ? "Peitoril" : "Rodamão"; }
+
+  function neAbrirFluxoRodamao(peitoril) {
+    neDesativarModosEdgeDim();
+    neModoPeitoril = peitoril;
+    document.getElementById("neRodamaoTotalTitulo").innerHTML =
+      `<i class="bi bi-${peitoril ? "fonts" : "border-width"} me-2"></i>${peitoril ? "Peitoris" : "Rodamões"} a adicionar`;
+    document.getElementById("neRodamaoModalTitulo").innerHTML =
+      `<i class="bi bi-${peitoril ? "fonts" : "border-width"} me-2"></i>Novo ${peitoril ? "peitoril" : "rodamão"}`;
+    rodTotalInput.value = 1;
+    rodamaoTotalModal.show();
+  }
+  document.getElementById("neAddRodamao").addEventListener("click", () => neAbrirFluxoRodamao(false));
+  document.getElementById("neAddPeitoril").addEventListener("click", () => neAbrirFluxoRodamao(true));
+
+  rodamaoTotalModalEl.addEventListener("shown.bs.modal", () => {
+    rodTotalInput.focus();
+    rodTotalInput.select();
+  });
+  rodTotalInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    document.getElementById("neRodamaoTotalConfirm").click();
+  });
+
+  document.getElementById("neRodamaoTotalConfirm").addEventListener("click", () => {
+    const t = parseInt(rodTotalInput.value, 10);
+    if (isNaN(t) || t <= 0) {
+      showMessage("Escreve quantos rodamões diferentes queres adicionar.", "danger");
+      return;
+    }
+    neRodTotal = t;
+    neRodFeitos = 0;
+    neAbrirRodamaoDepois = true;
+    rodamaoTotalModal.hide();
+  });
+
+  // só abre o modal seguinte depois deste fechar de vez (evita glitches)
+  rodamaoTotalModalEl.addEventListener("hidden.bs.modal", () => {
+    if (!neAbrirRodamaoDepois) return;
+    neAbrirRodamaoDepois = false;
+    neLimparCamposRodamao();
+    neAtualizarProgressoRodamao();
     rodamaoModal.show();
   });
+
   rodamaoModalEl.addEventListener("shown.bs.modal", () => {
     rodQuantidadeModal.focus();
     rodQuantidadeModal.select();
   });
 
-   document.getElementById("neRodamaoConfirm").addEventListener("click", () => {
+  // o total pode ser alterado a meio da sequência
+  rodTotalEdit.addEventListener("input", () => {
+    const t = parseInt(rodTotalEdit.value, 10);
+    if (isNaN(t) || t <= 0) return;
+    neRodTotal = t;
+    if (neRodFeitos >= neRodTotal) {
+      rodamaoModal.hide();
+      return;
+    }
+        rodProgresso.textContent = `${neNomeRod()} ${neRodFeitos + 1} de ${neRodTotal}`;
+  });
+
+  document.getElementById("neRodamaoConfirm").addEventListener("click", () => {
     const qtd = parseInt(rodQuantidadeModal.value, 10);
     const comp = rodComprimentoModal.value.trim();
     const larg = rodLarguraModal.value.trim();
@@ -723,9 +844,19 @@ window.initNotaEncomendaForm = async function () {
       showMessage("Escreve uma quantidade válida.", "danger");
       return;
     }
-    editor.addRodamao(comp, larg, esp, qtd);
-    rodamaoModal.hide();
+        editor.addRodamao(comp, larg, esp, qtd, neModoPeitoril);
     refreshScaleInfo();
+
+    neRodFeitos++;
+    if (neRodFeitos < neRodTotal) {
+      // continua no mesmo modal, já com os campos limpos, para o seguinte
+      neLimparCamposRodamao();
+      neAtualizarProgressoRodamao();
+      rodQuantidadeModal.focus();
+      rodQuantidadeModal.select();
+    } else {
+      rodamaoModal.hide();
+    }
   });
 
   [rodQuantidadeModal, rodComprimentoModal, rodLarguraModal, rodEspessuraModal].forEach((input, idx, arr) => {
@@ -752,7 +883,8 @@ window.initNotaEncomendaForm = async function () {
   });
 
      edgeModeBtn.addEventListener("click", () => {
-    const active = editor.getTool() === "edge";
+      const active = editor.getTool() === "edge";
+    meModeBtn.classList.remove("ne-tool-active"); meModeBtn.style.backgroundColor = "";
     editor.setTool(active ? "select" : "edge");
     edgeModeBtn.classList.toggle("ne-tool-active", !active);
     edgeModeBtn.style.backgroundColor = active ? "" : "#c0392b";
@@ -812,7 +944,8 @@ window.initNotaEncomendaForm = async function () {
   });
 
   dimModeBtn.addEventListener("click", () => {
-    const active = editor.getTool() === "dim";
+      const active = editor.getTool() === "dim";
+    meModeBtn.classList.remove("ne-tool-active"); meModeBtn.style.backgroundColor = "";
     editor.setTool(active ? "select" : "dim");
     dimModeBtn.classList.toggle("ne-tool-active", !active);
     dimModeBtn.style.backgroundColor = active ? "" : "#2e7dd7";
@@ -823,7 +956,8 @@ window.initNotaEncomendaForm = async function () {
   });
 
   parallelModeBtn.addEventListener("click", () => {
-    const active = editor.getTool() === "parallel";
+        const active = editor.getTool() === "parallel";
+    meModeBtn.classList.remove("ne-tool-active"); meModeBtn.style.backgroundColor = "";
     editor.setTool(active ? "select" : "parallel");
     parallelModeBtn.classList.toggle("ne-tool-active", !active);
     parallelModeBtn.style.backgroundColor = active ? "" : "#2ecc71";
@@ -832,54 +966,82 @@ window.initNotaEncomendaForm = async function () {
       dimModeBtn.classList.remove("ne-tool-active"); dimModeBtn.style.backgroundColor = "";
     }
   });
+  meModeBtn.addEventListener("click", () => {
+  const active = editor.getTool() === "me";
+  editor.setTool(active ? "select" : "me");
+  meModeBtn.classList.toggle("ne-tool-active", !active);
+  meModeBtn.style.backgroundColor = active ? "" : "#d4a600";
+  if (!active) {
+    edgeModeBtn.classList.remove("ne-tool-active"); edgeModeBtn.style.backgroundColor = "";
+    dimModeBtn.classList.remove("ne-tool-active"); dimModeBtn.style.backgroundColor = "";
+    parallelModeBtn.classList.remove("ne-tool-active"); parallelModeBtn.style.backgroundColor = "";
+  }
+});
 
        let neDimModalSyncing = false;
 
-  editor.onDimSelectionChange((sel) => {
-    if (!sel) { dimPanel.classList.add("d-none"); return; }
-    hideAllPanels();
-    panelEmpty.classList.add("d-none");
-    dimPanel.classList.remove("d-none");
+editor.onDimSelectionChange((sel, opts) => {
+  if (!sel) { neDimPanelAtivo = false; dimPanel.classList.add("d-none"); return; }
+  neDimPanelAtivo = true;
+  hideAllPanels();
+  panelEmpty.classList.add("d-none");
+  dimPanel.classList.remove("d-none");
 
-    const valorTexto = (sel.dimValue !== null && sel.dimValue !== undefined) ? window.neFormatMeasureInput(sel.dimValue) : "";
-    fDimValue.value = valorTexto;
+  const valorTexto = (sel.dimValue !== null && sel.dimValue !== undefined) ? window.neFormatMeasureInput(sel.dimValue) : "";
+  fDimValue.value = valorTexto;
 
-    if (sel.shapeLevel) {
-      // seta/linha solta/seta 90º: sem "por dentro/por fora", é só texto
-      fDimPositionWrap.classList.add("d-none");
-    } else {
-      fDimPositionWrap.classList.remove("d-none");
-      const posMode = sel.dimInside === undefined ? "auto" : (sel.dimInside ? "inside" : "outside");
-      fDimPosition.value = posMode;
-    }
+  fDimPositionWrap.classList.remove("d-none");
+  if (sel.shapeLevel) {
+    fDimPosition.innerHTML = `
+      <option value="auto">Automática (por baixo)</option>
+      <option value="outside">Por cima</option>
+      <option value="inside">Por baixo</option>
+    `;
+  } else {
+    fDimPosition.innerHTML = `
+      <option value="auto">Automática</option>
+      <option value="outside">Por fora</option>
+      <option value="inside">Por dentro</option>
+    `;
+  }
+  const posMode = sel.dimInside === undefined ? "auto" : (sel.dimInside ? "inside" : "outside");
+  fDimPosition.value = posMode;
 
-    // abre logo o modal ao centro para escrever a medida assim que se
-    // seleciona uma linha em modo "Cota manual"
-    neDimModalSyncing = true;
-    fModalDimValue.value = valorTexto;
-    neDimModalSyncing = false;
-    dimValueModal.show();
-  });
+  // seleção normal (clicar noutra seta): só atualiza o painel, não abre o modal
+  if (opts && opts.silent) return;
 
-  fDimValue.addEventListener("input", () => {
+  neDimModalSyncing = true;
+  fModalDimValue.value = valorTexto;
+  neDimModalSyncing = false;
+  dimValueModal.show();
+});
+
+   fDimValue.addEventListener("input", () => {
     const mm = window.neParseMeasure(fDimValue.value);
     editor.setDimValue(isNaN(mm) ? null : mm);
+  });
+  // ao sair do campo (ou Enter) confirma e põe a peça à escala
+  fDimValue.addEventListener("change", () => {
+    const mm = window.neParseMeasure(fDimValue.value);
+    editor.setDimValue(isNaN(mm) ? null : mm, true);
   });
   fDimPosition.addEventListener("change", () => {
     editor.setDimInside(fDimPosition.value);
   });
 
-    fModalDimValue.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
+      function neConfirmarMedidaModal() {
     const mm = window.neParseMeasure(fModalDimValue.value);
-    editor.setDimValue(isNaN(mm) ? null : mm);
+    editor.setDimValue(isNaN(mm) ? null : mm, true);
     fDimValue.value = fModalDimValue.value;
     dimValueModal.hide();
+  }
+
+  fModalDimValue.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    neConfirmarMedidaModal();
   });
-  document.getElementById("neModalDimValueConfirm").addEventListener("click", () => {
-    dimValueModal.hide();
-  });
+  document.getElementById("neModalDimValueConfirm").addEventListener("click", neConfirmarMedidaModal);
   dimValueModalEl.addEventListener("shown.bs.modal", () => {
     fModalDimValue.focus();
     fModalDimValue.select();
@@ -1171,7 +1333,9 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
       data_criacao: dataCriacaoEl.value,
       data_entrega: dataEntregaEl.value,
       observacoes: observacoesEl.value,
-      escala: scaleInfo.auto ? null : Math.round(scaleInfo.den),
+            // guarda SEMPRE a escala realmente usada no editor (arredondada para cima,
+      // para nunca cortar nada), para a impressão ser igual ao que vês
+      escala: Math.ceil(scaleInfo.den),
     };
     
   }

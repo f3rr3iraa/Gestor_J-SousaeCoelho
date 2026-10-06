@@ -74,6 +74,11 @@ const routes = {
     title: "list-desenho",
     description: "Lista de Notas de Encomenda",
   },
+  "/guia-chapas": {
+    template: "/templates/guia-chapas/guia-chapas.html",
+    title: "guia-chapas",
+    description: "Guia de Chapas",
+  },
   "/list-notas": {
     template: "/templates/notas/list-notas.html",
     title: "list-notas",
@@ -169,6 +174,7 @@ const locationHandler = async () => {
   if (window.initNotaEncomendaForm && location === "/form-desenho") initNotaEncomendaForm();
   if (window.initNotaEncomendaList && location === "/list-desenho") initNotaEncomendaList();
 
+  if (window.initGuiaChapas && location === "/guia-chapas") initGuiaChapas();
   if (window.initNotas && location === "/list-notas") initNotas();
 
   if (

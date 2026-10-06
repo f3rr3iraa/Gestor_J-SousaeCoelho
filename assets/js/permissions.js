@@ -39,6 +39,7 @@ function applyMenuPermissions() {
     "menuOrcamento",
     "menuClientes",
     "menuFolhaHoras",
+    "menuGuiaChapas",
     "menuNotas",
   ];
 

@@ -1,0 +1,88 @@
+<style>
+  .gc-layout{display:flex;gap:20px;align-items:flex-start;max-width:1800px;margin:20px auto 0}
+  .gc-side{width:300px;flex:0 0 300px;display:flex;flex-direction:column;gap:14px}
+  .gc-card{border:1px solid #e0e0e0;border-radius:8px;padding:12px;background:#fff}
+  .gc-card h6{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;margin-bottom:10px}
+  .gc-main{flex:1;min-width:0}
+  .gc-stage{border:1px solid #e0e0e0;border-radius:8px;background:#f8f9fa;padding:20px 20px 20px 40px;overflow-x:auto}
+  .gc-block{margin:0}
+  .gc-bhead{display:flex;align-items:center;gap:8px;margin-bottom:32px;flex-wrap:wrap}
+  .gc-bsel{width:150px}
+  .gc-bin{width:90px}
+  .gc-slabwrap{position:relative;display:inline-block;vertical-align:top}
+  .gc-slab{position:relative;box-sizing:content-box;background-color:#fdfcf8;border:2px solid #22333b;touch-action:none}
+  .gc-lbl-w{position:absolute;top:-24px;left:0;right:0;text-align:center;font-size:.8rem;color:#6c757d}
+  .gc-lbl-h{position:absolute;left:-28px;top:0;bottom:0;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-size:.8rem;color:#6c757d}
+  .gc-piece{position:absolute;box-sizing:border-box;border:1px solid rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden;cursor:grab;user-select:none;line-height:1.15;font-size:12px;color:#22333b}
+  .gc-piece.sel{outline:2px solid #22333b;outline-offset:-2px;z-index:2}
+  .gc-ghost{opacity:.85;z-index:5;pointer-events:none;border:2px solid #198754}
+  .gc-ghost.gc-bad{background:#f8b4b4 !important;border-color:#c0392b}
+  .gc-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;margin-bottom:6px;cursor:grab;user-select:none;touch-action:none;background:#fff}
+  .gc-sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.4);flex:0 0 14px}
+  #gcList{max-height:260px;overflow-y:auto}
+</style>
+
+<div class="container-fluid">
+  <h4 class="mb-3"><i class="bi bi-grid-3x3 me-2"></i>Guia de Chapas</h4>
+
+  <div class="gc-layout">
+    <aside class="gc-side">
+
+      <div class="gc-card">
+        <h6>Nova chapa</h6>
+        <select id="gcNPreset" class="form-select form-select-sm mb-2">
+          <option value="0">3,20 × 1,60 m</option>
+          <option value="1">3,20 × 1,40 m</option>
+          <option value="2">3,00 × 1,50 m</option>
+          <option value="3">3,00 × 1,00 m</option>
+          <option value="custom">Outro tamanho…</option>
+        </select>
+        <div class="d-flex gap-2 mb-2">
+          <input id="gcNW" class="form-control form-control-sm" placeholder="Comprimento (Ex: 3.2)">
+          <input id="gcNH" class="form-control form-control-sm" placeholder="Largura (Ex: 1.6)">
+        </div>
+        <button id="gcAddSlab" type="button" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg me-1"></i>Adicionar chapa (por baixo)</button>
+      </div>
+
+      <div class="gc-card">
+        <h6>Adicionar peça</h6>
+        <form id="gcAddForm" autocomplete="off">
+          <div class="d-flex gap-2 mb-2">
+            <input id="gcPW" class="form-control form-control-sm" placeholder="Comprimento (Ex: 64.3 cm)" required>
+            <input id="gcPH" class="form-control form-control-sm" placeholder="Largura (Ex: 54 cm)" required>
+          </div>
+          <div class="d-flex gap-2">
+            <input id="gcPQ" type="number" min="1" max="200" value="1" class="form-control form-control-sm" style="width:80px" title="Quantidade">
+            <button type="submit" class="btn btn-sm btn-notas-add flex-grow-1"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+          </div>
+          <div class="small text-muted mt-2">Sem unidade = metros (0.60 = 60 cm), como no Desenho. As peças são numeradas automaticamente (Nº1, Nº2…).</div>
+        </form>
+      </div>
+
+      <div class="gc-card">
+        <h6>Peças por colocar</h6>
+        <div id="gcList"></div>
+      </div>
+
+      <div class="gc-card small" id="gcStats"></div>
+    </aside>
+
+    <section class="gc-main">
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+        <button id="gcRot" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Rodar (R)</button>
+        <button id="gcUnplace" class="btn btn-outline-secondary btn-sm"><i class="bi bi-box-arrow-up me-1"></i>Tirar da chapa (Del)</button>
+        <button id="gcDelPiece" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-lg me-1"></i>Apagar peça</button>
+        <button id="gcClearSlab" class="btn btn-outline-secondary btn-sm">Tirar todas das chapas</button>
+        <button id="gcClearAll" class="btn btn-outline-danger btn-sm">Apagar tudo</button>
+        <span id="gcMsg" class="small"></span>
+      </div>
+      <div class="gc-stage" id="gcStage">
+        <div id="gcSlabs"></div>
+      </div>
+      <div class="small text-muted mt-2">
+        Arrasta as peças da lista para qualquer chapa. Só ficam onde cabem (verde = pode; vermelho = sobrepõe ou sai da chapa).
+        Durante o arrasto carrega em <b>R</b> para rodar. Clica numa peça para a selecionar; duplo clique tira-a da chapa.
+      </div>
+    </section>
+  </div>
+</div>
