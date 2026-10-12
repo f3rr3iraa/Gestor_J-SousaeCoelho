@@ -495,7 +495,8 @@ window.initOrcamentoForm = async function () {
   }
 
   // Janela pequena: Qtd / Comprimento / Largura  (+ m² ao vivo)
-  function abrirDimensoes(r) {
+  // campoInicial: "qtd" | "comp" | "larg" → campo que fica com o cursor ao abrir
+  function abrirDimensoes(r, campoInicial = "qtd") {
     const row = rows[r];
     const soQtd = row.diversos;
     const el = criarOverlay(`
@@ -554,7 +555,7 @@ window.initOrcamentoForm = async function () {
     });
     el.querySelector("[data-x]").addEventListener("click", fecharOverlay);
     atualizarM2();
-    campos[0].focus();
+    (f(campoInicial) || campos[0]).focus();
   }
 
   // -------------------------------------------------
@@ -839,7 +840,8 @@ window.initOrcamentoForm = async function () {
       case C.PROD: abrirProduto(r, seed); break;
       case C.QTD: case C.COMP: case C.LARG:
         if (!row.descricao) { toast("⚠️ Escolhe primeiro o produto", "warning"); setCur(r, row.tipoId ? C.PROD : C.TIPO); return; }
-        abrirDimensoes(r); break;
+        // abre a janela já com o cursor na coluna em que clicaste (Qtd / Comp. / Larg.)
+        abrirDimensoes(r, c === C.COMP ? "comp" : c === C.LARG ? "larg" : "qtd"); break;
       case C.PRECO: case C.DESC:
         if (!row.descricao) { toast("⚠️ Escolhe primeiro o produto", "warning"); setCur(r, row.tipoId ? C.PROD : C.TIPO); return; }
         editarInline(r, c, seed || null); break;
