@@ -1,2003 +1,1399 @@
 // =====================================================
-// FORM-ORCAMENTO.JS - VERSÃO COM COMPRIMENTO/LARGURA 4 DECIMAIS
-// ✅ Aceita entrada com vírgula ou ponto (1,2324 ou 1.2324)
-// ✅ Exibe sempre 4 casas decimais na tabela
-// ✅ Valida e formata automaticamente
-// ✅ Preço/m² NÃO assumido automaticamente
-// ✅ Quantidade e Desconto: seleciona tudo ao focar
-// ✅ Enter no Desconto abre modal de confirmação
+// FORM-ORCAMENTO.JS — ORÇAMENTO EM TABELA (TIPO EXCEL)
+//
+// Fluxo por linha (tudo só com teclado, se quiseres):
+//   Tipo  (Enter → lista)           → Enter escolhe
+//   Produto (Enter / duplo clique → lista "Marca - Descrição Acabamento Espessura")
+//         → Enter escolhe → abre janela pequena Qtd / Comp. / Larg.
+//         → Enter, Enter, Enter → m² calculados na linha
+//   Preço/m² (Enter → escreve) → Enter → Desc. (%) → Enter → linha seguinte
+//
+// "Total Orçamento" (última coluna) = soma acumulada dos totais, linha a linha.
+// Guarda nas mesmas tabelas de sempre: orcamentos + orcamento_itens.
+//
+// MODO EDIÇÃO: /form-orcamento?edit=<id> abre o orçamento já preenchido
+// (cliente, opções, linhas, preços, descontos). Ao guardar, atualiza o
+// orçamento existente (não cria um novo) e volta à lista.
 // =====================================================
 
 window.initOrcamentoForm = async function () {
-  console.log("🚀 Iniciando formulário de orçamento...");
-  
-  if (!window.supabaseClient) {
-    console.error("❌ Supabase não está inicializado!");
-    showMessage("❌ Supabase não inicializado", "danger");
+  const supabase = window.supabaseClient;
+  const toast = (msg, type = "info") =>
+    typeof showMessage === "function" ? showMessage(msg, type) : console.log(msg);
+
+  if (!supabase) {
+    toast("❌ Supabase não inicializado", "danger");
     return;
   }
 
-  console.log("✅ Supabase client encontrado");
-  const supabase = window.supabaseClient;
+  // -------------------------------------------------
+  // CONSTANTES / ELEMENTOS
+  // -------------------------------------------------
+  const CODIGO_NOVO_CLIENTE = "749"; // escrever isto + Enter na pesquisa de clientes abre "novo cliente"
+  const DEFAULT_ROWS = 12;
+  const ADD_ROWS = 5;
+  const STORAGE_KEY = "orcamentoGridDraft_v2";
 
-  // =====================================================
-  // ELEMENTOS DOM
-  // =====================================================
-  const form = document.getElementById("orcamentoForm");
+  // modo edição: /form-orcamento?edit=123
+  const editParam = new URLSearchParams(window.location.search).get("edit");
+  const editId = editParam && /^\d+$/.test(editParam) ? parseInt(editParam, 10) : null;
+  const modoEdicao = editId !== null;
+  let itensGuardadosIds = []; // ids dos itens que existem na BD para este orçamento (modo edição)
+  let brandNomePorKey = {};
+
+  // índices das colunas navegáveis (0 = "#", não navegável)
+  const C = { TIPO: 1, PROD: 2, QTD: 3, COMP: 4, LARG: 5, M2: 6, PRECO: 7, DESC: 8, SUB: 9, TOTAL: 10, ACC: 11 };
+  const FIRST_COL = C.TIPO;
+  const LAST_COL = C.ACC;
+
+  const root = document.getElementById("orcamentoRoot");
+  const wrap = document.getElementById("orcGridWrap");
+  const tbody = document.getElementById("orcGridBody");
+  const totalGeralEl = document.getElementById("orcTotalGeral");
+  const footLabelEl = document.getElementById("orcFootLabel");
+  const tabsEl = document.getElementById("orcTabs");
   const clienteNome = document.getElementById("clienteNome");
-  
-  // Campos do produto - AUTOCOMPLETE
-  const produtoTipo = document.getElementById("produtoTipo");
-  const produtoTipoId = document.getElementById("produtoTipoId");
-  const tipoDropdown = document.getElementById("tipoDropdown");
-  
-  const produtoBrand = document.getElementById("produtoBrand");
-  const produtoBrandKey = document.getElementById("produtoBrandKey");
-  const brandDropdown = document.getElementById("brandDropdown");
-  
-  const produtoDescricao = document.getElementById("produtoDescricao");
-  const produtoDescricaoId = document.getElementById("produtoDescricaoId");
-  const descricaoDropdown = document.getElementById("descricaoDropdown");
-  
-  const produtoEspessura = document.getElementById("produtoEspessura");
-  const produtoEspessuraValue = document.getElementById("produtoEspessuraValue");
-  const espessuraDropdown = document.getElementById("espessuraDropdown");
-  
-  const produtoQuantidade = document.getElementById("produtoQuantidade");
-  const produtoComprimento = document.getElementById("produtoComprimento");
-  const produtoLargura = document.getElementById("produtoLargura");
-  const produtoMt2 = document.getElementById("produtoMt2");
-  const produtoPrecoMt2 = document.getElementById("produtoPrecoMt2");
-  const produtoDesconto = document.getElementById("produtoDesconto");
-  const produtoSubtotal = document.getElementById("produtoSubtotal");
-  const produtoTotal = document.getElementById("produtoTotal");
-  
-  // Botões Clear
-  const clearTipo = document.getElementById("clearTipo");
-  const clearBrand = document.getElementById("clearBrand");
-  const clearDescricao = document.getElementById("clearDescricao");
-  const clearEspessura = document.getElementById("clearEspessura");
-
-  const produtoTipoAcabamento = document.getElementById("produtoTipoAcabamento");
-  const produtoTipoAcabamentoValue = document.getElementById("produtoTipoAcabamentoValue");
-  const tipoAcabamentoDropdown = document.getElementById("tipoAcabamentoDropdown");
-  const clearTipoAcabamento = document.getElementById("clearTipoAcabamento");
-  
-  // Botões
-  const btnAdicionarProduto = document.getElementById("btnAdicionarProduto");
-  const btnLimparProduto = document.getElementById("btnLimparProduto");
-  const btnLimparOrcamento = document.getElementById("btnLimparOrcamento");
-  const btnVerPrecario = document.getElementById("btnVerPrecario");
-  
-  // Tabela
-  const produtosTableBody = document.getElementById("produtosTableBody");
-  const totalGeralEl = document.getElementById("totalGeral");
-
-  // Preçário
-  const precarioModal = document.getElementById("precarioModal");
-  const precarioTitulo = document.getElementById("precarioTitulo");
-  const precarioTableBody = document.getElementById("precarioTableBody");
-  const btnFecharPrecario = document.getElementById("btnFecharPrecario");
-
-  
-  const newTipoWrapper = document.getElementById("newTipoWrapper");
-  const newTipoInput = document.getElementById("newTipo");
-  const btnAddNewTipo = document.getElementById("btnAddNewTipo");
-
   const clienteId = document.getElementById("clienteId");
-  const clienteDropdown = document.getElementById("clienteDropdown");
-  const clearCliente = document.getElementById("clearCliente");
   const clienteDetalhes = document.getElementById("clienteDetalhes");
-  let clientesData = [];
-  let modoAtualDiversos = false;
+  const clearCliente = document.getElementById("clearCliente");
+  const btnMaisLinhas = document.getElementById("btnMaisLinhas");
+  const btnLimpar = document.getElementById("btnLimparOrcamento");
+  const btnGuardar = document.getElementById("btnGuardarOrcamento");
+  const btnGuardarTxt = document.getElementById("btnGuardarTxt");
+  const btnCancelarEdicao = document.getElementById("btnCancelarEdicao");
+  const tituloEl = document.getElementById("orcTitulo");
 
-  console.log("✅ Elementos DOM carregados com sucesso");
+  // -------------------------------------------------
+  // ESTADO
+  // -------------------------------------------------
+  let tipos = [];          // [{id, nome}]
+  let produtos = [];       // lista plana já "composta" (marca - desc acabamento espessura)
+  let clientes = [];
+  let rows = [];           // linhas da OPÇÃO ATIVA (mesma referência que opcoes[opcaoAtiva].rows)
+  let opcoes = [{ rows: [], cur: { r: 0, c: C.TIPO } }]; // Opção 1, Opção 2, ...
+  let opcaoAtiva = 0;
+  let cur = { r: 0, c: C.TIPO };
+  let editing = null;      // { r, c, input }
+  let overlay = null;      // modal aberto
+  let selectedCliente = null;
+  let undoStack = [];
+  let redoStack = [];
+  let clipInterno = null;
 
-  // =====================================================
-  // ✅ PERSISTÊNCIA DO RASCUNHO (não perder dados ao trocar de página)
-  // Guarda tudo em sessionStorage: mantém-se ao navegar entre páginas
-  // da aplicação e só desaparece quando o utilizador limpa/guarda
-  // o orçamento ou fecha a página/separador do browser.
-  // =====================================================
-  const ORCAMENTO_STORAGE_KEY = "orcamentoFormDraft_v1";
+  const novaLinha = () => ({
+    tipoId: null, tipoNome: "", diversos: false,
+    brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "",
+    refPreco: null,
+    qtd: null, comp: null, larg: null, preco: null, desc: 0,
+  });
 
-  function coletarEstadoOrcamento() {
-    return {
-      cliente: {
-        nome: clienteNome.value,
-        id: clienteId.value,
-        detalhesHtml: clienteDetalhes.innerHTML,
-        original: window.selectedClienteData || null,
-      },
-      produtos: produtosAdicionados,
-      produtoAtual: {
-        modoDiversos: modoAtualDiversos,
-        tipoNome: produtoTipo.value,
-        tipoId: produtoTipoId.value,
-        brandNome: produtoBrand.value,
-        brandKey: produtoBrandKey.value,
-        descricao: produtoDescricao.value,
-        descricaoId: produtoDescricaoId.value,
-        espessuraTexto: produtoEspessura.value,
-        espessuraValue: produtoEspessuraValue.value,
-        tipoAcabamentoTexto: produtoTipoAcabamento.value,
-        tipoAcabamentoValue: produtoTipoAcabamentoValue.value,
-        quantidade: produtoQuantidade.value,
-        comprimento: produtoComprimento.value,
-        largura: produtoLargura.value,
-        precoMt2: produtoPrecoMt2.value,
-        desconto: produtoDesconto.value,
-      },
-    };
+  // -------------------------------------------------
+  // UTILITÁRIOS
+  // -------------------------------------------------
+  const norm = (s) => (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const esc = (s) => (s ?? "").toString().replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  const parseNum = (v) => {
+    if (v === null || v === undefined) return NaN;
+    const t = v.toString().trim().replace(",", ".");
+    if (t === "") return NaN;
+    return parseFloat(t);
+  };
+  const fmt2 = (n) => (Number.isFinite(n) ? n.toFixed(2) : "");
+  const fmt4 = (n) => (Number.isFinite(n) ? n.toFixed(4) : "");
+
+  async function fetchAll(table, select, orderCol) {
+    // O Supabase devolve no máximo 1000 linhas por pedido → paginar
+    const out = [];
+    const size = 1000;
+    for (let from = 0; ; from += size) {
+      let q = supabase.from(table).select(select).range(from, from + size - 1);
+      if (orderCol) q = q.order(orderCol, { ascending: true });
+      const { data, error } = await q;
+      if (error) throw error;
+      out.push(...(data || []));
+      if (!data || data.length < size) break;
+    }
+    return out;
   }
 
-  let guardarEstadoTimeout = null;
-  function guardarEstadoOrcamento() {
-    clearTimeout(guardarEstadoTimeout);
-    guardarEstadoTimeout = setTimeout(() => {
+  // cálculos de uma linha
+  function calc(row) {
+    const qtd = row.qtd || 0;
+    const comp = row.diversos ? 1 : row.comp || 0;
+    const larg = row.diversos ? 1 : row.larg || 0;
+    const preco = row.preco || 0;
+    const desc = Math.min(100, Math.max(0, row.desc || 0));
+    const mt2 = row.diversos ? 0 : qtd * comp * larg;
+    const subtotal = comp * larg * preco * (1 - desc / 100); // 1 peça
+    const total = subtotal * qtd;
+    return { mt2, subtotal, total };
+  }
+
+  function linhaVazia(row) {
+    return !row.tipoId && !row.descricao && !row.qtd && !row.comp && !row.larg && !row.preco;
+  }
+
+  function linhaCompleta(row) {
+    if (!row.tipoId || !row.descricao.trim()) return false;
+    if (!(row.qtd > 0) || !(row.preco > 0)) return false;
+    if (!row.diversos && (!(row.comp > 0) || !(row.larg > 0))) return false;
+    return true;
+  }
+
+  // -------------------------------------------------
+  // DESFAZER / REFAZER (Ctrl+Z / Ctrl+Y)
+  // -------------------------------------------------
+  const snap = () => {
+    sincronizarOpcaoAtiva();
+    return JSON.stringify({ opcoes: opcoes.map((o) => ({ rows: o.rows })), ativa: opcaoAtiva });
+  };
+  function pushUndo() {
+    undoStack.push(snap());
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
+  }
+  function restaurarSnap(str) {
+    const d = JSON.parse(str);
+    opcoes = d.opcoes.map((o) => ({ rows: o.rows.map((r) => ({ ...novaLinha(), ...r })), cur: { r: 0, c: C.TIPO } }));
+    opcaoAtiva = Math.min(d.ativa || 0, opcoes.length - 1);
+    rows = opcoes[opcaoAtiva].rows;
+    cur.r = Math.min(cur.r, rows.length - 1);
+    guardarRascunho();
+    render();
+  }
+  function desfazer() {
+    if (!undoStack.length) return;
+    redoStack.push(snap());
+    restaurarSnap(undoStack.pop());
+  }
+  function refazer() {
+    if (!redoStack.length) return;
+    undoStack.push(snap());
+    restaurarSnap(redoStack.pop());
+  }
+
+  // -------------------------------------------------
+  // RASCUNHO (sessionStorage)
+  // -------------------------------------------------
+  let saveTimer = null;
+  function guardarRascunho() {
+    if (modoEdicao) return; // a edição não mexe no rascunho do "novo orçamento"
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
       try {
-        sessionStorage.setItem(ORCAMENTO_STORAGE_KEY, JSON.stringify(coletarEstadoOrcamento()));
-      } catch (err) {
-        console.warn("⚠️ Não foi possível guardar o rascunho do orçamento:", err);
-      }
+        sincronizarOpcaoAtiva();
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+          opcoes: opcoes.map((o) => ({ rows: o.rows })),
+          ativa: opcaoAtiva,
+          cliente: { nome: clienteNome.value, id: clienteId.value, detalhes: clienteDetalhes.innerHTML, original: selectedCliente },
+        }));
+      } catch (e) { /* ignora */ }
     }, 150);
   }
-
-  function limparEstadoOrcamento() {
-    clearTimeout(guardarEstadoTimeout);
+  function limparRascunho() {
+    if (modoEdicao) return;
+    clearTimeout(saveTimer);
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignora */ }
+  }
+  function restaurarRascunho() {
     try {
-      sessionStorage.removeItem(ORCAMENTO_STORAGE_KEY);
-    } catch (err) {
-      // ignora
-    }
-  }
-
-  // Guarda automaticamente qualquer alteração escrita nos campos do formulário
-  form.addEventListener("input", guardarEstadoOrcamento);
-  form.addEventListener("change", guardarEstadoOrcamento);
-
-  async function restaurarEstadoOrcamento() {
-    let raw;
-    try {
-      raw = sessionStorage.getItem(ORCAMENTO_STORAGE_KEY);
-    } catch (err) {
-      return;
-    }
-    if (!raw) return;
-
-    let estado;
-    try {
-      estado = JSON.parse(raw);
-    } catch (err) {
-      return;
-    }
-
-    // Cliente
-    if (estado.cliente) {
-      clienteNome.value = estado.cliente.nome || "";
-      clienteId.value = estado.cliente.id || "";
-      clienteDetalhes.innerHTML = estado.cliente.detalhesHtml || "";
-      window.selectedClienteData = estado.cliente.original || null;
-      toggleClearButton(clienteNome, clearCliente);
-    }
-
-    // Produtos já adicionados ao orçamento
-    if (Array.isArray(estado.produtos) && estado.produtos.length > 0) {
-      produtosAdicionados = estado.produtos;
-      renderProdutosTable();
-    }
-
-    // Linha de produto que estava a ser preenchida
-    const p = estado.produtoAtual;
-    if (p && (p.tipoNome || p.descricao || p.brandNome)) {
-      produtoTipo.value = p.tipoNome || "";
-      produtoTipoId.value = p.tipoId || "";
-      toggleClearButton(produtoTipo, clearTipo);
-
-      if (p.modoDiversos) {
-        activarModoDiversos(true);
-        produtoDescricao.value = p.descricao || "";
-        produtoDescricaoId.value = "diversos";
-      } else if (p.brandKey) {
-        produtoBrand.value = p.brandNome || "";
-        produtoBrandKey.value = p.brandKey;
-        toggleClearButton(produtoBrand, clearBrand);
-
-        try {
-          await carregarDescricoesDaMarca(p.brandKey);
-
-          if (p.descricaoId) {
-  produtoDescricao.value = p.descricao || "";
-  produtoDescricaoId.value = p.descricaoId;
-  toggleClearButton(produtoDescricao, clearDescricao);
-
-  if (p.descricaoId === "manual") {
-    // ✅ Descrição escrita manualmente — não existe na base de dados,
-    // por isso NÃO se faz query de espessuras (evita o erro de tipo integer).
-    produtoEspessura.disabled = false;
-    produtoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
-    btnVerPrecario.classList.add("d-none");
-
-    if (p.espessuraValue) {
-      produtoEspessura.value = p.espessuraTexto || "";
-      produtoEspessuraValue.value = p.espessuraValue;
-      toggleClearButton(produtoEspessura, clearEspessura);
-
-      produtoTipoAcabamento.disabled = false;
-      produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
-
-      if (p.tipoAcabamentoValue) {
-        produtoTipoAcabamento.value = p.tipoAcabamentoTexto || "";
-        produtoTipoAcabamentoValue.value = p.tipoAcabamentoValue;
-        toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.opcoes) && d.opcoes.length) {
+        opcoes = d.opcoes.map((o) => ({ rows: (o.rows || []).map((r) => ({ ...novaLinha(), ...r })), cur: { r: 0, c: C.TIPO } }));
+        opcoes.forEach((o) => { if (!o.rows.length) o.rows = Array.from({ length: DEFAULT_ROWS }, novaLinha); });
+        opcaoAtiva = Math.min(d.ativa || 0, opcoes.length - 1);
+        rows = opcoes[opcaoAtiva].rows;
+      } else if (Array.isArray(d.rows) && d.rows.length) {
+        // rascunho antigo (sem opções)
+        rows = d.rows.map((r) => ({ ...novaLinha(), ...r }));
+        opcoes = [{ rows, cur: { r: 0, c: C.TIPO } }];
+        opcaoAtiva = 0;
       }
-    }
-  } else {
-    await carregarEspessuras(p.descricaoId);
-
-    if (p.espessuraValue) {
-      produtoEspessura.value = p.espessuraTexto || "";
-      produtoEspessuraValue.value = p.espessuraValue;
-      toggleClearButton(produtoEspessura, clearEspessura);
-      produtoTipoAcabamento.disabled = false;
-      produtoTipoAcabamento.placeholder = "Seleciona...";
-      carregarTiposAcabamento(p.descricaoId, p.espessuraValue);
-      btnVerPrecario.classList.remove("d-none");
-
-      if (p.tipoAcabamentoValue) {
-        produtoTipoAcabamento.value = p.tipoAcabamentoTexto || "";
-        produtoTipoAcabamentoValue.value = p.tipoAcabamentoValue;
-        toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
+      if (d.cliente) {
+        clienteNome.value = d.cliente.nome || "";
+        clienteId.value = d.cliente.id || "";
+        clienteDetalhes.innerHTML = d.cliente.detalhes || "";
+        selectedCliente = d.cliente.original || null;
+        clearCliente.classList.toggle("d-none", !clienteNome.value);
       }
-    }
-  }
-}
-        } catch (err) {
-          console.warn("⚠️ Não foi possível restaurar por completo a linha de produto:", err);
-        }
-      }
-
-      produtoQuantidade.value = p.quantidade || 1;
-      produtoComprimento.value = p.comprimento || "";
-      produtoLargura.value = p.largura || "";
-      produtoPrecoMt2.value = p.precoMt2 || "";
-      produtoDesconto.value = p.desconto || "0";
-      produtoDesconto.dataset.lastValid = p.desconto || "0";
-
-      calcularValores();
-    }
-  }
-
-  // =====================================================
-  // ✅ FUNÇÃO PARA NORMALIZAR ENTRADA DE NÚMEROS DECIMAIS
-  // =====================================================
-  function normalizeDecimalInput(value) {
-    if (!value || value.trim() === "") return "";
-    return value.replace(",", ".");
-  }
-
-  // =====================================================
-  // ✅ FORMATAÇÃO DE COMPRIMENTO E LARGURA (4 DECIMAIS)
-  // =====================================================
-  function formatarComprimentoLargura(input) {
-    let valor = input.value.trim();
-    if (!valor) return;
-    valor = normalizeDecimalInput(valor);
-    const numero = parseFloat(valor);
-    if (!isNaN(numero) && numero >= 0) {
-      input.value = numero.toFixed(4);
-    }
-  }
-
-  // =====================================================
-  // ✅ EVENTOS DE FORMATAÇÃO PARA COMPRIMENTO E LARGURA
-  // =====================================================
-  produtoComprimento.addEventListener("blur", function() {
-    formatarComprimentoLargura(this);
-    calcularValores();
-  });
-
-  produtoLargura.addEventListener("blur", function() {
-    formatarComprimentoLargura(this);
-    calcularValores();
-  });
-
-  produtoComprimento.addEventListener("input", function() {
-    calcularValores();
-  });
-
-  produtoLargura.addEventListener("input", function() {
-    calcularValores();
-  });
-
-  // ✅ Quantidade e Preço/m² também têm de recalcular Subtotal/Total
-  produtoQuantidade.addEventListener("input", function() {
-    calcularValores();
-  });
-
-  produtoPrecoMt2.addEventListener("input", function() {
-    calcularValores();
-  });
-
-  // =====================================================
-  // ✅ [ALTERAÇÃO 2] SELECIONAR TUDO AO FOCAR - QUANTIDADE E DESCONTO
-  // =====================================================
-  produtoQuantidade.addEventListener("focus", function() {
-    this.select();
-  });
-
-  produtoDesconto.addEventListener("focus", function() {
-    this.select();
-  });
-
-  // =====================================================
-  // ESTADO DA APLICAÇÃO
-  // =====================================================
-  let produtosAdicionados = [];
-  let produtosWebsite = [];
-  let precosPorProduto = {};
-  
-  let tiposData = [];
-  let brandsData = [];
-  let produtosDaMarca = [];
-  let espessurasDisponiveis = [];
-
-  // =====================================================
-  // ✅ FUNÇÃO PARA MOSTRAR/ESCONDER BOTÃO CLEAR
-  // =====================================================
-  function toggleClearButton(input, clearBtn) {
-    if (!clearBtn) return;
-    if (input.value.trim() !== "") {
-      clearBtn.classList.remove("d-none");
-    } else {
-      clearBtn.classList.add("d-none");
-    }
-  }
-
-  // =====================================================
-  // ✅ EVENTOS CLEAR - TIPO
-  // =====================================================
-  produtoTipo.addEventListener("input", () => {
-    toggleClearButton(produtoTipo, clearTipo);
-  });
-
-  clearTipo.addEventListener("click", (e) => {
-    e.stopPropagation();
-    produtoTipo.value = "";
-    produtoTipoId.value = "";
-    clearTipo.classList.add("d-none");
-    newTipoWrapper.classList.add("d-none");
-    newTipoInput.value = "";
-    activarModoDiversos(false);
-    guardarEstadoOrcamento();
-    produtoTipo.focus();
-  });
-
-  // =====================================================
-  // ✅ EVENTOS CLEAR - MARCA
-  // =====================================================
-  produtoBrand.addEventListener("input", () => {
-    toggleClearButton(produtoBrand, clearBrand);
-  });
-
-  clearBrand.addEventListener("click", (e) => {
-    e.stopPropagation();
-    produtoBrand.value = "";
-    produtoBrandKey.value = "";
-    clearBrand.classList.add("d-none");
-    
-    produtoDescricao.value = "";
-    produtoDescricaoId.value = "";
-    produtoDescricao.disabled = true;
-    produtoDescricao.placeholder = "Primeiro seleciona a marca...";
-    clearDescricao.classList.add("d-none");
-    
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "";
-    produtoEspessura.disabled = true;
-    produtoEspessura.placeholder = "Primeiro seleciona a descrição...";
-    clearEspessura.classList.add("d-none");
-
-    produtoTipoAcabamento.value = "";
-    produtoTipoAcabamentoValue.value = "";
-    produtoTipoAcabamento.disabled = true;
-    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
-    clearTipoAcabamento.classList.add("d-none");
-    
-    resetCamposDependentes();
-    guardarEstadoOrcamento();
-    produtoBrand.focus();
-  });
-
-  // =====================================================
-  // ✅ EVENTOS CLEAR - DESCRIÇÃO
-  // =====================================================
-  produtoDescricao.addEventListener("input", () => {
-    toggleClearButton(produtoDescricao, clearDescricao);
-  });
-
-  clearDescricao.addEventListener("click", (e) => {
-    e.stopPropagation();
-    produtoDescricao.value = "";
-    produtoDescricaoId.value = "";
-    clearDescricao.classList.add("d-none");
-    
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "";
-    produtoEspessura.disabled = true;
-    produtoEspessura.placeholder = "Primeiro seleciona a descrição...";
-    clearEspessura.classList.add("d-none");
-
-    produtoTipoAcabamento.value = "";
-    produtoTipoAcabamentoValue.value = "";
-    produtoTipoAcabamento.disabled = true;
-    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
-    clearTipoAcabamento.classList.add("d-none");
-    
-    resetCamposDependentes();
-    guardarEstadoOrcamento();
-    produtoDescricao.focus();
-  });
-
-  // =====================================================
-  // ✅ EVENTOS CLEAR - ESPESSURA
-  // =====================================================
-  produtoEspessura.addEventListener("input", () => {
-    toggleClearButton(produtoEspessura, clearEspessura);
-  });
-
-  clearEspessura.addEventListener("click", (e) => {
-    e.stopPropagation();
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "";
-    clearEspessura.classList.add("d-none");
-    produtoTipoAcabamento.value = "";
-    produtoTipoAcabamentoValue.value = "";
-    produtoTipoAcabamento.disabled = true;
-    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
-    clearTipoAcabamento.classList.add("d-none");
-    produtoPrecoMt2.value = "";
-    calcularValores();
-    guardarEstadoOrcamento();
-    produtoEspessura.focus();
-  });
-
-  // =====================================================
-  // ✅ EVENTOS CLEAR - ACABAMENTO
-  // =====================================================
-  produtoTipoAcabamento.addEventListener("input", () => {
-    toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
-  });
-
-  clearTipoAcabamento.addEventListener("click", (e) => {
-    e.stopPropagation();
-    produtoTipoAcabamento.value = "";
-    produtoTipoAcabamentoValue.value = "";
-    clearTipoAcabamento.classList.add("d-none");
-    produtoPrecoMt2.value = "";
-    calcularValores();
-    guardarEstadoOrcamento();
-    produtoTipoAcabamento.focus();
-  });
-
-  // =====================================================
-  // ✅ ESCRITA MANUAL — Descrição, Espessura e Acabamento
-  // Permite escrever estes campos mesmo que o valor não
-  // exista na base de dados / preçário, sem obrigar a
-  // escolher uma opção da lista de sugestões.
-  // =====================================================
-  function parseNumeroLivre(texto) {
-    if (!texto) return null;
-    const match = texto.replace(",", ".").match(/[\d]+(\.\d+)?/);
-    return match ? parseFloat(match[0]) : null;
-  }
-
-  produtoDescricao.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (modoAtualDiversos) return;
-      if (produtoDescricao.disabled) return;
-      if (produtoDescricao.value.trim() === "") return;
-      if (produtoDescricaoId.value) return; // já selecionado da lista
-
-      produtoDescricaoId.value = "manual";
-      toggleClearButton(produtoDescricao, clearDescricao);
-
-      produtoEspessura.disabled = false;
-      produtoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
-      btnVerPrecario.classList.add("d-none");
-      guardarEstadoOrcamento();
-    }, 200);
-  });
-
-  produtoEspessura.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (produtoEspessura.disabled) return;
-      if (produtoEspessura.value.trim() === "") return;
-      if (produtoEspessuraValue.value) return; // já selecionado da lista
-
-      const numero = parseNumeroLivre(produtoEspessura.value);
-      produtoEspessuraValue.value = numero !== null ? numero : produtoEspessura.value.trim();
-      toggleClearButton(produtoEspessura, clearEspessura);
-
-      produtoTipoAcabamento.disabled = false;
-      produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
-      btnVerPrecario.classList.add("d-none");
-      calcularValores();
-      guardarEstadoOrcamento();
-    }, 200);
-  });
-
-  produtoTipoAcabamento.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (produtoTipoAcabamento.disabled) return;
-      if (produtoTipoAcabamento.value.trim() === "") return;
-      if (produtoTipoAcabamentoValue.value) return; // já selecionado da lista
-
-      produtoTipoAcabamentoValue.value = produtoTipoAcabamento.value.trim();
-      toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
-      calcularValores();
-      guardarEstadoOrcamento();
-    }, 200);
-  });
-
-  // =====================================================
-  // ✅ FUNÇÃO PARA VERIFICAR SE HÁ DADOS NO FORMULÁRIO
-  // =====================================================
-  function formularioTemDados() {
-    return produtoTipo.value.trim() !== "" ||
-           produtoBrand.value.trim() !== "" ||
-           produtoDescricao.value.trim() !== "" ||
-           produtoEspessura.value !== "" ||
-           parseFloat(normalizeDecimalInput(produtoComprimento.value)) > 0 ||
-           parseFloat(normalizeDecimalInput(produtoLargura.value)) > 0 ||
-           parseFloat(produtoPrecoMt2.value) > 0 ||
-           parseFloat(produtoDesconto.value) > 0;
-  }
-
-  // =====================================================
-  // ✅ CONTROLE GLOBAL DE DROPDOWNS
-  // =====================================================
-  let allDropdowns = [];
-  
-  function closeAllDropdowns() {
-    allDropdowns.forEach(dropdown => {
-      dropdown.classList.remove("show");
-      dropdown.innerHTML = "";
-    });
-  }
-
-  // =====================================================
-  // ✅ AVANÇAR PARA O CAMPO SEGUINTE
-  // Usado quando o Enter é pressionado num autocomplete que
-  // mostra "Nenhum resultado encontrado" — em vez de bloquear
-  // o Enter (que antes não fazia nada), avança para o campo
-  // seguinte do formulário, respeitando a ordem natural do DOM.
-  // =====================================================
-  function focarProximoCampo(campoAtual) {
-    const focaveis = Array.from(
-      form.querySelectorAll("input, select, textarea, button")
-    ).filter(el => {
-      if (el.disabled) return false;
-      if (el.type === "hidden") return false;
-      if (el.offsetParent === null) return false; // escondido (d-none, etc.)
       return true;
-    });
-
-    const indexAtual = focaveis.indexOf(campoAtual);
-    if (indexAtual === -1) return;
-
-    for (let i = indexAtual + 1; i < focaveis.length; i++) {
-      focaveis[i].focus();
-      if (document.activeElement === focaveis[i]) return;
-    }
+    } catch (e) { return false; }
   }
 
-  // =====================================================
-  // FUNÇÃO AUTOCOMPLETE GENÉRICA
-  // =====================================================
-  function setupAutocomplete(input, dropdown, data, onSelect, getDisplay = item => item.display, getValue = item => item.value, customFilter = null) {
-    let currentFocus = -1;
-    
-    if (!allDropdowns.includes(dropdown)) {
-      allDropdowns.push(dropdown);
+  // -------------------------------------------------
+  // RENDER DA GRELHA
+  // -------------------------------------------------
+  function render() {
+    sincronizarOpcaoAtiva();
+    let acumulado = 0;
+    const html = rows.map((row, r) => {
+      const k = calc(row);
+      acumulado += k.total;
+      const mostraAcc = k.total > 0;
+      const cell = (c, cls, content, title = "") =>
+        `<td data-r="${r}" data-c="${c}" class="${cls}${cur.r === r && cur.c === c ? " sel" : ""}"${title ? ` title="${esc(title)}"` : ""}>${content}</td>`;
+
+      const precoTxt = row.preco ? fmt2(row.preco) : "";
+
+      return `<tr data-row="${r}" class="${linhaCompleta(row) ? "row-done" : ""}">
+        <td class="c-n"><span class="row-num">${r + 1}</span><button type="button" class="row-x" data-clear="${r}" title="Limpar linha">✕</button></td>
+        ${cell(C.TIPO, "", esc(row.tipoNome))}
+        ${cell(C.PROD, opcaoAtiva > 0 && row.tipoId && !row.descricao ? "pend" : "", esc(row.label || row.descricao), row.label || row.descricao)}
+        ${cell(C.QTD, "num", row.qtd ? row.qtd : "")}
+        ${cell(C.COMP, "num", row.diversos ? "" : fmt4(row.comp))}
+        ${cell(C.LARG, "num", row.diversos ? "" : fmt4(row.larg))}
+        ${cell(C.M2, "num ro", k.mt2 > 0 ? fmt4(k.mt2) : "")}
+        ${cell(C.PRECO, "num", precoTxt)}
+        ${cell(C.DESC, "num", row.preco || row.qtd ? fmt2(row.desc || 0) : "")}
+        ${cell(C.SUB, "num ro", k.subtotal > 0 ? fmt2(k.subtotal) + " €" : "")}
+        ${cell(C.TOTAL, "num ro total", k.total > 0 ? fmt2(k.total) + " €" : "")}
+        ${cell(C.ACC, "num acc", mostraAcc ? fmt2(acumulado) + " €" : "")}
+      </tr>`;
+    }).join("");
+
+    tbody.innerHTML = html;
+    totalGeralEl.textContent = fmt2(acumulado) + " €";
+    if (footLabelEl) footLabelEl.textContent = opcoes.length > 1 ? `Total — Opção ${opcaoAtiva + 1}` : "Total do Orçamento";
+    renderTabs();
+
+    const td = tbody.querySelector("td.sel");
+    if (td && !editing) td.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  // -------------------------------------------------
+  // OPÇÕES (Opção 1, Opção 2, ...)
+  // Cada opção é uma tabela própria. Ao criar uma nova, a estrutura
+  // (tipo, qtd, comp., larg., m²) é copiada da opção atual, mas SEM
+  // produto, SEM preço e SEM desconto. No PDF cada opção ocupa uma
+  // página própria, com os seus totais.
+  // -------------------------------------------------
+  function sincronizarOpcaoAtiva() {
+    if (!opcoes[opcaoAtiva]) opcaoAtiva = 0;
+    opcoes[opcaoAtiva].rows = rows;
+    opcoes[opcaoAtiva].cur = { r: cur.r, c: cur.c };
+  }
+
+  const totalDaOpcao = (lista) => lista.reduce((s, row) => s + calc(row).total, 0);
+
+  function renderTabs() {
+    if (!tabsEl) return;
+    const html = opcoes.map((o, i) => {
+      const tot = totalDaOpcao(o.rows);
+      return `<div class="orc-tab${i === opcaoAtiva ? " active" : ""}">
+        <button type="button" class="orc-tab-btn" data-opcao="${i}">Opção ${i + 1}${tot > 0 ? ` <small>(${fmt2(tot)} €)</small>` : ""}</button>
+        ${i > 0 ? `<button type="button" class="orc-tab-x" data-del-opcao="${i}" title="Eliminar Opção ${i + 1}">✕</button>` : ""}
+      </div>`;
+    }).join("");
+    tabsEl.innerHTML = html +
+      `<button type="button" class="orc-tab-add" data-add-opcao title="Cria uma nova opção com os mesmos tipos, quantidades e medidas, mas sem produto nem preço">＋ Nova Opção</button>`;
+  }
+
+  function mudarOpcao(i) {
+    if (!opcoes[i] || i === opcaoAtiva) { wrap.focus({ preventScroll: true }); return; }
+    sincronizarOpcaoAtiva();
+    opcaoAtiva = i;
+    rows = opcoes[i].rows;
+    cur = { r: Math.min(opcoes[i].cur?.r ?? 0, rows.length - 1), c: opcoes[i].cur?.c ?? C.TIPO };
+    guardarRascunho();
+    render();
+    wrap.focus({ preventScroll: true });
+  }
+
+  function novaOpcao() {
+    if (editing || overlay) return;
+    sincronizarOpcaoAtiva();
+    const base = rows;
+    if (!base.some((r) => !linhaVazia(r))) {
+      toast(`⚠️ Preenche primeiro a Opção ${opcaoAtiva + 1} (pelo menos tipo, quantidade e medidas)`, "warning");
+      return;
     }
-    
-    const clearBtn = input.parentElement.querySelector('.input-clear-btn');
-    
-    function showOptions(filterValue = "") {
-      closeAllDropdowns();
-      
-      const filtered = filterValue
-      ? data.filter(item => customFilter
-          ? customFilter(item, filterValue)
-          : getDisplay(item).toLowerCase().includes(filterValue.toLowerCase()))
-      : data;
-      
-      if (filtered.length === 0) {
-        dropdown.innerHTML = '<div class="autocomplete-item disabled">Nenhum resultado encontrado</div>';
-        dropdown.classList.add("show");
+    pushUndo();
+    // copia só a estrutura: tipo, qtd, comp., larg. — sem produto, preço e desconto
+    const novas = base.map((r) => (linhaVazia(r)
+      ? novaLinha()
+      : { ...novaLinha(), tipoId: r.tipoId, tipoNome: r.tipoNome, diversos: r.diversos, qtd: r.qtd, comp: r.comp, larg: r.larg }));
+    const primeira = Math.max(0, novas.findIndex((r) => !linhaVazia(r)));
+    opcoes.push({ rows: novas, cur: { r: primeira, c: C.PROD } });
+    opcaoAtiva = opcoes.length - 1;
+    rows = novas;
+    cur = { r: primeira, c: C.PROD };
+    guardarRascunho();
+    render();
+    wrap.focus({ preventScroll: true });
+    toast(`➕ Opção ${opcaoAtiva + 1} criada — escolhe o produto e o preço de cada linha`, "info");
+  }
+
+  function eliminarOpcao(i) {
+    if (i === 0 || !opcoes[i] || editing || overlay) return;
+    sincronizarOpcaoAtiva();
+    const executar = () => {
+      pushUndo();
+      opcoes.splice(i, 1);
+      if (opcaoAtiva === i) opcaoAtiva = i - 1;
+      else if (opcaoAtiva > i) opcaoAtiva -= 1;
+      rows = opcoes[opcaoAtiva].rows;
+      cur = { r: Math.min(opcoes[opcaoAtiva].cur?.r ?? 0, rows.length - 1), c: opcoes[opcaoAtiva].cur?.c ?? C.TIPO };
+      guardarRascunho();
+      render();
+      wrap.focus({ preventScroll: true });
+      toast(`🗑️ Opção ${i + 1} eliminada`, "info");
+    };
+    if (!opcoes[i].rows.some((r) => !linhaVazia(r))) { executar(); return; }
+    const el = criarOverlay(`
+      <header><span>Eliminar Opção ${i + 1}</span><button type="button" data-x>✕</button></header>
+      <div class="orc-body">Tem a certeza que deseja eliminar a <strong>Opção ${i + 1}</strong>?<br><br>As restantes opções não são afetadas.</div>
+      <div class="orc-foot d-flex gap-2 justify-content-end">
+        <button type="button" class="btn btn-secondary btn-sm" data-x>Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" data-ok>Eliminar</button>
+      </div>`);
+    el.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", fecharOverlay));
+    el.querySelector("[data-ok]").addEventListener("click", () => { fecharOverlay(); executar(); });
+    el.querySelector("[data-ok]").focus();
+  }
+
+  if (tabsEl) {
+    tabsEl.addEventListener("click", (e) => {
+      if (overlay) return;
+      if (e.target.closest("[data-add-opcao]")) { novaOpcao(); return; }
+      const del = e.target.closest("[data-del-opcao]");
+      if (del) { eliminarOpcao(parseInt(del.dataset.delOpcao)); return; }
+      const tab = e.target.closest("[data-opcao]");
+      if (tab) mudarOpcao(parseInt(tab.dataset.opcao));
+    });
+  }
+
+  function setCur(r, c, focus = true) {
+    cur.r = Math.max(0, Math.min(rows.length - 1, r));
+    cur.c = Math.max(FIRST_COL, Math.min(LAST_COL, c));
+    render();
+    if (focus) wrap.focus({ preventScroll: true });
+  }
+
+  function garantirLinhas(ate) {
+    while (rows.length <= ate) for (let i = 0; i < ADD_ROWS; i++) rows.push(novaLinha());
+  }
+
+  // -------------------------------------------------
+  // OVERLAYS (janelas)
+  // -------------------------------------------------
+  function fecharOverlay() {
+    if (overlay) { overlay.remove(); overlay = null; }
+    wrap.focus({ preventScroll: true });
+  }
+
+  function criarOverlay(innerHtml, extraClass = "") {
+    if (overlay) { overlay.remove(); overlay = null; }
+    overlay = document.createElement("div");
+    overlay.className = "orc-overlay";
+    overlay.innerHTML = `<div class="orc-modal ${extraClass}">${innerHtml}</div>`;
+    root.appendChild(overlay);
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) fecharOverlay(); });
+    return overlay;
+  }
+
+  // Lista com pesquisa (usada para Tipo, Produto e Cliente)
+  function abrirLista({ titulo, itens, placeholder, seed = "", onSelect, onFreeText, max = 300, freeLabel, isFree }) {
+    const el = criarOverlay(`
+      <header><span>${esc(titulo)}</span><button type="button" data-x>✕</button></header>
+      <div class="orc-body">
+        <input type="text" class="orc-input" placeholder="${esc(placeholder || "Pesquisar...")}" autocomplete="off" />
+        <div class="orc-list"></div>
+      </div>
+      <div class="orc-foot"></div>`, "orc-picker");
+
+    const input = el.querySelector("input");
+    const list = el.querySelector(".orc-list");
+    const foot = el.querySelector(".orc-foot");
+    let filtrados = [];
+    let ativo = 0;
+
+    function filtrar() {
+      const tokens = norm(input.value).split(/\s+/).filter(Boolean);
+      filtrados = tokens.length
+        ? itens.filter((it) => tokens.every((t) => it._s.includes(t)))
+        : itens;
+      if (isFree && isFree(input.value.trim())) filtrados = []; // código especial: só mostra a opção de adicionar
+      ativo = 0;
+      desenhar();
+    }
+
+    function desenhar() {
+      const vis = filtrados.slice(0, max);
+      if (!vis.length) {
+        const txt = input.value.trim();
+        list.innerHTML = onFreeText && txt && (!isFree || isFree(txt))
+          ? `<div class="orc-item active" data-free>${esc(freeLabel ? freeLabel(txt) : `Usar "${txt}"`)}</div>`
+          : `<div class="orc-item empty">Nenhum resultado</div>`;
+      } else {
+        list.innerHTML = vis.map((it, i) =>
+          `<div class="orc-item${i === ativo ? " active" : ""}" data-i="${i}"><span>${esc(it.label)}</span>${it.extra ? `<small>${esc(it.extra)}</small>` : ""}</div>`
+        ).join("");
+      }
+      foot.textContent = `${filtrados.length} resultado(s)`;
+      const a = list.querySelector(".active");
+      if (a) a.scrollIntoView({ block: "nearest" });
+    }
+
+    function escolher(i) {
+      const it = filtrados[i];
+      if (!it) {
+        if (onFreeText && input.value.trim() && (!isFree || isFree(input.value.trim()))) { const t = input.value.trim(); fecharOverlay(); onFreeText(t); }
         return;
       }
-      
-      dropdown.innerHTML = "";
-      filtered.forEach((item, index) => {
-        const div = document.createElement("div");
-        div.className = "autocomplete-item" + (index === 0 ? " autocomplete-active" : "");
-        div.textContent = getDisplay(item);
-
-        div.addEventListener("click", function(e) {
-          e.stopPropagation();
-          input.value = getDisplay(item);
-          onSelect(item);
-          closeAllLists();
-          if (clearBtn) clearBtn.classList.remove("d-none");
-        });
-
-        dropdown.appendChild(div);
-      });
-
-      currentFocus = 0;
-      dropdown.classList.add("show");
+      fecharOverlay();
+      onSelect(it);
     }
-    
-    input.addEventListener("click", function(e) {
+
+    input.addEventListener("input", filtrar);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); ativo = Math.min(ativo + 1, Math.min(filtrados.length, max) - 1); desenhar(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); ativo = Math.max(ativo - 1, 0); desenhar(); }
+      else if (e.key === "PageDown") { e.preventDefault(); ativo = Math.min(ativo + 8, Math.min(filtrados.length, max) - 1); desenhar(); }
+      else if (e.key === "PageUp") { e.preventDefault(); ativo = Math.max(ativo - 8, 0); desenhar(); }
+      else if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) escolher(ativo); }
+      else if (e.key === "Escape") { e.preventDefault(); fecharOverlay(); }
       e.stopPropagation();
-      if (input === produtoDescricao && modoAtualDiversos) return;
-      showOptions(this.value.trim());
     });
-
-    input.addEventListener("focus", function(e) {
-      if (input === produtoDescricao && modoAtualDiversos) return;
-      showOptions(this.value.trim());
+    list.addEventListener("click", (e) => {
+      if (e.target.closest("[data-free]")) { escolher(-1); return; }
+      const d = e.target.closest(".orc-item[data-i]");
+      if (d) escolher(parseInt(d.dataset.i));
     });
+    el.querySelector("[data-x]").addEventListener("click", fecharOverlay);
 
-    input.addEventListener("input", function() {
-      if (input === produtoDescricao && modoAtualDiversos) return;
-      const val = this.value.trim();
-      showOptions(val);
-      if (clearBtn) {
-        toggleClearButton(input, clearBtn);
-      }
-    });
-    
-    input.addEventListener("keydown", function(e) {
-      let items = dropdown.getElementsByClassName("autocomplete-item");
+    input.value = seed;
+    filtrar();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
 
-      if (e.keyCode === 40) {
+  // Pede um texto simples
+  function pedirTexto({ titulo, label, valor = "", placeholder = "", onOk }) {
+    const el = criarOverlay(`
+      <header><span>${esc(titulo)}</span><button type="button" data-x>✕</button></header>
+      <div class="orc-body">
+        <label>${esc(label)}</label>
+        <input type="text" class="orc-input" placeholder="${esc(placeholder)}" autocomplete="off" />
+      </div>
+      `);
+    const input = el.querySelector("input");
+    input.value = valor;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
         e.preventDefault();
-        currentFocus++;
-        addActive(items);
-      } else if (e.keyCode === 38) {
-        e.preventDefault();
-        currentFocus--;
-        addActive(items);
-      } else if (e.keyCode === 13) {
-        e.preventDefault();
-
-        // ✅ Se o dropdown está a mostrar "Nenhum resultado encontrado",
-        // não bloqueia o Enter: fecha a lista e avança para o campo seguinte.
-        const semResultados = dropdown.querySelector(".autocomplete-item.disabled");
-        if (semResultados) {
-          closeAllLists();
-          focarProximoCampo(input);
-          return;
-        }
-
-        if (currentFocus === -1 && items.length > 0) {
-          items[0].click();
-        } else if (currentFocus > -1 && items[currentFocus]) {
-          items[currentFocus].click();
-        }
-      } else if (e.keyCode === 27) {
-        closeAllLists();
-      }
+        if (e.repeat) return;
+        const t = input.value.trim();
+        if (!t) { toast("⚠️ Escreve um texto", "warning"); return; }
+        fecharOverlay(); onOk(t);
+      } else if (e.key === "Escape") { e.preventDefault(); fecharOverlay(); }
+      e.stopPropagation();
     });
-    
-    function addActive(items) {
-      if (!items || items.length === 0) return;
-      removeActive(items);
-      if (currentFocus >= items.length) currentFocus = 0;
-      if (currentFocus < 0) currentFocus = items.length - 1;
-      items[currentFocus].classList.add("autocomplete-active");
-      items[currentFocus].scrollIntoView({ block: "nearest" });
-    }
-    
-    function removeActive(items) {
-      for (let i = 0; i < items.length; i++) {
-        items[i].classList.remove("autocomplete-active");
+    el.querySelector("[data-x]").addEventListener("click", fecharOverlay);
+    input.focus(); input.select();
+  }
+
+  // Janela pequena: Qtd / Comprimento / Largura  (+ m² ao vivo)
+  function abrirDimensoes(r) {
+    const row = rows[r];
+    const soQtd = row.diversos;
+    const el = criarOverlay(`
+      <header><span>${esc(row.label || row.descricao)}</span><button type="button" data-x>✕</button></header>
+      <div class="orc-body">
+        <div class="${soQtd ? "" : "orc-dims-grid"}">
+          <div><label>Quantidade</label><input type="text" inputmode="decimal" class="orc-input" data-f="qtd" autocomplete="off" /></div>
+          ${soQtd ? "" : `
+          <div><label>Comprimento (m)</label><input type="text" inputmode="decimal" class="orc-input" data-f="comp" autocomplete="off" /></div>
+          <div><label>Largura (m)</label><input type="text" inputmode="decimal" class="orc-input" data-f="larg" autocomplete="off" /></div>`}
+        </div>
+        ${soQtd ? "" : `<div class="orc-m2">m²: <span data-m2>0.0000</span></div>`}
+      </div>
+      `);
+
+    const campos = [...el.querySelectorAll("input[data-f]")];
+    const f = (n) => el.querySelector(`[data-f="${n}"]`);
+    f("qtd").value = row.qtd || 1;
+    if (!soQtd) { f("comp").value = row.comp ? fmt4(row.comp) : ""; f("larg").value = row.larg ? fmt4(row.larg) : ""; }
+
+    const m2El = el.querySelector("[data-m2]");
+    const atualizarM2 = () => {
+      if (!m2El) return;
+      const m = (parseNum(f("qtd").value) || 0) * (parseNum(f("comp").value) || 0) * (parseNum(f("larg").value) || 0);
+      m2El.textContent = m.toFixed(4);
+    };
+
+    function confirmar() {
+      const q = parseNum(f("qtd").value);
+      if (!(q > 0)) { toast("⚠️ Quantidade deve ser maior que zero", "warning"); f("qtd").focus(); return; }
+      let co = 1, la = 1;
+      if (!soQtd) {
+        co = parseNum(f("comp").value); la = parseNum(f("larg").value);
+        if (!(co > 0)) { toast("⚠️ Comprimento deve ser maior que zero", "warning"); f("comp").focus(); return; }
+        if (!(la > 0)) { toast("⚠️ Largura deve ser maior que zero", "warning"); f("larg").focus(); return; }
       }
+      pushUndo();
+      row.qtd = q;
+      if (!soQtd) { row.comp = co; row.larg = la; }
+      fecharOverlay();
+      guardarRascunho();
+      setCur(r, C.PRECO); // m² já calculados na linha → Enter para meter o preço
     }
-    
-    function closeAllLists() {
-      dropdown.classList.remove("show");
-      dropdown.innerHTML = "";
-      currentFocus = -1;
-    }
-    
-    document.addEventListener("click", function(e) {
-      if (e.target !== input && !dropdown.contains(e.target)) {
-        closeAllLists();
-      }
+
+    campos.forEach((inp, i) => {
+      inp.addEventListener("focus", () => inp.select());
+      inp.addEventListener("input", atualizarM2);
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (e.repeat) return;
+          if (i < campos.length - 1) campos[i + 1].focus(); else confirmar();
+        } else if (e.key === "Escape") { e.preventDefault(); fecharOverlay(); }
+        e.stopPropagation();
+      });
+    });
+    el.querySelector("[data-x]").addEventListener("click", fecharOverlay);
+    atualizarM2();
+    campos[0].focus();
+  }
+
+  // -------------------------------------------------
+  // PICKERS ESPECÍFICOS
+  // -------------------------------------------------
+  function abrirTipo(r, seed = "") {
+    const itens = tipos.map((t) => ({ label: t.nome, tipo: t, _s: norm(t.nome) }));
+    itens.push({ label: "+ Adicionar novo tipo...", novo: true, _s: "" });
+    // "novo" aparece sempre: marca-o para ficar sempre visível
+    itens[itens.length - 1]._s = "novo tipo adicionar";
+    abrirLista({
+      titulo: `Linha ${r + 1} — Tipo`,
+      itens,
+      placeholder: "Pesquisar tipo...",
+      seed,
+      onSelect: (it) => {
+        if (it.novo) { novoTipo(r); return; }
+        definirTipo(r, it.tipo);
+      },
     });
   }
 
-  async function loadClientes() {
-    try {
-      const { data, error } = await supabase
-        .from("clientes")
-        .select("*")
-        .order("descricao", { ascending: true });
+  function definirTipo(r, t) {
+    pushUndo();
+    const row = rows[r];
+    const eraDiv = row.diversos;
+    const isDiv = t.nome.trim().toLowerCase() === "diversos";
+    row.tipoId = t.id;
+    row.tipoNome = t.nome;
+    row.diversos = isDiv;
+    if (eraDiv !== isDiv) {
+      // mudou entre "diversos" e normal → o produto deixa de fazer sentido
+      Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "", refPreco: null, comp: null, larg: null });
+    }
+    guardarRascunho();
+    setCur(r, C.PROD);
+  }
 
-      if (error) throw error;
+  function novoTipo(r) {
+    pedirTexto({
+      titulo: "Novo tipo",
+      label: "Nome do novo tipo",
+      placeholder: "Ex.: Rodapé",
+      onOk: async (nome) => {
+        const n = nome.charAt(0).toUpperCase() + nome.slice(1);
+        try {
+          const { data, error } = await supabase.from("type_products").insert([{ nome: n }]).select();
+          if (error) throw error;
+          tipos.push({ id: data[0].id, nome: data[0].nome });
+          tipos.sort((a, b) => a.nome.localeCompare(b.nome, "pt"));
+          toast("✅ Novo tipo adicionado", "success");
+          definirTipo(r, { id: data[0].id, nome: data[0].nome });
+        } catch (err) {
+          toast("❌ Erro ao adicionar tipo: " + (err.message || err), "danger");
+          setCur(r, C.TIPO);
+        }
+      },
+    });
+  }
 
-      clientesData = data.map(c => ({
-        display: c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao,
-        search: `${c.descricao} ${c.descricao2 || ""}`.toLowerCase(),
-        value: c.id,
-        original: c
-      }));
+  // Depois de escolher o produto: se a linha já tem quantidade e medidas
+  // (ex.: opção copiada da anterior) vai direto ao preço; senão pede as medidas.
+  function seguirAposProduto(r) {
+    const row = rows[r];
+    const medidasOk = row.qtd > 0 && (row.diversos || (row.comp > 0 && row.larg > 0));
+    if (medidasOk) setCur(r, C.PRECO); else abrirDimensoes(r);
+  }
 
-      setupAutocomplete(
-        clienteNome,
-        clienteDropdown,
-        clientesData,
-        (item) => {
-          clienteId.value = item.value;
-          clienteNome.value = item.original.descricao;
-          clienteDetalhes.innerHTML = `
-            ${item.original.contribuinte || '---'} | 
-            <strong>Telefone:</strong> ${item.original.telefone || '---'}<br>
-            <small>${item.original.morada || ''}</small>
-          `;
-          window.selectedClienteData = item.original;
-          guardarEstadoOrcamento();
-          setTimeout(() => produtoTipo.focus(), 50);
+  function abrirProduto(r, seed = "") {
+    const row = rows[r];
+    if (!row.tipoId) { toast("⚠️ Escolhe primeiro o tipo", "warning"); setCur(r, C.TIPO); return; }
+
+    if (row.diversos) {
+      pedirTexto({
+        titulo: `Linha ${r + 1} — Artigo (Diversos)`,
+        label: "Descrição do artigo",
+        valor: row.descricao,
+        placeholder: "Descreve o artigo...",
+        onOk: (t) => {
+          pushUndo();
+          Object.assign(row, { descricao: t, label: t, brandKey: "", brandNome: "", webId: null, acabamento: "", espessura: null });
+          guardarRascunho();
+          setCur(r, C.PROD);
+          seguirAposProduto(r);
         },
-        item => item.display
-      );
+      });
+      return;
+    }
 
-    } catch (err) {
-      console.error("Erro ao carregar clientes:", err);
+    abrirLista({
+      titulo: `Linha ${r + 1} — Produto`,
+      itens: produtos,
+      placeholder: "Pesquisar produto...",
+      seed,
+      freeLabel: (t) => `Usar "${t}" como produto livre`,
+      onSelect: (p) => {
+        pushUndo();
+        Object.assign(row, {
+          brandKey: p.brandKey, brandNome: p.brandNome, webId: p.webId, descricao: p.descricao,
+          acabamento: p.acabamento, espessura: p.espessura, label: p.label, refPreco: p.preco,
+        });
+        // preço antigo deixa de ser válido se o produto mudou
+        row.preco = null;
+        guardarRascunho();
+        setCur(r, C.PROD);
+        seguirAposProduto(r); // Enter na lista → abre Qtd / Comp / Larg (ou vai ao preço se já existirem)
+      },
+      onFreeText: (t) => {
+        pushUndo();
+        Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: t, acabamento: "", espessura: null, label: t, refPreco: null, preco: null });
+        guardarRascunho();
+        setCur(r, C.PROD);
+        seguirAposProduto(r);
+      },
+    });
+  }
+
+  function abrirCliente(seed = "") {
+    abrirLista({
+      titulo: "Cliente",
+      itens: clientes,
+      placeholder: "Pesquisar cliente...",
+      seed,
+      freeLabel: () => "+ Adicionar novo cliente",
+      isFree: (t) => t === CODIGO_NOVO_CLIENTE,
+      onSelect: (it) => selecionarCliente(it.original),
+      onFreeText: () => novoCliente(),
+    });
+  }
+
+  const detalhesClienteHtml = (c) =>
+    `${esc(c.contribuinte || "---")} | <strong>Telefone:</strong> ${esc(c.telefone || "---")}<br><small>${esc(c.morada || "")}</small>`;
+
+  function selecionarCliente(c) {
+    selectedCliente = c;
+    clienteId.value = c.id;
+    clienteNome.value = c.descricao;
+    clearCliente.classList.remove("d-none");
+    clienteDetalhes.innerHTML = detalhesClienteHtml(c);
+    window.selectedClienteData = c;
+    guardarRascunho();
+    setCur(firstEmptyRow(), C.TIPO);
+  }
+
+  // Cliente novo: só Nome e Telefone (escrever o código 749 + Enter na pesquisa abre isto)
+  function novoCliente() {
+    const el = criarOverlay(`
+      <header><span>Novo cliente</span><button type="button" data-x>✕</button></header>
+      <div class="orc-body">
+        <label>Nome</label>
+        <input type="text" class="orc-input" data-f="nome" autocomplete="off" />
+        <label>Telefone</label>
+        <input type="text" class="orc-input" data-f="tel" autocomplete="off" />
+      </div>`);
+    const nome = el.querySelector('[data-f="nome"]');
+    const tel = el.querySelector('[data-f="tel"]');
+
+    async function guardar() {
+      const n = nome.value.trim();
+      if (!n) { toast("⚠️ Escreve o nome do cliente", "warning"); nome.focus(); return; }
+      try {
+        const { data, error } = await supabase
+          .from("clientes")
+          .insert([{ descricao: n, contribuinte: null, telefone: tel.value.trim() || null }])
+          .select();
+        if (error) throw error;
+        const c = data[0];
+        const label = c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao;
+        clientes.push({ label, extra: c.contribuinte || "", original: c, _s: norm(c.descricao) });
+        clientes.sort((a, b) => a.label.localeCompare(b.label, "pt"));
+        toast("✅ Cliente adicionado", "success");
+        fecharOverlay();
+        selecionarCliente(c);
+      } catch (err) {
+        toast("❌ Erro ao adicionar cliente: " + (err.message || err), "danger");
+      }
+    }
+
+    [nome, tel].forEach((inp, i) => {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); if (e.repeat) return; i === 0 ? tel.focus() : guardar(); }
+        else if (e.key === "Escape") { e.preventDefault(); fecharOverlay(); }
+        e.stopPropagation();
+      });
+    });
+    el.querySelector("[data-x]").addEventListener("click", fecharOverlay);
+    nome.focus();
+  }
+
+  function firstEmptyRow() {
+    const i = rows.findIndex(linhaVazia);
+    return i === -1 ? 0 : i;
+  }
+
+  // -------------------------------------------------
+  // EDIÇÃO INLINE (Preço/m² e Desc.)
+  // -------------------------------------------------
+  function editarInline(r, c, inicial = null) {
+    const row = rows[r];
+    const td = tbody.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+    if (!td) return;
+    cur = { r, c };
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.className = "cell-input";
+    input.autocomplete = "off";
+    if (c === C.PRECO) {
+      input.value = inicial !== null ? inicial : row.preco ? String(row.preco) : "";
+    } else {
+      input.value = inicial !== null ? inicial : String(row.desc ?? 0);
+    }
+    td.innerHTML = "";
+    td.appendChild(input);
+    editing = { r, c, input };
+    input.focus();
+    if (inicial === null) input.select(); else input.setSelectionRange(input.value.length, input.value.length);
+
+    let terminado = false;
+    const terminar = (modo) => {
+      if (terminado) return;
+      terminado = true;
+      const v = parseNum(input.value);
+      if (modo !== "cancel") {
+        if (c === C.PRECO) {
+          if (input.value.trim() === "") {
+            if (modo === "enter") {
+              toast("⚠️ Indica o preço/m²", "warning");
+              terminado = false; input.focus(); return;
+            }
+          } else if (!(v >= 0)) {
+            toast("⚠️ Preço inválido", "warning");
+            terminado = false; input.focus(); return;
+          } else { pushUndo(); row.preco = v; }
+        } else {
+          let d = input.value.trim() === "" ? 0 : v;
+          if (!(d >= 0) || d > 100) { toast("⚠️ Desconto tem de estar entre 0 e 100", "warning"); terminado = false; input.focus(); input.select(); return; }
+          pushUndo();
+          row.desc = d;
+        }
+      }
+      editing = null;
+      guardarRascunho();
+
+      if (modo === "enter") {
+        if (c === C.PRECO) { cur = { r, c: C.DESC }; render(); editarInline(r, C.DESC); return; }
+        // Desc. → próxima linha
+        if (opcaoAtiva > 0) {
+          // opção copiada: salta para o produto da próxima linha já criada
+          const prox = rows.findIndex((x, idx) => idx > r && !linhaVazia(x));
+          if (prox !== -1) { setCur(prox, C.PROD); return; }
+        }
+        garantirLinhas(r + 1);
+        setCur(r + 1, C.TIPO);
+        return;
+      }
+      if (modo === "tab") { setCur(r, c + 1); return; }
+      if (modo === "down") { garantirLinhas(r + 1); setCur(r + 1, c); return; }
+      if (modo === "up") { setCur(r - 1, c); return; }
+      setCur(r, c); // cancel / blur
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) terminar("enter"); }
+      else if (e.key === "Escape") { e.preventDefault(); terminar("cancel"); }
+      else if (e.key === "Tab") { e.preventDefault(); terminar("tab"); }
+      // setas ↑/↓: guardam o que está escrito e passam à linha de cima/baixo
+      else if (e.key === "ArrowDown") { e.preventDefault(); terminar("down"); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); terminar("up"); }
+      e.stopPropagation();
+    });
+    input.addEventListener("blur", () => { if (!terminado && editing && editing.input === input) terminar("blur"); });
+  }
+
+  // -------------------------------------------------
+  // AÇÃO DE UMA CÉLULA (Enter / duplo clique)
+  // -------------------------------------------------
+  function ativarCelula(r, c, seed = "") {
+    const row = rows[r];
+    switch (c) {
+      case C.TIPO: abrirTipo(r, seed); break;
+      case C.PROD: abrirProduto(r, seed); break;
+      case C.QTD: case C.COMP: case C.LARG:
+        if (!row.descricao) { toast("⚠️ Escolhe primeiro o produto", "warning"); setCur(r, row.tipoId ? C.PROD : C.TIPO); return; }
+        abrirDimensoes(r); break;
+      case C.PRECO: case C.DESC:
+        if (!row.descricao) { toast("⚠️ Escolhe primeiro o produto", "warning"); setCur(r, row.tipoId ? C.PROD : C.TIPO); return; }
+        editarInline(r, c, seed || null); break;
+      default: // m², subtotal, totais: só leitura
+        setCur(r, C.PRECO);
     }
   }
 
-  clienteNome.addEventListener("input", () => {
-    toggleClearButton(clienteNome, clearCliente);
+  // Apaga a linha: as de baixo sobem (mantém sempre o mesmo nº de linhas)
+  function apagarLinha(r) {
+    pushUndo();
+    rows.splice(r, 1);
+    rows.push(novaLinha());
+    guardarRascunho();
+    render();
+  }
+
+  function limparCelula(r, c) {
+    if (c === C.TIPO) { apagarLinha(r); return; }
+    pushUndo();
+    const row = rows[r];
+    if (c === C.PROD) Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "", refPreco: null });
+    else if (c === C.QTD) row.qtd = null;
+    else if (c === C.COMP) row.comp = null;
+    else if (c === C.LARG) row.larg = null;
+    else if (c === C.PRECO) row.preco = null;
+    else if (c === C.DESC) row.desc = 0;
+    // se a linha ficou totalmente vazia, desaparece e as de baixo sobem
+    if (linhaVazia(row) && rows.length > 1) {
+      rows.splice(r, 1);
+      rows.push(novaLinha());
+    }
+    guardarRascunho();
+    render();
+  }
+
+  // -------------------------------------------------
+  // TECLADO E RATO NA GRELHA
+  // -------------------------------------------------
+  wrap.addEventListener("keydown", (e) => {
+    if (editing || overlay) return;
+    const { r, c } = cur;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); desfazer(); }
+      else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); refazer(); }
+      return; // Ctrl+C / Ctrl+V seguem para os eventos copy/paste
+    }
+    switch (e.key) {
+      case "ArrowDown": e.preventDefault(); garantirLinhas(r + 1); setCur(r + 1, c); break;
+      case "ArrowUp": e.preventDefault(); setCur(r - 1, c); break;
+      case "ArrowLeft": e.preventDefault(); setCur(r, c - 1); break;
+      case "ArrowRight": e.preventDefault(); setCur(r, c + 1); break;
+      case "Tab": e.preventDefault(); e.shiftKey ? setCur(r, c - 1) : setCur(r, c + 1); break;
+      case "Enter": e.preventDefault(); if (!e.repeat) ativarCelula(r, c); break;
+      case "Delete": case "Backspace":
+        e.preventDefault();
+        if (e.shiftKey) apagarLinha(r); // Shift+Supr: apaga a linha toda
+        else limparCelula(r, c);
+        break;
+      case "Home": e.preventDefault(); setCur(r, FIRST_COL); break;
+      case "End": e.preventDefault(); setCur(r, LAST_COL); break;
+      default:
+        // escrever diretamente numa célula de preço/desc (como no Excel) ou para pesquisar
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          if ((c === C.PRECO || c === C.DESC) && /[0-9.,]/.test(e.key)) { e.preventDefault(); ativarCelula(r, c, e.key); }
+          else if ((c === C.TIPO || c === C.PROD) && /\S/.test(e.key)) { e.preventDefault(); ativarCelula(r, c, e.key); }
+        }
+    }
   });
 
+  // Seleção com o rato + duplo clique (detetado no mousedown, porque a grelha
+  // é redesenhada a cada seleção e o evento "dblclick" nativo perder-se-ia)
+  let ultimoClique = { t: 0, r: -1, c: -1 };
+  tbody.addEventListener("mousedown", (e) => {
+    if (e.target.closest("[data-clear]")) return;
+    const td = e.target.closest("td[data-c]");
+    if (!td || editing || overlay) return;
+    e.preventDefault();
+    const r = parseInt(td.dataset.r);
+    const c = parseInt(td.dataset.c);
+    const agora = Date.now();
+    const duplo = agora - ultimoClique.t < 450 && ultimoClique.r === r && ultimoClique.c === c;
+    ultimoClique = { t: duplo ? 0 : agora, r, c };
+    setCur(r, c);
+    if (duplo) ativarCelula(r, c);
+  });
+
+  tbody.addEventListener("click", (e) => {
+    const x = e.target.closest("[data-clear]");
+    if (!x) return;
+    const r = parseInt(x.dataset.clear);
+    apagarLinha(r);
+    setCur(r, C.TIPO);
+  });
+
+  btnMaisLinhas.addEventListener("click", () => {
+    for (let i = 0; i < ADD_ROWS; i++) rows.push(novaLinha());
+    render();
+    toast(`➕ ${ADD_ROWS} linhas adicionadas (total: ${rows.length})`, "info");
+  });
+
+  // -------------------------------------------------
+  // COPIAR / COLAR (colunas Produto e Preço/m²)
+  // -------------------------------------------------
+  const gridAtiva = () =>
+    !editing && !overlay && document.getElementById("orcamentoRoot") === root && document.activeElement === wrap;
+
+  function aoCopiar(e) {
+    if (!gridAtiva()) return;
+    const row = rows[cur.r];
+    let texto = null;
+    if (cur.c === C.PROD && row.descricao) {
+      texto = row.label || row.descricao;
+      clipInterno = {
+        tipo: "prod", texto,
+        dados: {
+          diversos: row.diversos, tipoId: row.tipoId, tipoNome: row.tipoNome,
+          brandKey: row.brandKey, brandNome: row.brandNome, webId: row.webId, descricao: row.descricao,
+          acabamento: row.acabamento, espessura: row.espessura, label: row.label,
+        },
+      };
+    } else if (cur.c === C.PRECO && row.preco) {
+      texto = String(row.preco).replace(".", ",");
+      clipInterno = { tipo: "preco", texto };
+    }
+    if (texto === null) return;
+    e.clipboardData.setData("text/plain", texto);
+    e.preventDefault();
+  }
+
+  function colarProduto(r, texto) {
+    const row = rows[r];
+    const src = clipInterno && clipInterno.tipo === "prod" && clipInterno.texto === texto ? clipInterno.dados : null;
+    let dados = src;
+    if (!dados) {
+      const m = produtos.find((p) => norm(p.label) === norm(texto));
+      if (m) dados = { diversos: false, brandKey: m.brandKey, brandNome: m.brandNome, webId: m.webId, descricao: m.descricao, acabamento: m.acabamento, espessura: m.espessura, label: m.label };
+    }
+    if (!dados && !row.tipoId) { toast("⚠️ Escolhe primeiro o tipo", "warning"); return; }
+    if (dados && !row.tipoId && !(src && src.tipoId)) { toast("⚠️ Escolhe primeiro o tipo", "warning"); return; }
+    if (dados && row.tipoId && !!dados.diversos !== !!row.diversos) { toast("⚠️ O tipo desta linha não é compatível com este produto", "warning"); return; }
+
+    pushUndo();
+    if (!row.tipoId && src) {
+      Object.assign(row, { tipoId: src.tipoId, tipoNome: src.tipoNome, diversos: !!src.diversos });
+    }
+    if (dados) {
+      Object.assign(row, {
+        brandKey: dados.brandKey || "", brandNome: dados.brandNome || "", webId: dados.webId ?? null,
+        descricao: dados.descricao, acabamento: dados.acabamento || "", espessura: dados.espessura ?? null,
+        label: dados.label || dados.descricao, refPreco: null,
+      });
+    } else {
+      Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: texto, acabamento: "", espessura: null, label: texto, refPreco: null });
+    }
+    guardarRascunho();
+    render();
+  }
+
+  function aoColar(e) {
+    if (!gridAtiva()) return;
+    const texto = ((e.clipboardData && e.clipboardData.getData("text/plain")) || "").replace(/\r/g, "");
+    if (!texto.trim()) return;
+
+    if (cur.c === C.PROD) {
+      e.preventDefault();
+      colarProduto(cur.r, texto.split("\n")[0].trim());
+    } else if (cur.c === C.PRECO) {
+      e.preventDefault();
+      const valores = texto.split("\n").filter((l) => l.trim() !== "").map((l) => parseNum(l.replace(/[€\s]/g, "")));
+      if (valores.some((v) => !(v >= 0))) { toast("⚠️ Preço inválido", "warning"); return; }
+      pushUndo();
+      garantirLinhas(cur.r + valores.length - 1);
+      valores.forEach((v, i) => { rows[cur.r + i].preco = v; });
+      guardarRascunho();
+      render();
+    }
+  }
+
+  // listeners no document: limpa os da visita anterior a esta página
+  if (window.__orcClipHandlers) {
+    document.removeEventListener("copy", window.__orcClipHandlers.copy);
+    document.removeEventListener("paste", window.__orcClipHandlers.paste);
+  }
+  window.__orcClipHandlers = { copy: aoCopiar, paste: aoColar };
+  document.addEventListener("copy", aoCopiar);
+  document.addEventListener("paste", aoColar);
+
+  // -------------------------------------------------
+  // CLIENTE
+  // -------------------------------------------------
+  clienteNome.addEventListener("click", () => abrirCliente());
+  clienteNome.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); abrirCliente(); }
+    else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); abrirCliente(e.key); }
+  });
   clearCliente.addEventListener("click", (e) => {
     e.stopPropagation();
-    clienteNome.value = "";
-    clienteId.value = "";
-    clienteDetalhes.innerHTML = "";
-    window.selectedClienteData = null;
+    clienteNome.value = ""; clienteId.value = ""; clienteDetalhes.innerHTML = "";
+    selectedCliente = null; window.selectedClienteData = null;
     clearCliente.classList.add("d-none");
-    guardarEstadoOrcamento();
+    guardarRascunho();
     clienteNome.focus();
   });
 
-  // =====================================================
-  // CARREGAR TIPOS DE PRODUTO
-  // =====================================================
-  async function loadTipos() {
-    try {
-      console.log("🔄 Carregando tipos de produto...");
-      
-      const { data, error } = await supabase
-        .from("type_products")
-        .select("id, nome")
-        .order("nome", { ascending: true });
-
-      if (error) throw error;
-
-      console.log("✅ Tipos carregados:", data);
-
-      if (!data || data.length === 0) {
-        console.warn("⚠️ Nenhum tipo encontrado");
-        return;
-      }
-
-      tiposData = data.map(tipo => ({
-        display: tipo.nome,
-        value: tipo.id,
-        id: tipo.id,
-        nome: tipo.nome
-      }));
-      
-      tiposData.push({
-        display: "+ Adicionar Novo Tipo",
-        value: "novo_tipo",
-        id: "novo_tipo",
-        nome: "+ Adicionar Novo Tipo"
-      });
-
-      setupAutocomplete(
-        produtoTipo,
-        tipoDropdown,
-        tiposData,
-        (item) => {
-          if (item.value === "novo_tipo") {
-            produtoTipoId.value = "";
-            newTipoWrapper.classList.remove("d-none");
-            activarModoDiversos(false);
-          } else {
-            produtoTipoId.value = item.id;
-            newTipoWrapper.classList.add("d-none");
-            newTipoInput.value = "";
-            const isDiversos = item.nome.trim().toLowerCase() === "diversos";
-            activarModoDiversos(isDiversos);
-            guardarEstadoOrcamento();
-            setTimeout(() => {
-              if (isDiversos) {
-                produtoDescricao.focus();
-              } else {
-                produtoBrand.focus();
-              }
-            }, 50);
-          }
-        }
-      );
-
-      console.log(`✅ ${data.length} tipos configurados no autocomplete`);
-
-    } catch (err) {
-      console.error("❌ Erro ao carregar tipos:", err);
-      showMessage("Erro ao carregar tipos: " + (err.message || err), "danger");
-    }
-  }
-
-  // =====================================================
-  // CARREGAR MARCAS
-  // =====================================================
-  async function loadBrands() {
-    try {
-      console.log("🔄 Carregando marcas...");
-      
-      const { data, error } = await supabase
-        .from("brands")
-        .select("display_name, website_key")
-        .order("display_name", { ascending: true });
-
-      if (error) throw error;
-
-      console.log("✅ Marcas carregadas:", data);
-
-      if (!data || data.length === 0) {
-        console.warn("⚠️ Nenhuma marca encontrada");
-        return;
-      }
-
-      brandsData = data.map(brand => ({
-        display: brand.display_name,
-        value: brand.website_key,
-        website_key: brand.website_key,
-        display_name: brand.display_name
-      }));
-
-      setupAutocomplete(
-        produtoBrand,
-        brandDropdown,
-        brandsData,
-        async (item) => {
-          produtoBrandKey.value = item.website_key;
-          await carregarDescricoesDaMarca(item.website_key);
-          guardarEstadoOrcamento();
-          setTimeout(() => produtoDescricao.focus(), 50);
-        }
-      );
-
-      console.log(`✅ ${data.length} marcas configuradas no autocomplete`);
-
-    } catch (err) {
-      console.error("❌ Erro ao carregar marcas:", err);
-      showMessage("Erro ao carregar marcas: " + (err.message || err), "danger");
-    }
-  }
-
-  // =====================================================
-  // CARREGAR PRODUTOS DO WEBSITE (CACHE)
-  // =====================================================
-  async function loadProdutosWebsite() {
-    try {
-      const { data, error } = await supabase
-        .from("website")
-        .select("id, Brand, Title_pt");
-
-      if (error) throw error;
-
-      produtosWebsite = data || [];
-    } catch (err) {
-      console.error("Erro ao carregar produtos:", err);
-    }
-  }
-
-  // =====================================================
-  // CARREGAR DESCRIÇÕES DA MARCA SELECIONADA
-  // =====================================================
-  async function carregarDescricoesDaMarca(brandKey) {
-    produtoDescricao.value = "";
-    produtoDescricaoId.value = "";
-    produtoDescricao.disabled = false;
-    produtoDescricao.placeholder = "Seleciona a descrição...";
-    clearDescricao.classList.add("d-none");
-    
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "";
-    produtoEspessura.disabled = true;
-    produtoEspessura.placeholder = "Primeiro seleciona a descrição...";
-    clearEspessura.classList.add("d-none");
-    
-    resetCamposDependentes();
-
-    produtosDaMarca = produtosWebsite.filter(p => p.Brand === brandKey).map(p => ({
-      display: p.Title_pt,
-      value: p.id,
-      id: p.id,
-      title: p.Title_pt
-    }));
-
-    if (produtosDaMarca.length === 0) {
-      produtoDescricao.placeholder = "Sem produtos na base de dados — escreve a descrição manualmente...";
-      showMessage("⚠️ Nenhum produto na base de dados para esta marca. Podes escrever manualmente.", "warning");
-    }
-
-    setupAutocomplete(
-      produtoDescricao,
-      descricaoDropdown,
-      produtosDaMarca,
-      async (item) => {
-        produtoDescricaoId.value = item.id;
-        await carregarEspessuras(item.id);
-        guardarEstadoOrcamento();
-        setTimeout(() => produtoEspessura.focus(), 50);
-      }
-    );
-  }
-
-  // =====================================================
-  // CARREGAR ESPESSURAS DISPONÍVEIS (AUTOCOMPLETE)
-  // =====================================================
-  async function carregarEspessuras(produtoId) {
-    produtoEspessura.value = "";
-    produtoEspessuraValue.value = "";
-    produtoEspessura.disabled = false;
-    produtoEspessura.placeholder = "Seleciona a espessura...";
-    clearEspessura.classList.add("d-none");
-    produtoPrecoMt2.value = "";
-    btnVerPrecario.classList.add("d-none");
-    espessurasDisponiveis = [];
-
-    try {
-      const { data: thicknesses, error } = await supabase
-        .from("product_thicknesses")
-        .select("thickness, type, price_per_m2")
-        .eq("website_item_id", produtoId)
-        .order("thickness", { ascending: true });
-
-      if (error) throw error;
-
-      if (!thicknesses || thicknesses.length === 0) {
-        produtoEspessura.placeholder = "Sem espessuras na tabela — escreve manualmente (mm)...";
-        showMessage("⚠️ Este produto não tem espessuras configuradas. Podes escrever manualmente.", "warning");
-        return;
-      }
-
-      precosPorProduto[produtoId] = {};
-      thicknesses.forEach(t => {
-        if (!precosPorProduto[produtoId][t.thickness]) {
-          precosPorProduto[produtoId][t.thickness] = [];
-        }
-        precosPorProduto[produtoId][t.thickness].push({
-          type: t.type,
-          price_per_m2: t.price_per_m2
-        });
-      });
-
-      const espessurasUnicas = [...new Set(thicknesses.map(t => t.thickness))];
-
-      espessurasDisponiveis = espessurasUnicas.map(thickness => ({
-        display: `${thickness}mm`,
-        value: thickness,
-        thickness: thickness
-      }));
-
-      setupAutocomplete(
-        produtoEspessura,
-        espessuraDropdown,
-        espessurasDisponiveis,
-        (item) => {
-          produtoEspessuraValue.value = item.thickness;
-          produtoTipoAcabamento.value = "";
-          produtoTipoAcabamentoValue.value = "";
-          produtoTipoAcabamento.disabled = false;
-          produtoTipoAcabamento.placeholder = "Seleciona...";
-          clearTipoAcabamento.classList.add("d-none");
-          produtoPrecoMt2.value = "";
-          carregarTiposAcabamento(produtoId, item.thickness);
-          calcularValores();
-          guardarEstadoOrcamento();
-        },
-        item => item.display,
-        item => item.value,
-        (item, filter) => {
-          const num = filter.replace(/mm$/i, "").trim();
-          return item.display.toLowerCase().startsWith(num.toLowerCase());
-        }
-      );
-
-      btnVerPrecario.classList.remove("d-none");
-
-    } catch (err) {
-      console.error("Erro ao carregar espessuras:", err);
-      showMessage("Erro ao carregar espessuras: " + err.message, "danger");
-      produtoEspessura.disabled = true;
-    }
-  }
-
-  // =====================================================
-  // ✅ [ALTERAÇÃO 1] CARREGAR TIPOS DE ACABAMENTO
-  // Preço/m² NÃO é preenchido automaticamente,
-  // mesmo quando só existe 1 acabamento disponível.
-  // O utilizador tem sempre de confirmar/ver o preço.
-  // =====================================================
-  function carregarTiposAcabamento(produtoId, thickness) {
-    const tiposParaEspessura = (precosPorProduto[produtoId]?.[thickness] || []);
-
-    const tiposAcabamentoData = tiposParaEspessura.map(t => ({
-      display: t.type.charAt(0).toUpperCase() + t.type.slice(1),
-      value: t.type,
-      price: t.price_per_m2
-    }));
-
-    if (tiposAcabamentoData.length === 0) {
-      produtoTipoAcabamento.disabled = false;
-      produtoTipoAcabamento.placeholder = "Sem acabamentos na tabela — escreve manualmente...";
-      return;
-    }
-
-    if (tiposAcabamentoData.length === 1) {
-      // ✅ Preenche o texto do campo e o valor hidden,
-      // mas NÃO preenche o Preço/m² automaticamente.
-      produtoTipoAcabamento.value = tiposAcabamentoData[0].display;
-      produtoTipoAcabamentoValue.value = tiposAcabamentoData[0].value;
-      clearTipoAcabamento.classList.remove("d-none");
-      // produtoPrecoMt2 fica vazio — utilizador preenche manualmente
-      calcularValores();
-      guardarEstadoOrcamento();
-      // Foco vai para Quantidade para o utilizador confirmar e avançar
-      setTimeout(() => produtoQuantidade.focus(), 50);
-      return;
-    }
-
-    setupAutocomplete(
-      produtoTipoAcabamento,
-      tipoAcabamentoDropdown,
-      tiposAcabamentoData,
-      (item) => {
-        produtoTipoAcabamentoValue.value = item.value;
-        // ✅ Preço/m² também NÃO é preenchido aqui automaticamente
-        calcularValores();
-        guardarEstadoOrcamento();
-        setTimeout(() => produtoQuantidade.focus(), 50);
-      }
-    );
-
-    setTimeout(() => produtoTipoAcabamento.focus(), 50);
-  }
-
-  // =====================================================
-  // ✅ RESETAR CAMPOS DEPENDENTES
-  // =====================================================
-  function resetCamposDependentes() {
-    espessurasDisponiveis = [];
-    produtoPrecoMt2.value = "";
-    btnVerPrecario.classList.add("d-none");
-    if (precarioAberto) {
-      fecharPrecario();
-    }
-  }
-
-  // =====================================================
-  // ✅ MODO DIVERSOS
-  // =====================================================
-  function activarModoDiversos(ativo) {
-    modoAtualDiversos = ativo;
-
-    descricaoDropdown.classList.remove("show");
-    descricaoDropdown.innerHTML = "";
-    const modoDiversosBadge = document.getElementById("modoDiversosBadge");
-
-    const colMarca = produtoBrand.closest(".col-md-3");
-    const colEspessura = document.getElementById("colEspessura");
-    const colAcabamento = document.getElementById("colAcabamento");
-    const colComprimento = produtoComprimento.closest(".col-md-2");
-    const colLargura = produtoLargura.closest(".col-md-2");
-
-    if (ativo) {
-      produtoDescricao.value = "";
-      produtoDescricao.disabled = false;
-      produtoDescricao.placeholder = "Descreve o artigo...";
-      produtoDescricaoId.value = "diversos";
-
-      if (colMarca) colMarca.classList.add("d-none");
-      if (colEspessura) colEspessura.classList.add("d-none");
-      if (colAcabamento) colAcabamento.classList.add("d-none");
-      if (colComprimento) colComprimento.classList.add("d-none");
-      if (colLargura) colLargura.classList.add("d-none");
-
-      produtoBrand.value = "";
-      produtoBrandKey.value = "diversos";
-      produtoEspessura.value = "";
-      produtoEspessuraValue.value = "0";
-      produtoComprimento.value = "";
-      produtoLargura.value = "";
-
-      btnVerPrecario.classList.add("d-none");
-      if (modoDiversosBadge) modoDiversosBadge.classList.remove("d-none");
-
-    } else {
-      if (colMarca) colMarca.classList.remove("d-none");
-      if (colEspessura) colEspessura.classList.remove("d-none");
-      if (colAcabamento) colAcabamento.classList.remove("d-none");
-      if (colComprimento) colComprimento.classList.remove("d-none");
-      if (colLargura) colLargura.classList.remove("d-none");
-
-      produtoBrand.disabled = false;
-
-      // ✅ ADICIONAR ESTAS LINHAS — limpar descrição ao sair do modo diversos
-      produtoDescricao.value = "";
-      produtoDescricaoId.value = "";
-      clearDescricao.classList.add("d-none");
-
-      if (!produtoBrandKey.value) {
-        produtoDescricao.disabled = true;
-        produtoDescricao.placeholder = "Primeiro seleciona a marca...";
-      }
-
-      if (modoDiversosBadge) modoDiversosBadge.classList.add("d-none");
-    }
-    calcularValores();
-  }
-
-  // =====================================================
-  // ADICIONAR NOVO TIPO
-  // =====================================================
-  btnAddNewTipo.addEventListener("click", async () => {
-    const novoTipoNome = newTipoInput.value.trim();
-    
-    if (!novoTipoNome) {
-      showMessage("⚠️ Digite o nome do novo tipo", "warning");
-      newTipoInput.focus();
-      return;
-    }
-
-    try {
-      showMessage("⏳ Adicionando novo tipo...", "info");
-
-      const { data, error } = await supabase
-        .from("type_products")
-        .insert([{ nome: novoTipoNome }])
-        .select();
-
-      if (error) throw error;
-
-      showMessage("✅ Novo tipo adicionado com sucesso!", "success");
-
-      await loadTipos();
-
-      produtoTipo.value = novoTipoNome;
-      produtoTipoId.value = data[0].id;
-      clearTipo.classList.remove("d-none");
-
-      newTipoWrapper.classList.add("d-none");
-      newTipoInput.value = "";
-      guardarEstadoOrcamento();
-
-    } catch (err) {
-      console.error("Erro ao adicionar tipo:", err);
-      showMessage("❌ Erro ao adicionar tipo: " + (err.message || err), "danger");
-    }
-  });
-
-  // =====================================================
-  // VALIDAÇÃO DO CAMPO DESCONTO
-  // =====================================================
-  produtoDesconto.addEventListener("input", (e) => {
-    let valor = parseFloat(e.target.value);
-    
-    if (valor > 100) {
-      e.target.value = e.target.dataset.lastValid || "0";
-      return;
-    }
-    
-    if (valor < 0) {
-      e.target.value = "0";
-      e.target.dataset.lastValid = "0";
-      return;
-    }
-    
-    if (!isNaN(valor)) {
-      e.target.dataset.lastValid = e.target.value;
-    }
-    
-    calcularValores();
-  });
-
-  // =====================================================
-  // ✅ CALCULAR M², SUBTOTAL E TOTAL
-  // =====================================================
-  function calcularValores() {
-    const qtd = parseInt(produtoQuantidade.value) || 0;
-    const isDiversos = produtoTipoId.value !== "" &&
-      produtoTipo.value.trim().toLowerCase() === "diversos";
-
-    let compM, largM;
-
-    if (isDiversos) {
-      compM = 1;
-      largM = 1;
-    } else {
-      compM = parseFloat(normalizeDecimalInput(produtoComprimento.value)) || 0;
-      largM = parseFloat(normalizeDecimalInput(produtoLargura.value)) || 0;
-    }
-
-    const precoMt2 = parseFloat(produtoPrecoMt2.value) || 0;
-    let desconto = parseFloat(produtoDesconto.value) || 0;
-    if (desconto < 0) desconto = 0;
-    if (desconto > 100) desconto = 100;
-
-    const mt2 = qtd * compM * largM;
-    produtoMt2.value = mt2.toFixed(4);
-
-    const fatorDesconto = 1 - (desconto / 100);
-    const subtotal = compM * largM * precoMt2 * fatorDesconto;
-    produtoSubtotal.value = subtotal > 0 ? subtotal.toFixed(2) : "0.00";
-
-    const total = subtotal * qtd;
-    produtoTotal.value = total > 0 ? total.toFixed(2) : "0.00";
-  }
-
-  // =====================================================
-  // ✅ [ALTERAÇÃO 3] NAVEGAÇÃO POR ENTER + MODAL CONFIRMAÇÃO
-  // =====================================================
-
-  // Definir a função que abre o modal de confirmação
-  function abrirModalConfirmarProduto() {
-    const modal = new bootstrap.Modal(document.getElementById('confirmarProdutoModal'));
-    modal.show();
-  }
-
-  // Ligar o botão de confirmação do modal ao btnAdicionarProduto
-  const confirmarAdicionarProdutoBtn = document.getElementById("confirmarAdicionarProdutoBtn");
-  if (confirmarAdicionarProdutoBtn) {
-    confirmarAdicionarProdutoBtn.addEventListener("click", () => {
-      // Fechar o modal
-      const modalEl = document.getElementById('confirmarProdutoModal');
-      const modalInstance = bootstrap.Modal.getInstance(modalEl);
-      if (modalInstance) modalInstance.hide();
-      // Acionar o clique no botão de adicionar
-      btnAdicionarProduto.click();
-    });
-  }
-
-  // Navegação Enter nos campos numéricos
-  // Navegação Enter nos campos numéricos
-  produtoQuantidade.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (modoAtualDiversos) {
-        produtoPrecoMt2.focus();
-      } else {
-        produtoComprimento.focus();
-      }
-    }
-  });
-  produtoComprimento.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); produtoLargura.focus(); }
-  });
-  produtoLargura.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); produtoPrecoMt2.focus(); }
-  });
-  produtoPrecoMt2.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); produtoDesconto.focus(); }
-  });
-  produtoDesconto.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      btnAdicionarProduto.click();
-    }
-  });
-
-  // =====================================================
-  // VER PREÇÁRIO
-  // =====================================================
-  let precarioAberto = false;
-
-  btnVerPrecario.addEventListener("click", () => {
-    if (precarioAberto) {
-      fecharPrecario();
-    } else {
-      abrirPrecario();
-    }
-  });
-
-  btnFecharPrecario.addEventListener("click", () => {
-    fecharPrecario();
-  });
-
-  function abrirPrecario() {
-    const produtoId = produtoDescricaoId.value;
-    if (!produtoId || !precosPorProduto[produtoId]) {
-      showMessage("⚠️ Seleciona uma descrição primeiro", "warning");
-      return;
-    }
-
-    precarioTitulo.textContent = produtoDescricao.value;
-
-    precarioTableBody.innerHTML = "";
-    const precos = precosPorProduto[produtoId];
-    
-    Object.keys(precos).sort((a, b) => a - b).forEach(thickness => {
-      const tipos = precos[thickness];
-      tipos.forEach(t => {
-        const tr = document.createElement("tr");
-        const tipoLabel = t.type.charAt(0).toUpperCase() + t.type.slice(1);
-        tr.innerHTML = `
-          <td><strong>${thickness}mm ${tipoLabel}</strong></td>
-          <td class="text-end">${parseFloat(t.price_per_m2).toFixed(2)} €</td>
-        `;
-        precarioTableBody.appendChild(tr);
-      });
-    });
-
-    precarioModal.classList.remove("d-none");
-    precarioAberto = true;
-
-    btnVerPrecario.innerHTML = '<i class="bi bi-x-circle me-2"></i> Fechar Preçário';
-    btnVerPrecario.style.backgroundColor = "#dc3545";
-  }
-
-  function fecharPrecario() {
-    precarioModal.classList.add("closing");
-    
-    setTimeout(() => {
-      precarioModal.classList.add("d-none");
-      precarioModal.classList.remove("closing");
-      precarioAberto = false;
-      
-      btnVerPrecario.innerHTML = '<i class="bi bi-table me-2"></i> Ver Preçário';
-      btnVerPrecario.style.backgroundColor = "#5b899f";
-    }, 300);
-  }
-
-  // =====================================================
-  // ✅ ADICIONAR PRODUTO À TABELA
-  // =====================================================
-btnAdicionarProduto.addEventListener("click", async () => {
-      const isDiversos = produtoTipo.value.trim().toLowerCase() === "diversos";
-
-    if (!produtoTipoId.value) {
-      showMessage("⚠️ Seleciona o tipo", "warning");
-      return;
-    }
-
-    if (isDiversos) {
-      if (!produtoDescricao.value.trim()) {
-        showMessage("⚠️ Escreve a descrição do artigo", "warning");
-        return;
-      }
-    } else {
-      if (!produtoBrandKey.value) {
-        showMessage("⚠️ Seleciona a marca", "warning");
-        return;
-      }
-      if (!produtoDescricaoId.value) {
-        showMessage("⚠️ Seleciona a descrição", "warning");
-        return;
-      }
-      if (!produtoEspessuraValue.value) {
-        showMessage("⚠️ Seleciona a espessura", "warning");
-        return;
-      }
-      if (!produtoTipoAcabamentoValue.value) {
-        showMessage("⚠️ Seleciona o acabamento", "warning");
-        return;
-      }
-      const compM = parseFloat(normalizeDecimalInput(produtoComprimento.value));
-       const largM = parseFloat(normalizeDecimalInput(produtoLargura.value));
-         if (!compM || compM <= 0) {
-        showMessage("⚠️ Comprimento deve ser maior que zero", "warning");
-        return;
-      }
-      if (!largM || largM <= 0) {
-        showMessage("⚠️ Largura deve ser maior que zero", "warning");
-        return;
-      }
-    }
-
-    if (!produtoQuantidade.value || produtoQuantidade.value <= 0) {
-      showMessage("⚠️ Quantidade deve ser maior que zero", "warning");
-      return;
-    }
-    if (!produtoPrecoMt2.value || produtoPrecoMt2.value <= 0) {
-      showMessage("⚠️ Preço/m² deve ser maior que zero", "warning");
-      return;
-    }
-
-      // ✅ Se a descrição foi escrita manualmente (não veio da base de dados),
-    // guarda-a agora na tabela "website" para ficar disponível no futuro.
-    if (!isDiversos) {
-      try {
-        // ----- 1) Garantir que a descrição existe na tabela "website" -----
-        if (produtoDescricaoId.value === "manual") {
-
-          const { data: novoProduto, error: novoProdutoError } = await supabase
-            .from("website")
-            .insert([{
-              Brand: produtoBrandKey.value,
-              Title_pt: produtoDescricao.value.trim()
-            }])
-            .select();
-
-          if (novoProdutoError) throw novoProdutoError;
-
-          const novoId = novoProduto[0].id;
-          produtoDescricaoId.value = novoId;
-
-          // Atualiza a cache local para já aparecer no autocomplete sem reload
-          produtosWebsite.push({ id: novoId, Brand: produtoBrandKey.value, Title_pt: produtoDescricao.value.trim() });
-          produtosDaMarca.push({ display: produtoDescricao.value.trim(), value: novoId, id: novoId, title: produtoDescricao.value.trim() });
-
-          showMessage("✅ Nova descrição guardada com sucesso!", "success");
-        }
-
-        // ----- 2) Garantir que a espessura + acabamento existem em "product_thicknesses" -----
-        const idAtual = produtoDescricaoId.value;
-        const espessuraAtual = parseInt(produtoEspessuraValue.value);
-        const acabamentoAtual = (produtoTipoAcabamentoValue.value || "").trim().toLowerCase();
-        const precoAtual = parseFloat(produtoPrecoMt2.value);
-
-        const jaExiste = !!(
-          precosPorProduto[idAtual] &&
-          precosPorProduto[idAtual][espessuraAtual] &&
-          precosPorProduto[idAtual][espessuraAtual].some(t => t.type.toLowerCase() === acabamentoAtual)
-        );
-
-        if (!jaExiste && !isNaN(espessuraAtual) && acabamentoAtual) {
-
-          const { error: espessuraError } = await supabase
-            .from("product_thicknesses")
-            .insert([{
-              website_item_id: idAtual,
-              thickness: espessuraAtual,
-              type: acabamentoAtual,
-              price_per_m2: precoAtual
-            }]);
-
-          if (espessuraError) throw espessuraError;
-
-          // Atualiza a cache local para já refletir no preçário sem reload
-          if (!precosPorProduto[idAtual]) precosPorProduto[idAtual] = {};
-          if (!precosPorProduto[idAtual][espessuraAtual]) precosPorProduto[idAtual][espessuraAtual] = [];
-          precosPorProduto[idAtual][espessuraAtual].push({ type: acabamentoAtual, price_per_m2: precoAtual });
-
-          showMessage("✅ Espessura e acabamento guardados no preçário!", "success");
-        }
-      } catch (err) {
-        console.error("Erro ao guardar descrição/espessura/acabamento:", err);
-        showMessage("⚠️ Não foi possível guardar tudo na base de dados: " + (err.message || err), "warning");
-        // Continua mesmo assim a adicionar o produto à lista do orçamento
-      }
-    }
-    
-    const compM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoComprimento.value));
-    const largM = isDiversos ? 1 : parseFloat(normalizeDecimalInput(produtoLargura.value));
-    
-    const produto = {
-      id: Date.now(),
-      isDiversos: isDiversos,
-      tipo_id: parseInt(produtoTipoId.value),
-      tipoNome: produtoTipo.value,
-      brand: isDiversos ? "" : produtoBrandKey.value,
-      brandNome: isDiversos ? "" : produtoBrand.value,
-      descricao: produtoDescricao.value,
-      quantidade: parseInt(produtoQuantidade.value),
-      comprimento: compM,
-      largura: largM,
-      espessura: isDiversos ? null : parseInt(produtoEspessuraValue.value),
-      tipoAcabamento: isDiversos ? null : produtoTipoAcabamentoValue.value,
-      mt2: parseFloat(produtoMt2.value),
-      preco_mt2: parseFloat(produtoPrecoMt2.value),
-      desconto_percentagem: parseFloat(produtoDesconto.value) || 0,
-      subtotal: parseFloat(produtoSubtotal.value),
-      total: parseFloat(produtoTotal.value)
-    };
-
-    produtosAdicionados.push(produto);
-    renderProdutosTable();
-    limparCamposProduto();
-  });
-
-  // =====================================================
-  // ✅ BOTÃO LIMPAR PRODUTO
-  // =====================================================
-  btnLimparProduto.addEventListener("click", () => {
-    if (!formularioTemDados()) {
-      showMessage("⚠️ Não há dados para limpar", "warning");
-      return;
-    }
-    limparCamposProduto();
-    showMessage("🧹 Formulário limpo", "info");
-  });
-
-  // =====================================================
-  // ✅ RENDERIZAR TABELA DE PRODUTOS
-  // =====================================================
-  function renderProdutosTable() {
-    if (produtosAdicionados.length === 0) {
-      produtosTableBody.innerHTML = `
-        <tr>
-          <td colspan="13" class="text-muted" style="background-color: #eeeeef; border-color: #cbccce;">Nenhum produto adicionado</td>
-        </tr>
-      `;
-      totalGeralEl.textContent = "0.00 €";
-      guardarEstadoOrcamento();
-      return;
-    }
-
-    produtosTableBody.innerHTML = "";
-    let totalGeral = 0;
-
-    produtosAdicionados.forEach((produto, index) => {
-      totalGeral += produto.total;
-
-      const tr = document.createElement("tr");
-      tr.className = "produto-row";
-      tr.innerHTML = `
-        <td>${produto.tipoNome}</td>
-        <td>${produto.isDiversos ? "" : produto.brandNome}</td>
-        <td class="text-start">${produto.descricao}${!produto.isDiversos && produto.tipoAcabamento ? ' ' + produto.tipoAcabamento.charAt(0).toUpperCase() + produto.tipoAcabamento.slice(1) : ''}</td>
-        <td>${produto.quantidade}</td>
-        <td>${produto.isDiversos ? "" : produto.comprimento.toFixed(4)}</td>
-        <td>${produto.isDiversos ? "" : produto.largura.toFixed(4)}</td>
-        <td>${produto.isDiversos ? "" : produto.espessura + "mm"}</td>
-        <td>${produto.isDiversos ? Number(produto.quantidade).toFixed(4) : produto.mt2.toFixed(4)}</td>
-        <td>${produto.preco_mt2.toFixed(2)} €</td>
-        <td>${produto.desconto_percentagem.toFixed(2)}%</td>
-        <td>${produto.subtotal.toFixed(2)} €</td>
-        <td>${produto.total.toFixed(2)} €</td>
-        <td>
-          <button type="button" class="btn-edit" data-index="${index}" title="Editar">
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button type="button" class="btn-remove" data-index="${index}" title="Eliminar">
-            <i class="bi bi-trash"></i>
-          </button>
-        </td>
-      `;
-      produtosTableBody.appendChild(tr);
-    });
-
-    totalGeralEl.textContent = totalGeral.toFixed(2) + " €";
-    guardarEstadoOrcamento();
-  }
-
-  // =====================================================
-  // REMOVER / EDITAR PRODUTO
-  // =====================================================
-  produtosTableBody.addEventListener("click", (e) => {
-    if (e.target.closest(".btn-edit")) {
-      const index = parseInt(e.target.closest(".btn-edit").dataset.index);
-      editarProduto(index);
-      return;
-    }
-
-    if (e.target.closest(".btn-remove")) {
-      const index = parseInt(e.target.closest(".btn-remove").dataset.index);
-      produtosAdicionados.splice(index, 1);
-      renderProdutosTable();
-      showMessage("🗑️ Produto removido", "info");
-    }
-  });
-
-  // =====================================================
-  // ✅ EDITAR PRODUTO JÁ ADICIONADO
-  // Carrega os dados do produto de volta para o formulário
-  // (reconstruindo a cascata Tipo → Marca → Descrição →
-  // Espessura → Acabamento) e remove-o da lista. O produto
-  // volta a entrar na lista quando o utilizador clicar em
-  // "Adicionar Produto" com os dados já corrigidos.
-  // =====================================================
-  async function editarProduto(index) {
-    const produto = produtosAdicionados[index];
-    if (!produto) return;
-
-    if (formularioTemDados()) {
-      showMessage("⚠️ Termina ou limpa o produto atual antes de editar outro.", "warning");
-      return;
-    }
-
-    limparCamposProduto();
-
-    // ----- TIPO -----
-    produtoTipo.value = produto.tipoNome;
-    produtoTipoId.value = produto.tipo_id;
-    toggleClearButton(produtoTipo, clearTipo);
-
-    if (produto.isDiversos) {
-      // ----- MODO DIVERSOS -----
-      activarModoDiversos(true);
-      produtoDescricao.value = produto.descricao;
-      produtoDescricaoId.value = "diversos";
-      toggleClearButton(produtoDescricao, clearDescricao);
-
-      produtoQuantidade.value = produto.quantidade;
-      produtoPrecoMt2.value = produto.preco_mt2;
-      produtoDesconto.value = produto.desconto_percentagem;
-      produtoDesconto.dataset.lastValid = produto.desconto_percentagem;
-
-    } else {
-      // ----- MARCA -----
-      activarModoDiversos(false);
-      produtoBrand.value = produto.brandNome;
-      produtoBrandKey.value = produto.brand;
-      toggleClearButton(produtoBrand, clearBrand);
-
-      await carregarDescricoesDaMarca(produto.brand);
-
-      // Tenta encontrar o produto correspondente na base/website
-      // para conseguir repor as espessuras e acabamentos disponíveis.
-      const itemWebsite = produtosWebsite.find(
-        p => p.Brand === produto.brand && p.Title_pt === produto.descricao
-      );
-
-      // ----- DESCRIÇÃO -----
-      produtoDescricao.value = produto.descricao;
-      produtoDescricaoId.value = itemWebsite ? itemWebsite.id : "manual";
-      toggleClearButton(produtoDescricao, clearDescricao);
-
-      if (itemWebsite) {
-        await carregarEspessuras(itemWebsite.id);
-
-        // ----- ESPESSURA -----
-        produtoEspessura.value = produto.espessura + "mm";
-        produtoEspessuraValue.value = produto.espessura;
-        toggleClearButton(produtoEspessura, clearEspessura);
-
-        produtoTipoAcabamento.disabled = false;
-        produtoTipoAcabamento.placeholder = "Seleciona...";
-        carregarTiposAcabamento(itemWebsite.id, produto.espessura);
-        btnVerPrecario.classList.remove("d-none");
-      } else {
-        // Produto não encontrado na base de dados: mantém edição manual
-        produtoEspessura.disabled = false;
-        produtoEspessura.value = produto.espessura ? produto.espessura + "mm" : "";
-        produtoEspessuraValue.value = produto.espessura || "";
-        toggleClearButton(produtoEspessura, clearEspessura);
-
-        produtoTipoAcabamento.disabled = false;
-        produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
-      }
-
-      // ----- ACABAMENTO -----
-      if (produto.tipoAcabamento) {
-        produtoTipoAcabamento.value = produto.tipoAcabamento.charAt(0).toUpperCase() + produto.tipoAcabamento.slice(1);
-        produtoTipoAcabamentoValue.value = produto.tipoAcabamento;
-        toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
-      }
-
-      produtoQuantidade.value = produto.quantidade;
-      produtoComprimento.value = produto.comprimento.toFixed(4);
-      produtoLargura.value = produto.largura.toFixed(4);
-      produtoPrecoMt2.value = produto.preco_mt2;
-      produtoDesconto.value = produto.desconto_percentagem;
-      produtoDesconto.dataset.lastValid = produto.desconto_percentagem;
-    }
-
-    calcularValores();
-
-    // Remove da lista — volta a ser adicionado ao clicar em "Adicionar Produto"
-    produtosAdicionados.splice(index, 1);
-    renderProdutosTable();
-    guardarEstadoOrcamento();
-
-    showMessage("✏️ Produto carregado para edição. Corrige os dados e clica em 'Adicionar Produto'.", "info");
-
-    setTimeout(() => {
-      (produto.isDiversos ? produtoQuantidade : produtoComprimento).focus();
-    }, 60);
-  }
-
-  // =====================================================
-  // ✅ LIMPAR CAMPOS DO PRODUTO
-  // =====================================================
-  function limparCamposProduto() {
-    produtoTipo.value = "";
-    produtoTipoId.value = "";
-    clearTipo.classList.add("d-none");
-    
-    produtoBrand.value = "";
-    produtoBrandKey.value = "";
-    clearBrand.classList.add("d-none");
-    
-    produtoDescricao.value = "";
-    produtoDescricao.disabled = true;
-    produtoDescricao.placeholder = "Primeiro seleciona a marca...";
-    produtoDescricaoId.value = "";
-    clearDescricao.classList.add("d-none");
-    
-    produtoEspessura.value = "";
-    produtoEspessura.disabled = true;
-    produtoEspessura.placeholder = "Primeiro seleciona a descrição...";
-    produtoEspessuraValue.value = "";
-    clearEspessura.classList.add("d-none");
-    espessurasDisponiveis = [];
-    
-    produtoQuantidade.value = 1;
-    produtoComprimento.value = "";
-    produtoLargura.value = "";
-    produtoMt2.value = "";
-    produtoPrecoMt2.value = "";
-    produtoDesconto.value = "0";
-    produtoDesconto.dataset.lastValid = "0";
-    produtoSubtotal.value = "";
-    produtoTotal.value = "";
-    
-    produtoTipoAcabamento.value = "";
-    produtoTipoAcabamento.disabled = true;
-    produtoTipoAcabamento.placeholder = "Primeiro seleciona espessura...";
-    produtoTipoAcabamentoValue.value = "";
-    clearTipoAcabamento.classList.add("d-none");
-
-    btnVerPrecario.classList.add("d-none");
-    if (precarioAberto) {
-      fecharPrecario();
-    }
-
-    activarModoDiversos(false);
-    guardarEstadoOrcamento();
-  }
-
-  // =====================================================
-  // LIMPAR TODO O ORÇAMENTO
-  // =====================================================
-  btnLimparOrcamento.addEventListener("click", () => {
-    if (produtosAdicionados.length === 0 && !clienteNome.value.trim()) {
-      showMessage("⚠️ Não há dados para limpar", "warning");
-      return;
-    }
-    
-    const limparModal = new bootstrap.Modal(document.getElementById('limparOrcamentoModal'));
-    limparModal.show();
-  });
-
-  document.getElementById('confirmLimparOrcamentoBtn').addEventListener('click', () => {
-    const limparModal = bootstrap.Modal.getInstance(document.getElementById('limparOrcamentoModal'));
-    limparModal.hide();
-    
-    clienteNome.value = "";
-    clienteId.value = "";
-    clienteDetalhes.innerHTML = "";
-    window.selectedClienteData = null;
+  // -------------------------------------------------
+  // LIMPAR TUDO
+  // -------------------------------------------------
+  function resetTudo(depoisDeGuardar = false) {
+    if (depoisDeGuardar) { undoStack = []; redoStack = []; } else pushUndo();
+    rows = Array.from({ length: DEFAULT_ROWS }, novaLinha);
+    opcoes = [{ rows, cur: { r: 0, c: C.TIPO } }];
+    opcaoAtiva = 0;
+    cur = { r: 0, c: C.TIPO };
+    clienteNome.value = ""; clienteId.value = ""; clienteDetalhes.innerHTML = "";
+    selectedCliente = null; window.selectedClienteData = null;
     clearCliente.classList.add("d-none");
-    produtosAdicionados = [];
-    limparCamposProduto();
-    renderProdutosTable();
-    limparEstadoOrcamento();
-    showMessage("🔄 Orçamento limpo com sucesso", "success");
+    limparRascunho();
+    render();
+  }
+
+  btnLimpar.addEventListener("click", () => {
+    sincronizarOpcaoAtiva();
+    const temDados = opcoes.some((o) => o.rows.some((r) => !linhaVazia(r))) || clienteNome.value.trim();
+    if (!temDados) { toast("⚠️ Não há dados para limpar", "warning"); return; }
+    const el = criarOverlay(`
+      <header><span>Limpar Orçamento</span><button type="button" data-x>✕</button></header>
+      <div class="orc-body">Tem a certeza que deseja limpar <strong>todo o orçamento</strong>?<br><br>Esta ação remove todas as linhas (de todas as opções) e os dados do cliente.</div>
+      <div class="orc-foot d-flex gap-2 justify-content-end">
+        <button type="button" class="btn btn-secondary btn-sm" data-x>Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" data-ok>Limpar Tudo</button>
+      </div>`);
+    el.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", fecharOverlay));
+    el.querySelector("[data-ok]").addEventListener("click", () => { fecharOverlay(); resetTudo(); toast("🔄 Orçamento limpo com sucesso", "success"); });
+    el.querySelector("[data-ok]").focus();
   });
 
-  // =====================================================
-  // ✅ SUBMIT DO FORMULÁRIO
-  // =====================================================
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  // -------------------------------------------------
+  // GUARDAR
+  // -------------------------------------------------
+  btnGuardar.addEventListener("click", async () => {
+    if (editing || overlay) return;
 
     if (!clienteNome.value.trim()) {
-      showMessage("⚠️ Digite o nome do cliente", "warning");
+      toast("⚠️ Escolhe o cliente", "warning");
       clienteNome.focus();
       return;
     }
 
-    if (formularioTemDados()) {
-      showMessage("⚠️ Ainda tem dados no formulário de produto! Use o botão 'Limpar Produto' ou adicione o produto antes de guardar.", "warning");
-      return;
-    }
+    sincronizarOpcaoAtiva();
+    const multi = opcoes.length > 1;
 
-    if (produtosAdicionados.length === 0) {
-      showMessage("⚠️ Adicione pelo menos um produto ao orçamento", "warning");
-      return;
+    // valida cada opção (a opção 1 tem de ter linhas; as outras não podem ficar vazias/incompletas)
+    const usadasPorOpcao = [];
+    for (let o = 0; o < opcoes.length; o++) {
+      const usadas = opcoes[o].rows.map((row, i) => ({ row, i })).filter((x) => !linhaVazia(x.row));
+      const nome = multi ? `Opção ${o + 1}: ` : "";
+      if (usadas.length === 0) {
+        if (multi) {
+          mudarOpcao(o);
+          toast(`⚠️ A Opção ${o + 1} está vazia. Preenche-a ou elimina-a antes de guardar.`, "warning");
+        } else {
+          toast("⚠️ Adiciona pelo menos uma linha ao orçamento", "warning");
+        }
+        return;
+      }
+      const incompletas = usadas.filter((x) => !linhaCompleta(x.row));
+      if (incompletas.length) {
+        mudarOpcao(o);
+        toast(`⚠️ ${nome}linha(s) incompleta(s): ${incompletas.map((x) => x.i + 1).join(", ")}. Completa-as ou limpa-as antes de guardar.`, "warning");
+        const f = incompletas[0].row;
+        const colFalta = !f.tipoId ? C.TIPO : !f.descricao.trim() ? C.PROD : !(f.qtd > 0) ? C.QTD : (!f.diversos && (!(f.comp > 0) || !(f.larg > 0))) ? C.COMP : C.PRECO;
+        setCur(incompletas[0].i, colFalta);
+        return;
+      }
+      usadasPorOpcao.push(usadas);
     }
 
     try {
-      showMessage("⏳ A guardar orçamento...", "info");
+      btnGuardar.disabled = true;
+      toast(modoEdicao ? "⏳ A guardar alterações..." : "⏳ A guardar orçamento...", "info");
 
-      const totalGeral = produtosAdicionados.reduce((sum, p) => sum + p.total, 0);
+      // As opções são alternativas (não se somam): total_geral = total da Opção 1
+      const totalGeral = usadasPorOpcao[0].reduce((s, x) => s + calc(x.row).total, 0);
 
-      const dadosParaInserir = {
-        cliente_nome: clienteNome.value.trim(),
-        cliente_id: clienteId.value ? parseInt(clienteId.value) : null,
-        total_geral: totalGeral,
-        data_criacao: new Date().toISOString()
+      const montarItens = (orcId) => {
+        const itens = [];
+        usadasPorOpcao.forEach((usadas, o) => {
+          usadas.forEach(({ row }) => {
+            itens.push({
+              orcamento_id: orcId,
+              ...(multi ? { pagina: o + 1 } : {}), // só grava a opção quando há mais do que uma
+              tipo_id: row.tipoId,
+              brand: row.diversos ? "" : row.brandKey || "",
+              descricao: row.descricao,
+              quantidade: row.qtd,
+              comprimento: row.diversos ? 1 : row.comp,
+              largura: row.diversos ? 1 : row.larg,
+              espessura: row.diversos ? 0 : row.espessura ?? 0,
+              type: row.diversos ? null : row.acabamento || null,
+              preco_mt2: row.preco,
+              desconto_percentagem: row.desc || 0,
+            });
+          });
+        });
+        return itens;
       };
 
-      const { data: orcamentoData, error: orcamentoError } = await supabase
-        .from("orcamentos")
-        .insert([dadosParaInserir])
-        .select();
+      // ---- MODO EDIÇÃO: atualiza o orçamento existente ----
+      // Ordem pensada para nunca perder dados: 1) insere os itens novos,
+      // 2) apaga os antigos (se falhar, desfaz os novos), 3) atualiza o cabeçalho.
+      if (modoEdicao) {
+        const { data: novos, error: insErr } = await supabase
+          .from("orcamento_itens")
+          .insert(montarItens(editId))
+          .select("id");
+        if (insErr) throw insErr;
+        const novosIds = (novos || []).map((n) => n.id);
 
-      if (orcamentoError) {
-        console.error("Erro detalhado do Supabase:", orcamentoError);
-        throw new Error(orcamentoError.message);
+        if (itensGuardadosIds.length) {
+          const { error: delErr } = await supabase.from("orcamento_itens").delete().in("id", itensGuardadosIds);
+          if (delErr) {
+            if (novosIds.length) await supabase.from("orcamento_itens").delete().in("id", novosIds);
+            throw delErr;
+          }
+        }
+        itensGuardadosIds = novosIds; // se o passo 3 falhar e o utilizador tentar de novo, não duplica
+
+        const { error: upErr } = await supabase
+          .from("orcamentos")
+          .update({
+            cliente_nome: clienteNome.value.trim(),
+            cliente_id: clienteId.value ? parseInt(clienteId.value) : null,
+            total_geral: totalGeral,
+          })
+          .eq("id", editId);
+        if (upErr) throw upErr;
+
+        toast("✅ Orçamento atualizado com sucesso!", "success");
+        if (typeof goToRoute === "function") goToRoute("/list-orcamento");
+        return;
       }
-      const orcamentoId = orcamentoData[0].id;
 
-      const itensParaInserir = produtosAdicionados.map(p => ({
-        orcamento_id: orcamentoId,
-        tipo_id: p.tipo_id,
-        brand: p.brand,
-        descricao: p.descricao,
-        quantidade: p.quantidade,
-        comprimento: p.comprimento,
-        largura: p.largura,
-        espessura: p.espessura ?? 0,
-        type: p.tipoAcabamento || null,
-        preco_mt2: p.preco_mt2,
-        desconto_percentagem: p.desconto_percentagem
-      }));
+      const { data: orc, error: orcErr } = await supabase
+        .from("orcamentos")
+        .insert([{
+          cliente_nome: clienteNome.value.trim(),
+          cliente_id: clienteId.value ? parseInt(clienteId.value) : null,
+          total_geral: totalGeral,
+          data_criacao: new Date().toISOString(),
+        }])
+        .select();
+      if (orcErr) throw new Error(orcErr.message);
 
-      const { error: itensError } = await supabase
-        .from("orcamento_itens")
-        .insert(itensParaInserir);
+      const orcId = orc[0].id;
+      const itens = montarItens(orcId);
 
-      if (itensError) throw itensError;
+      const { error: itErr } = await supabase.from("orcamento_itens").insert(itens);
+      if (itErr) {
+        // não deixar um orçamento "vazio" para trás
+        await supabase.from("orcamentos").delete().eq("id", orcId);
+        throw itErr;
+      }
 
-      showMessage("✅ Orçamento guardado com sucesso!", "success");
-
-      clienteNome.value = "";
-      clienteId.value = "";
-      clienteDetalhes.innerHTML = "";
-      window.selectedClienteData = null;
-      clearCliente.classList.add("d-none");
-      produtosAdicionados = [];
-      limparCamposProduto();
-      renderProdutosTable();
-      limparEstadoOrcamento();
-
+      toast("✅ Orçamento guardado com sucesso!", "success");
+      resetTudo(true);
     } catch (err) {
       console.error("❌ Erro ao guardar:", err);
-      showMessage("❌ Erro ao guardar orçamento: " + (err.message || err), "danger");
+      const msg = err.message || String(err);
+      toast(/pagina/i.test(msg)
+        ? "❌ Falta a coluna 'pagina' na tabela orcamento_itens. Corre o SQL das Opções no Supabase (ver instruções)."
+        : "❌ Erro ao guardar orçamento: " + msg, "danger");
+    } finally {
+      btnGuardar.disabled = false;
     }
   });
 
-  // =====================================================
-  // ATALHOS DE TECLADO
-  // =====================================================
-  clienteNome.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      produtoTipo.focus();
-    }
-  });
+  // -------------------------------------------------
+  // CARREGAR DADOS (tipos, marcas, produtos + espessuras, clientes)
+  // -------------------------------------------------
+  async function carregarDados() {
+    const [tiposRes, brandsRes, website, thick, clientesRes] = await Promise.all([
+      fetchAll("type_products", "id, nome", "nome"),
+      fetchAll("brands", "display_name, website_key", "display_name"),
+      fetchAll("website", "id, Brand, Title_pt", "id"),
+      fetchAll("product_thicknesses", "website_item_id, thickness, type, price_per_m2", "id"),
+      fetchAll("clientes", "*", "descricao"),
+    ]);
 
-  // ✅ Verifica se o dropdown tem, neste momento, alguma opção real
-  // (e não apenas a mensagem "Nenhum resultado encontrado")
-  function temOpcaoRealNoDropdown(dropdown) {
-    return (
-      dropdown.classList.contains("show") &&
-      dropdown.querySelectorAll(".autocomplete-item:not(.disabled)").length > 0
-    );
+    tipos = tiposRes.map((t) => ({ id: t.id, nome: t.nome }));
+
+    clientes = clientesRes.map((c) => {
+      const label = c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao;
+      return { label, extra: c.contribuinte || "", original: c, _s: norm(c.descricao) };
+    });
+
+    const brandNome = {};
+    brandsRes.forEach((b) => { brandNome[b.website_key] = b.display_name; });
+    brandNomePorKey = brandNome;
+    const webById = {};
+    website.forEach((w) => { webById[w.id] = w; });
+
+    // Uma entrada por (produto × espessura × acabamento):
+    // "Dekton - Marmorio Polido 4mm"
+    const lista = [];
+    const comEspessura = new Set();
+    thick.forEach((t) => {
+      const w = webById[t.website_item_id];
+      if (!w) return;
+      comEspessura.add(w.id);
+      const marca = brandNome[w.Brand] || w.Brand || "";
+      const acab = (t.type || "").toString().trim();
+      const esp = t.thickness;
+      const label = `${marca} - ${w.Title_pt}${acab ? " " + acab : ""}${esp !== null && esp !== undefined ? " " + esp + "mm" : ""}`;
+      lista.push({
+        label, brandKey: w.Brand, brandNome: marca, webId: w.id, descricao: w.Title_pt,
+        acabamento: acab, espessura: esp, preco: t.price_per_m2,
+        _s: norm(label + " " + w.Brand),
+      });
+    });
+
+    // produtos sem espessura/preço configurados continuam disponíveis
+    website.forEach((w) => {
+      if (comEspessura.has(w.id)) return;
+      const marca = brandNome[w.Brand] || w.Brand || "";
+      const label = `${marca} - ${w.Title_pt}`;
+      lista.push({
+        label, brandKey: w.Brand, brandNome: marca, webId: w.id, descricao: w.Title_pt,
+        acabamento: "", espessura: null, preco: null, _s: norm(label + " " + w.Brand),
+      });
+    });
+
+    lista.sort((a, b) => a.label.localeCompare(b.label, "pt", { numeric: true }));
+    produtos = lista;
   }
 
-  // ✅ DESCRIÇÃO — Enter sem resultados avança para Espessura
-  produtoDescricao.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
+  // -------------------------------------------------
+  // MODO EDIÇÃO: carrega o orçamento e preenche o formulário
+  // -------------------------------------------------
+  function itemParaLinha(it) {
+    const tipo = tipos.find((t) => String(t.id) === String(it.tipo_id));
+    const tipoNome = tipo ? tipo.nome : `Tipo ${it.tipo_id}`;
+    const diversos = tipoNome.trim().toLowerCase() === "diversos" || it.brand === "diversos";
+    const brandKey = diversos ? "" : it.brand || "";
+    const brandNome = brandKey ? brandNomePorKey[brandKey] || brandKey : "";
+    const acabamento = diversos ? "" : it.type || "";
+    const esp = Number(it.espessura);
+    const espessura = diversos || !(esp > 0) ? null : esp;
+    const prod = brandKey ? produtos.find((p) => p.brandKey === brandKey && p.descricao === it.descricao) : null;
+    const label = diversos || !brandKey
+      ? it.descricao
+      : `${brandNome} - ${it.descricao}${acabamento ? " " + acabamento : ""}${espessura !== null ? " " + espessura + "mm" : ""}`;
+    return {
+      ...novaLinha(),
+      tipoId: it.tipo_id, tipoNome, diversos,
+      brandKey, brandNome, webId: prod ? prod.webId : null,
+      descricao: it.descricao || "", acabamento, espessura, label,
+      qtd: Number(it.quantidade) || null,
+      comp: diversos ? null : Number(it.comprimento) || null,
+      larg: diversos ? null : Number(it.largura) || null,
+      preco: Number(it.preco_mt2) || 0,
+      desc: Number(it.desconto_percentagem) || 0,
+    };
+  }
 
-    if (modoAtualDiversos) {
-      e.preventDefault();
-      setTimeout(() => produtoQuantidade.focus(), 50);
-      return;
+  async function carregarOrcamentoParaEdicao() {
+    const { data: orc, error } = await supabase.from("orcamentos").select("*").eq("id", editId).single();
+    if (error || !orc) throw new Error(error?.message || `Orçamento ${editId} não encontrado`);
+    const { data: itens, error: e2 } = await supabase
+      .from("orcamento_itens").select("*").eq("orcamento_id", editId).order("id", { ascending: true });
+    if (e2) throw e2;
+    itensGuardadosIds = (itens || []).map((i) => i.id);
+
+    // cliente
+    const cli = orc.cliente_id != null
+      ? (clientes.find((c) => String(c.original.id) === String(orc.cliente_id)) || {}).original
+      : null;
+    if (cli) {
+      selectedCliente = cli;
+      window.selectedClienteData = cli;
+      clienteId.value = cli.id;
+      clienteNome.value = cli.descricao;
+      clienteDetalhes.innerHTML = detalhesClienteHtml(cli);
+    } else {
+      clienteId.value = orc.cliente_id ?? "";
+      clienteNome.value = orc.cliente_nome || "";
+      clienteDetalhes.innerHTML = "";
     }
+    clearCliente.classList.toggle("d-none", !clienteNome.value);
 
-    if (produtoDescricao.disabled) return;
-    if (temOpcaoRealNoDropdown(descricaoDropdown)) return; // deixa o autocomplete selecionar
-
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
-    if (!produtoDescricao.value.trim()) {
-      focarProximoCampo(produtoDescricao);
-      return;
+    // opções (cada "pagina" = 1 opção) e linhas
+    const grupos = new Map();
+    (itens || []).forEach((it) => {
+      const n = it.pagina || 1;
+      if (!grupos.has(n)) grupos.set(n, []);
+      grupos.get(n).push(it);
+    });
+    const novas = [...grupos.keys()].sort((a, b) => a - b).map((n) => {
+      const rs = grupos.get(n).map(itemParaLinha);
+      const alvo = Math.max(DEFAULT_ROWS, rs.length + 1);
+      while (rs.length < alvo) rs.push(novaLinha());
+      return { rows: rs, cur: { r: 0, c: C.TIPO } };
+    });
+    if (novas.length) {
+      opcoes = novas;
+      opcaoAtiva = 0;
+      rows = opcoes[0].rows;
     }
+    cur = { r: 0, c: C.TIPO };
+    undoStack = [];
+    redoStack = [];
+    render();
+  }
 
-    if (!produtoDescricaoId.value) {
-      produtoDescricaoId.value = "manual";
-      toggleClearButton(produtoDescricao, clearDescricao);
-      produtoEspessura.disabled = false;
-      produtoEspessura.placeholder = "Escreve a espessura manualmente (mm)...";
-      btnVerPrecario.classList.add("d-none");
-      guardarEstadoOrcamento();
-    }
-
-    closeAllDropdowns();
-    setTimeout(() => produtoEspessura.focus(), 50);
-  });
-
-  // ✅ ESPESSURA — Enter sem resultados avança para Acabamento
-  // (valor sempre tratado como numérico manual)
-  produtoEspessura.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    if (produtoEspessura.disabled) return;
-    if (temOpcaoRealNoDropdown(espessuraDropdown)) return;
-
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
-    if (!produtoEspessura.value.trim()) {
-      focarProximoCampo(produtoEspessura);
-      return;
-    }
-
-    if (!produtoEspessuraValue.value) {
-      const numero = parseNumeroLivre(produtoEspessura.value);
-      produtoEspessuraValue.value = numero !== null ? numero : produtoEspessura.value.trim();
-      toggleClearButton(produtoEspessura, clearEspessura);
-      produtoTipoAcabamento.disabled = false;
-      produtoTipoAcabamento.placeholder = "Escreve o acabamento manualmente...";
-      btnVerPrecario.classList.add("d-none");
-      calcularValores();
-      guardarEstadoOrcamento();
-    }
-
-    closeAllDropdowns();
-    setTimeout(() => produtoTipoAcabamento.focus(), 50);
-  });
-
-  // ✅ ACABAMENTO — Enter sem resultados avança para Quantidade
-  produtoTipoAcabamento.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    if (produtoTipoAcabamento.disabled) return;
-    if (temOpcaoRealNoDropdown(tipoAcabamentoDropdown)) return;
-
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
-    if (!produtoTipoAcabamento.value.trim()) {
-      focarProximoCampo(produtoTipoAcabamento);
-      return;
-    }
-
-    if (!produtoTipoAcabamentoValue.value) {
-      produtoTipoAcabamentoValue.value = produtoTipoAcabamento.value.trim();
-      toggleClearButton(produtoTipoAcabamento, clearTipoAcabamento);
-      calcularValores();
-      guardarEstadoOrcamento();
-    }
-
-    closeAllDropdowns();
-    setTimeout(() => produtoQuantidade.focus(), 50);
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.key === "Enter") {
-      e.preventDefault();
-      btnAdicionarProduto.click();
-    }
-  });
-
-  // =====================================================
+  // -------------------------------------------------
   // INICIALIZAÇÃO
-  // =====================================================
-  await Promise.all([
-    loadTipos(),
-    loadBrands(),
-    loadProdutosWebsite(),
-    loadClientes(),
-  ]);
+  // -------------------------------------------------
+  rows = Array.from({ length: DEFAULT_ROWS }, novaLinha);
+  opcoes = [{ rows, cur: { r: 0, c: C.TIPO } }];
+  opcaoAtiva = 0;
 
-  // ✅ Restaura o que estava preenchido antes de sair desta página
-  // (fica guardado até guardares/limpares o orçamento ou fechares a página)
-  await restaurarEstadoOrcamento();
+  if (modoEdicao) {
+    if (tituloEl) tituloEl.textContent = `Editar Orçamento Nº ${editId}`;
+    if (btnGuardarTxt) btnGuardarTxt.textContent = "Guardar Alterações";
+    if (btnCancelarEdicao) {
+      btnCancelarEdicao.classList.remove("d-none");
+      btnCancelarEdicao.addEventListener("click", () => {
+        if (typeof goToRoute === "function") goToRoute("/list-orcamento");
+      });
+    }
+    btnLimpar.classList.add("d-none");
+    btnGuardar.disabled = true; // só ativa depois de o orçamento estar carregado
+  } else {
+    restaurarRascunho();
+  }
+  render();
 
-  console.log("✅ Formulário de Orçamento inicializado");
+  try {
+    await carregarDados();
+  } catch (err) {
+    console.error("❌ Erro ao carregar dados:", err);
+    toast("❌ Erro ao carregar dados: " + (err.message || err), "danger");
+  }
+
+  if (modoEdicao) {
+    try {
+      await carregarOrcamentoParaEdicao();
+      btnGuardar.disabled = false;
+    } catch (err) {
+      console.error("❌ Erro ao carregar orçamento para edição:", err);
+      toast("❌ Erro ao carregar o orçamento: " + (err.message || err), "danger");
+    }
+  }
+
+  wrap.focus({ preventScroll: true });
 };

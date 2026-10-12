@@ -1176,6 +1176,16 @@ editProdutoAcabamento.disabled = true;
     }
   }
 
+  function totalHtmlLista(orc) {
+    const grupos = agruparPorOpcao(orc.itens);
+    if (grupos.length > 1) {
+      return grupos
+        .map((g) => `<div style="white-space:nowrap;"><small class="text-muted">Op.${g.numero}</small> <strong>${totaisOpcao(g.itens).total.toFixed(2)} €</strong></div>`)
+        .join("");
+    }
+    return `<strong>${parseFloat(orc.total_geral).toFixed(2)} €</strong>`;
+  }
+
   function renderTable(orcamentos) {
     if (!orcamentos.length) {
       tbody.innerHTML = `<tr><td colspan="8">Nenhum orçamento encontrado</td></tr>`;
@@ -1215,7 +1225,7 @@ return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${aca
             ${descricaoProdutos}
           </div>
         </td>
-        <td><strong>${parseFloat(orc.total_geral).toFixed(2)} €</strong></td>
+        <td>${totalHtmlLista(orc)}</td>
         <td>${dataFormatada}</td>
         <td>
           <button class="btn btn-sm btn-view" title="Ver Completo" data-id="${orc.id}">
@@ -1223,9 +1233,6 @@ return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${aca
           </button>
         </td>
         <td>
-          <button class="btn btn-sm btn-outline-secondary me-1" title="Duplicar" data-id="${orc.id}">
-            <i class="bi bi-back"></i>
-          </button>
           <button class="btn btn-sm btn-outline-primary me-1" title="Editar" data-id="${orc.id}">
             <i class="bi bi-pencil"></i>
           </button>
@@ -1253,9 +1260,71 @@ return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${aca
       await mostrarOrcamentoCompleto(orcamentoId);
     } else if (e.target.closest("button[title='Editar']")) {
       const orcamentoId = e.target.closest("button[title='Editar']").dataset.id;
-      await abrirEdicaoOrcamento(orcamentoId);
+      // Abre o formulário de orçamento já preenchido com este orçamento
+      goToRoute(`/form-orcamento?edit=${orcamentoId}`);
     }
   });
+
+  // =====================================================
+  // OPÇÕES DO ORÇAMENTO (cada "pagina" em orcamento_itens = 1 Opção)
+  // =====================================================
+  function agruparPorOpcao(itens) {
+    const grupos = {};
+    (itens || []).forEach((it) => {
+      const n = it.pagina || 1;
+      (grupos[n] = grupos[n] || []).push(it);
+    });
+    return Object.keys(grupos)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map((n) => ({ numero: n, itens: grupos[n] }));
+  }
+
+  function totaisOpcao(itens) {
+    let total = 0;
+    let desconto = 0;
+    (itens || []).forEach((it) => {
+      const bruto = it.quantidade * it.comprimento * it.largura * it.preco_mt2;
+      total += it.total;
+      desconto += Math.max(0, bruto - it.total);
+    });
+    const semIva = total / 1.23;
+    return { total, desconto, semIva, iva: total - semIva };
+  }
+
+  // Preenche o bloco de totais (.pdf-totais) com os valores de uma opção
+  function aplicarTotaisNoBloco(t, sufixo = "") {
+    const base = ["Desconto Total", "Subtotal (sem IVA)", "IVA (23%)", "TOTAL"];
+    document.querySelectorAll(".pdf-totais-table .tot-label").forEach((el, i) => {
+      if (base[i]) el.textContent = base[i] + sufixo;
+    });
+    document.getElementById("viewDescontoTotal").textContent = Math.max(0, t.desconto).toFixed(2) + " €";
+    document.getElementById("viewSubtotalSemIVA").textContent = t.semIva.toFixed(2) + " €";
+    document.getElementById("viewValorIVA").textContent = t.iva.toFixed(2) + " €";
+    document.getElementById("viewTotalGeralPrint").textContent = t.total.toFixed(2) + " €";
+  }
+
+  // PDF: tira uma "foto" do bloco de totais de cada opção (mesmo aspeto para todas)
+  async function capturarTotaisPorOpcao(totaisElement, scale, width) {
+    const out = {};
+    const marcadas = Array.from(document.querySelectorAll("#viewProdutosBodyPrint tr[data-opcao-totais]"));
+    if (marcadas.length < 2) return out;
+    const guardados = {
+      labels: Array.from(document.querySelectorAll(".pdf-totais-table .tot-label")).map((el) => el.textContent),
+      ids: ["viewDescontoTotal", "viewSubtotalSemIVA", "viewValorIVA", "viewTotalGeralPrint"].map((id) => document.getElementById(id).textContent),
+    };
+    for (const tr of marcadas) {
+      const t = JSON.parse(tr.dataset.opcaoTotais);
+      aplicarTotaisNoBloco(t, ` — Opção ${t.numero}`);
+      const canvas = await html2canvas(totaisElement, { scale, width, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+      out[t.numero] = { img: canvas.toDataURL("image/jpeg", 0.98), w: canvas.width, h: canvas.height };
+    }
+    document.querySelectorAll(".pdf-totais-table .tot-label").forEach((el, i) => { el.textContent = guardados.labels[i]; });
+    ["viewDescontoTotal", "viewSubtotalSemIVA", "viewValorIVA", "viewTotalGeralPrint"].forEach((id, i) => {
+      document.getElementById(id).textContent = guardados.ids[i];
+    });
+    return out;
+  }
 
   async function mostrarOrcamentoCompleto(orcamentoId) {
     try {
@@ -1307,55 +1376,102 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
       const viewProdutosBodyPrint = document.getElementById("viewProdutosBodyPrint");
       viewProdutosBodyPrint.innerHTML = "";
       
-      let descontoTotal = 0;
-      if (itens && itens.length > 0) {
-        itens.forEach(item => {
-  const tipoNome = tiposMap[item.tipo_id] || `Tipo ${item.tipo_id}`;
-  const isDiversos = item.brand === "diversos" || item.espessura === 0;
-  const brandName = isDiversos ? "" : (brandMap[item.brand] || formatBrand(item.brand));
+      const grupos = agruparPorOpcao(itens);
+      const multi = grupos.length > 1;
 
-  const precoSemDesconto = item.quantidade * item.comprimento * item.largura * item.preco_mt2;
-  const descontoItem = Math.max(0, precoSemDesconto - item.total);
-  descontoTotal += descontoItem;
+      const criarLinhaItem = (item) => {
+        const tipoNome = tiposMap[item.tipo_id] || `Tipo ${item.tipo_id}`;
+        // "Diversos" = sem marca/espessura e medidas 1×1. Um produto escrito à mão
+        // (sem marca) mas com medidas reais continua a mostrar comp./larg.
+        const isDiversos = item.brand === "diversos" || (item.espessura === 0 && item.comprimento === 1 && item.largura === 1);
+        const brandName = isDiversos || !item.brand ? "" : (brandMap[item.brand] || formatBrand(item.brand));
 
-  let descontoFormatado;
-  if (item.desconto_percentagem && item.desconto_percentagem > 0) {
-    const valorDescontado = (item.quantidade * item.comprimento * item.largura * item.preco_mt2) - item.total;
-    descontoFormatado = `${item.desconto_percentagem.toFixed(2)}% <span style="font-size: 8px;">[${Math.max(0, valorDescontado).toFixed(2)} €]</span>`;
-  } else {
-    descontoFormatado = '0.00%';
-  }
+        let descontoFormatado;
+        if (item.desconto_percentagem && item.desconto_percentagem > 0) {
+          const valorDescontado = (item.quantidade * item.comprimento * item.largura * item.preco_mt2) - item.total;
+          descontoFormatado = `${item.desconto_percentagem.toFixed(2)}% <span style="font-size: 8px;">[${Math.max(0, valorDescontado).toFixed(2)} €]</span>`;
+        } else {
+          descontoFormatado = '0.00%';
+        }
 
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td>${tipoNome}</td>
-    <td>${isDiversos ? item.descricao : brandName + " - " + item.descricao + (item.type ? " " + item.type : "")}</td>
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${tipoNome}</td>
+          <td>${isDiversos ? item.descricao : (brandName ? brandName + " - " : "") + item.descricao + (item.type ? " " + item.type : "")}</td>
+          <td>${item.quantidade}</td>
+          <td>${isDiversos ? "" : item.comprimento.toFixed(4)}</td>
+          <td>${isDiversos ? "" : item.largura.toFixed(4)}</td>
+          <td>${isDiversos ? "" : (item.espessura || "")}</td>
+          <td>${isDiversos ? Number(item.quantidade).toFixed(4) : item.mt2.toFixed(4)}</td>
+          <td>${item.preco_mt2.toFixed(2)} €</td>
+          <td>${descontoFormatado}</td>
+          <td>${item.subtotal.toFixed(2)} €</td>
+          <td>${item.total.toFixed(2)} €</td>
+        `;
+        return tr;
+      };
 
+      // Totais de uma opção (só para o ecrã; não vão para o PDF, que desenha os seus próprios)
+      const criarLinhaTotaisOpcao = (numero, t) => {
+        const sufixo = ` — Opção ${numero}`;
+        const tr = document.createElement("tr");
+        tr.dataset.screenOnly = "true";
+        tr.innerHTML = `
+          <td colspan="11" class="orc-screen-totais-cell">
+            <div class="orc-screen-totais">
+              <div class="r"><span class="l">Desconto Total${sufixo}</span><span class="v">${Math.max(0, t.desconto).toFixed(2)} €</span></div>
+              <div class="r"><span class="l">Subtotal (sem IVA)${sufixo}</span><span class="v">${t.semIva.toFixed(2)} €</span></div>
+              <div class="r"><span class="l">IVA (23%)${sufixo}</span><span class="v">${t.iva.toFixed(2)} €</span></div>
+              <div class="r t"><span class="l">TOTAL${sufixo}</span><span class="v">${t.total.toFixed(2)} €</span></div>
+            </div>
+          </td>`;
+        return tr;
+      };
 
-    <td>${item.quantidade}</td>
-    <td>${isDiversos ? "" : item.comprimento.toFixed(4)}</td>
-    <td>${isDiversos ? "" : item.largura.toFixed(4)}</td>
-    <td>${isDiversos ? "" : item.espessura}</td>
-    <td>${isDiversos ? Number(item.quantidade).toFixed(4) : item.mt2.toFixed(4)}</td>
-    <td>${item.preco_mt2.toFixed(2)} €</td>
-    <td>${descontoFormatado}</td>
-    <td>${item.subtotal.toFixed(2)} €</td>
-    <td>${item.total.toFixed(2)} €</td>
-  `;
-  viewProdutosBodyPrint.appendChild(tr);
-});
+      if (grupos.length > 0) {
+        grupos.forEach((g, gi) => {
+          const ehUltimo = gi === grupos.length - 1;
+
+          // Várias opções: título "OPÇÃO N" no início de cada uma.
+          // Cada opção (menos a 1.ª) começa SEMPRE numa página nova do PDF.
+          if (multi) {
+            const trTitulo = document.createElement("tr");
+            trTitulo.innerHTML = `<td colspan="11" style="text-align:left;font-weight:700;letter-spacing:0.5px;background:#e8eef1;">OPÇÃO ${g.numero}</td>`;
+            trTitulo.dataset.keepNext = "true";
+            if (gi > 0) trTitulo.dataset.pageBreakBefore = "true";
+            viewProdutosBodyPrint.appendChild(trTitulo);
+          }
+
+          g.itens.forEach((item) => viewProdutosBodyPrint.appendChild(criarLinhaItem(item)));
+
+          // Marca a última linha da opção com os totais dela; no PDF são desenhados
+          // no fundo da página da opção (mesmo aspeto em todas as opções).
+          if (multi) {
+            const t = totaisOpcao(g.itens);
+            viewProdutosBodyPrint.lastElementChild.dataset.opcaoTotais = JSON.stringify({ numero: g.numero, ...t });
+            // No ecrã, mostra logo abaixo de cada opção os totais dela
+            // (a última opção usa o bloco final de totais, por isso não repete)
+            if (!ehUltimo) viewProdutosBodyPrint.appendChild(criarLinhaTotaisOpcao(g.numero, t));
+          }
+        });
       } else {
         viewProdutosBodyPrint.innerHTML = `<tr><td colspan="11">Sem produtos</td></tr>`;
       }
-      
-      const totalGeral = parseFloat(orcamento.total_geral);
-      const subtotalSemIVA = totalGeral / 1.23;
-      const valorIVA = totalGeral - subtotalSemIVA;
-      
-      document.getElementById("viewDescontoTotal").textContent = Math.max(0, descontoTotal).toFixed(2) + " €";
-      document.getElementById("viewSubtotalSemIVA").textContent = subtotalSemIVA.toFixed(2) + " €";
-      document.getElementById("viewValorIVA").textContent = valorIVA.toFixed(2) + " €";
-      document.getElementById("viewTotalGeralPrint").textContent = totalGeral.toFixed(2) + " €";
+
+      // Bloco final de totais: orçamento simples → total do orçamento;
+      // várias opções → totais da ÚLTIMA opção (as outras já ficaram inline)
+      let tFinal;
+      let sufixo = "";
+      if (multi) {
+        const ult = grupos[grupos.length - 1];
+        tFinal = totaisOpcao(ult.itens);
+        sufixo = ` — Opção ${ult.numero}`;
+      } else {
+        const totalGeral = parseFloat(orcamento.total_geral);
+        const semIva = totalGeral / 1.23;
+        tFinal = { total: totalGeral, desconto: totaisOpcao(itens).desconto, semIva, iva: totalGeral - semIva };
+      }
+      aplicarTotaisNoBloco(tFinal, sufixo);
       const viewOffcanvas = new bootstrap.Offcanvas(document.getElementById("viewOffcanvas"));
       viewOffcanvas.show();
     } catch (err) {
@@ -1384,6 +1500,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
       const isDiversos = item.brand === "diversos" || item.espessura === 0;
       return {
         id: item.id,
+        pagina: item.pagina || 1,
         isDiversos: isDiversos,
         tipo_id: item.tipo_id,
         tipoNome: tiposMap[item.tipo_id] || `Tipo ${item.tipo_id}`,
@@ -1459,6 +1576,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
     }
     editProdutosTableBody.innerHTML = "";
     let totalGeral = 0;
+    const editMultiOpcoes = produtosEdit.some((p) => (p.pagina || 1) > 1);
     produtosEdit.forEach((produto, index) => {
       totalGeral += produto.total;
       const tr = document.createElement("tr");
@@ -1473,7 +1591,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
       }
       
       tr.innerHTML = `
-        <td>${produto.tipoNome}</td>  
+        <td>${produto.tipoNome}${editMultiOpcoes ? ` <span class="badge bg-secondary">Op.${produto.pagina || 1}</span>` : ""}</td>
         <td>${produto.isDiversos ? "" : produto.brandNome}</td>
        <td>${produto.descricao}${produto.type ? ` ${produto.type}` : ""}</td>
 
@@ -1662,6 +1780,7 @@ if (isDiversosEdit) {
     
     const produto = {
   id: produtoEmEdicao !== null ? produtosEdit[produtoEmEdicao].id : null,
+  pagina: produtoEmEdicao !== null ? (produtosEdit[produtoEmEdicao].pagina || 1) : 1,
   isDiversos: isDiversosEdit,
   tipo_id: parseInt(editProdutoTipoId.value),
   tipoNome: editProdutoTipo.value,
@@ -1689,7 +1808,8 @@ type: isDiversosEdit ? null : (editProdutoAcabamento.value || null),
     } else {
       // ✅ ADICIONAR novo produto
       produtosEdit.push(produto);
-      showMessage("✅ Produto adicionado!", "success");
+      const temVariasOpcoes = produtosEdit.some((p) => (p.pagina || 1) > 1);
+      showMessage(temVariasOpcoes ? "✅ Produto adicionado (à Opção 1)" : "✅ Produto adicionado!", temVariasOpcoes ? "info" : "success");
     }
     
     renderEditProdutosTable();
@@ -1767,7 +1887,11 @@ editProdutoAcabamento.disabled = true;
     try {
       showMessage("⏳ A guardar alterações...", "info");
       const orcamentoId = parseInt(editOrcamentoId.value);
-      const totalGeral = produtosEdit.reduce((sum, p) => sum + p.total, 0);
+      const editTemOpcoes = produtosEdit.some((p) => (p.pagina || 1) > 1);
+      // Várias opções são alternativas (não se somam): total_geral = total da Opção 1
+      const totalGeral = produtosEdit
+        .filter((p) => !editTemOpcoes || (p.pagina || 1) === 1)
+        .reduce((sum, p) => sum + p.total, 0);
       const { error: updateError } = await supabase
         .from("orcamentos")
         .update({
@@ -1783,6 +1907,7 @@ editProdutoAcabamento.disabled = true;
       if (deleteError) throw deleteError;
       const itensParaInserir = produtosEdit.map(p => ({
         orcamento_id: orcamentoId,
+        ...(editTemOpcoes ? { pagina: p.pagina || 1 } : {}),
         tipo_id: p.tipo_id,
         brand: p.brand,
         descricao: p.descricao,
@@ -1870,7 +1995,7 @@ type: p.type || null,
       // 1. Cliente tem HTML com <br> — não truncar para preservar a formatação em linhas
 
       // 2. Truncar células da tabela AUTOMATICAMENTE baseado na largura de cada célula
-      const tableRows = document.querySelectorAll('#viewProdutosBodyPrint tr');
+      const tableRows = document.querySelectorAll('#viewProdutosBodyPrint tr:not([data-screen-only])');
       tableRows.forEach(row => {
         const cells = row.querySelectorAll('td');
         cells.forEach((cell) => {
@@ -1961,6 +2086,8 @@ type: p.type || null,
         scale: scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff'
       });
       
+      const totaisPorOpcao = await capturarTotaisPorOpcao(totaisElement, scale, FIXED_WIDTH);
+      
       const totaisCanvas = await html2canvas(totaisElement, { 
         scale: scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff'
       });
@@ -1972,7 +2099,7 @@ type: p.type || null,
       // Capturar cada linha da tabela individualmente
       const thead = tabelaElement.querySelector('thead');
       const tbody = tabelaElement.querySelector('tbody');
-      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const rows = Array.from(tbody.querySelectorAll('tr:not([data-screen-only])'));
       
       const theadCanvas = await html2canvas(thead, {
         scale: scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff'
@@ -2049,11 +2176,25 @@ type: p.type || null,
       for (let i = 0; i < rowImages.length; i++) {
         const rowHeight = rowHeights[i];
         const isLastRow = (i === rowImages.length - 1);
+      // fim de uma opção (que não é a última): os totais dela vão no fundo da página, com o rodapé
+      const totOpc = !isLastRow && rows[i].dataset.opcaoTotais ? totaisPorOpcao[JSON.parse(rows[i].dataset.opcaoTotais).numero] : null;
+      const totOpcHeight = totOpc ? (totOpc.h * usableWidth) / totOpc.w : 0;
+        if (rows[i].dataset.pageBreakBefore === "true" && i > 0) {
+          // ✅ Cada Opção começa numa página nova
+          pdf.addPage();
+          pageNumber++;
+          currentY = topMargin;
+          pdf.addImage(headerImg, 'JPEG', margin, currentY, usableWidth, headerHeight);
+          currentY += headerHeight + betweenMargin;
+          pdf.addImage(theadImg, 'JPEG', margin, currentY, usableWidth, theadHeight);
+          currentY += theadHeight;
+        }
         
         // Limite desta página: na última reservar espaço para footer+totais, nas outras usar tudo
-        const limitY = isLastRow ? footerStartY : pageBottomY;
-        let spaceNeeded = rowHeight;
+        const limitY = (isLastRow || totOpc) ? footerStartY : pageBottomY;
+        let spaceNeeded = rowHeight + (rows[i].dataset.keepNext === "true" && i + 1 < rows.length ? rowHeights[i + 1] : 0);
         if (isLastRow) spaceNeeded += spaceForTotais;
+      else if (totOpc) spaceNeeded += totOpcHeight + 5;
         
         if (currentY + spaceNeeded > limitY) {
           // Nova página — sem footer nas páginas intermédias
@@ -2079,6 +2220,11 @@ type: p.type || null,
           currentY += pushDown + 3;
           
           pdf.addImage(totaisImg, 'JPEG', margin, currentY, usableWidth, totaisHeight);
+        } else if (totOpc) {
+          const pushDownOpc = Math.max(0, (footerStartY - currentY) - totOpcHeight - 2);
+          currentY += pushDownOpc + 3;
+          pdf.addImage(totOpc.img, 'JPEG', margin, currentY, usableWidth, totOpcHeight);
+          pdf.addImage(footerImg, 'JPEG', margin, footerStartY, usableWidth, footerHeight);
         }
       }
       
@@ -2161,7 +2307,7 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
 
     // Cliente tem HTML com <br> — não truncar para preservar a formatação em linhas
 
-    document.querySelectorAll('#viewProdutosBodyPrint tr').forEach(row => {
+    document.querySelectorAll('#viewProdutosBodyPrint tr:not([data-screen-only])').forEach(row => {
       row.querySelectorAll('td').forEach(cell => {
         const orig = truncateText(cell, getMaxCharsForCell(cell));
         if (orig) textsToRestore.push({ element: cell, text: orig });
@@ -2229,12 +2375,13 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
 
     const headerCanvas   = await html2canvas(headerElement,  { scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff' });
     const clienteCanvas  = await html2canvas(clienteElement, { scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    const totaisPorOpcao = await capturarTotaisPorOpcao(totaisElement, scale, FIXED_WIDTH);
     const totaisCanvas   = await html2canvas(totaisElement,  { scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff' });
     const footerCanvas   = await html2canvas(footerElement,  { scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff' });
 
     const thead = tabelaElement.querySelector('thead');
     const tbodyEl = tabelaElement.querySelector('tbody');
-    const rows = Array.from(tbodyEl.querySelectorAll('tr'));
+    const rows = Array.from(tbodyEl.querySelectorAll('tr:not([data-screen-only])'));
 
     const theadCanvas = await html2canvas(thead, { scale, width: FIXED_WIDTH, useCORS: true, logging: false, backgroundColor: '#ffffff' });
 
@@ -2294,10 +2441,24 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
     for (let i = 0; i < rowImages.length; i++) {
       const rowHeight = rowHeights[i];
       const isLastRow = (i === rowImages.length - 1);
-      let spaceNeeded = rowHeight;
+      // fim de uma opção (que não é a última): os totais dela vão no fundo da página, com o rodapé
+      const totOpc = !isLastRow && rows[i].dataset.opcaoTotais ? totaisPorOpcao[JSON.parse(rows[i].dataset.opcaoTotais).numero] : null;
+      const totOpcHeight = totOpc ? (totOpc.h * usableWidth) / totOpc.w : 0;
+        if (rows[i].dataset.pageBreakBefore === "true" && i > 0) {
+          // ✅ Cada Opção começa numa página nova
+          pdf.addPage();
+          pageNumber++;
+          currentY = topMargin;
+          pdf.addImage(headerImg, 'JPEG', margin, currentY, usableWidth, headerHeight);
+          currentY += headerHeight + betweenMargin;
+          pdf.addImage(theadImg, 'JPEG', margin, currentY, usableWidth, theadHeight);
+          currentY += theadHeight;
+        }
+      let spaceNeeded = rowHeight + (rows[i].dataset.keepNext === "true" && i + 1 < rows.length ? rowHeights[i + 1] : 0);
       if (isLastRow) spaceNeeded += spaceForTotais;
+      else if (totOpc) spaceNeeded += totOpcHeight + 5;
 
-      const limitY = isLastRow ? footerStartY : pageBottomY;
+      const limitY = (isLastRow || totOpc) ? footerStartY : pageBottomY;
 
       if (currentY + spaceNeeded > limitY) {
         // Nova página — sem footer nas páginas intermédias
@@ -2317,6 +2478,11 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
         const pushDown = Math.max(0, (footerStartY - currentY) - totaisHeight - 2);
         currentY += pushDown + 3;
         pdf.addImage(totaisImg, 'JPEG', margin, currentY, usableWidth, totaisHeight);
+      } else if (totOpc) {
+        const pushDownOpc = Math.max(0, (footerStartY - currentY) - totOpcHeight - 2);
+        currentY += pushDownOpc + 3;
+        pdf.addImage(totOpc.img, 'JPEG', margin, currentY, usableWidth, totOpcHeight);
+        pdf.addImage(footerImg, 'JPEG', margin, footerStartY, usableWidth, footerHeight);
       }
     }
 
@@ -2332,22 +2498,40 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
       pdf.text(`${p} / ${totalPages}`, pageWidth - margin, pageHeight - 6, { align: "right" });
     }
 
-    // ✅ DIFERENÇA: Abre o diálogo de impressão em vez de fazer download
-    pdf.autoPrint();
+    // ✅ Abre o diálogo de impressão em vez de fazer download.
+    // Antes: pdf.autoPrint() + print() (imprimia 2x) e o iframe era removido ao fim de 1s,
+    // o que FECHAVA o diálogo de impressão sozinho. Agora o iframe só é removido
+    // depois de imprimir/cancelar (ou passados 10 min).
     const blob = pdf.output("blob");
     const url = URL.createObjectURL(blob);
+    document.querySelectorAll("iframe[data-print-pdf]").forEach((f) => f.remove());
     const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
+    iframe.setAttribute("data-print-pdf", "1");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;";
+    let limpo = false;
+    const limpar = () => {
+      if (limpo) return;
+      limpo = true;
+      iframe.remove();
+      URL.revokeObjectURL(url);
+    };
+    iframe.onload = () => {
+      // pequena espera para o visualizador de PDF acabar de carregar
+      setTimeout(() => {
+        try {
+          const w = iframe.contentWindow;
+          w.focus();
+          w.addEventListener("afterprint", () => setTimeout(limpar, 500));
+          w.print();
+        } catch (e) {
+          console.warn("Impressão direta falhou, a abrir o PDF num separador:", e);
+          window.open(url, "_blank");
+        }
+      }, 500);
+    };
     iframe.src = url;
     document.body.appendChild(iframe);
-    iframe.onload = () => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        URL.revokeObjectURL(url);
-      }, 1000);
-    };
+    setTimeout(limpar, 10 * 60 * 1000);
 
     showMessage("✅ PDF pronto para imprimir!", "success");
 
@@ -2396,877 +2580,6 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
       .replace("&", "&")
       .replace(/\b\w/g, (l) => l.toUpperCase());
   }
-
-  // =====================================================
-// ✅ DUPLICAR ORÇAMENTO — com autocomplete igual ao editor
-// =====================================================
-let orcamentoToDuplicate = null;
-let duplicateItens = [];
-
-tbody.addEventListener("click", (e) => {
-  if (e.target.closest("button[title='Duplicar']")) {
-    const id = e.target.closest("button[title='Duplicar']").dataset.id;
-    abrirModalDuplicar(id);
-  }
-});
-
-async function abrirModalDuplicar(orcamentoId) {
-  try {
-    const { data: orc, error: e1 } = await supabase
-      .from("orcamentos")
-      .select("*, clientes(descricao)")
-      .eq("id", orcamentoId).single();
-    if (e1) throw e1;
-
-    const { data: itens, error: e2 } = await supabase
-      .from("orcamento_itens").select("*")
-      .eq("orcamento_id", orcamentoId).order("id", { ascending: true });
-    if (e2) throw e2;
-
-    orcamentoToDuplicate = orc;
-    duplicateItens = itens.map(item => ({ ...item }));
-
-    document.getElementById("duplicateOrcRef").textContent = `#${orc.id}`;
-    document.getElementById("duplicateClienteNome").textContent = orc.clientes?.descricao || orc.cliente_nome || "";
-    await renderDuplicateTable();
-
-    const offcanvasEl = document.getElementById("duplicateModal");
-    new bootstrap.Offcanvas(offcanvasEl).show();
-
-    // Reset scroll ao topo sempre que abre
-    offcanvasEl.addEventListener("shown.bs.offcanvas", () => {
-      const scrollArea = offcanvasEl.querySelector("[style*='overflow-y: auto']");
-      if (scrollArea) scrollArea.scrollTop = 0;
-    }, { once: true });
-
-  } catch (err) {
-    showMessage("❌ Erro ao carregar orçamento: " + err.message, "danger");
-  }
-}
-
-// ─── cache para os dropdowns do modal duplicar ───────────────────
-let dupBrandsCache = {};   // index → { display_name, website_key }
-let dupProdutosCache = {}; // index → lista de produtos da marca
-let dupEspCache = {};      // index → lista de espessuras do produto
-
-async function renderDuplicateTable() {
-  const tbody = document.getElementById("duplicateItensBody");
-  tbody.innerHTML = "";
-  recalcDuplicateTotal();
-
-  for (let index = 0; index < duplicateItens.length; index++) {
-    const item = duplicateItens[index];
-    const isDiversos = item.brand === "diversos" || item.espessura === 0;
-    const tipoNome = tiposMap[item.tipo_id] || `Tipo ${item.tipo_id}`;
-    const brandName = isDiversos ? "" : (brandMap[item.brand] || formatBrand(item.brand));
-
-    const tr = document.createElement("tr");
-    tr.id = `dup-row-${index}`;
-
-    tr.innerHTML = `
-      <td class="text-center small">${tipoNome}</td>
-
-      <!-- MARCA -->
-      <td>
-        ${isDiversos
-          ? `<span class="text-muted small">—</span>`
-          : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:130px">
-               <div class="input-with-clear">
-                 <input type="text" class="input dup-marca-input" data-index="${index}"
-                   value="${brandName}" placeholder="Marca..." autocomplete="off"
-                   style="font-size:12px;padding:4px 28px 4px 8px;">
-                 <button type="button" class="input-clear-btn ${brandName ? '' : 'd-none'} dup-clear-marca" data-index="${index}">
-                   <i class="bi bi-x"></i>
-                 </button>
-               </div>
-               <div class="autocomplete-dropdown" id="dup-marca-dd-${index}"></div>
-             </div>`
-        }
-      </td>
-
-      <!-- DESCRIÇÃO -->
-      <td>
-        ${isDiversos
-          ? `<input type="text" class="dup-diversos-desc"
-               data-index="${index}" value="${item.descricao}"
-               style="min-width:160px;font-size:12px;width:100%;border:1px solid #dee2e6;border-radius:0;outline:none;padding:4px 8px;background:#fff;">`
-          : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:160px">
-               <div class="input-with-clear">
-                 <input type="text" class="input dup-desc-input" data-index="${index}"
-                   value="${item.descricao}" placeholder="Descrição..." autocomplete="off"
-                   style="font-size:12px;padding:4px 28px 4px 8px;">
-                 <button type="button" class="input-clear-btn ${item.descricao ? '' : 'd-none'} dup-clear-desc" data-index="${index}">
-                   <i class="bi bi-x"></i>
-                 </button>
-               </div>
-               <div class="autocomplete-dropdown" id="dup-desc-dd-${index}"></div>
-             </div>`
-        }
-      </td>
-
-      <!-- ESPESSURA -->
-      <td>
-        ${isDiversos
-          ? `<span class="text-muted small">—</span>`
-          : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:90px">
-              <div class="input-with-clear">
-                <input type="text" class="input dup-esp-input" data-index="${index}"
-                  value="${item.espessura}mm" placeholder="Esp..." autocomplete="off"
-                  style="font-size:12px;padding:4px 28px 4px 8px;">
-                <button type="button" class="input-clear-btn dup-clear-esp" data-index="${index}">
-                  <i class="bi bi-x"></i>
-                </button>
-              </div>
-              <div class="autocomplete-dropdown" id="dup-esp-dd-${index}"></div>
-            </div>`
-        }
-      </td>
-
-      <!-- ACABAMENTO -->
-      <td>
-        ${isDiversos
-          ? `<span class="text-muted small">—</span>`
-          : `<div class="coolinput autocomplete-wrapper mb-0" style="min-width:110px">
-              <div class="input-with-clear">
-                <input type="text" class="input dup-acab-input" data-index="${index}"
-                  value="${item.type || ''}" placeholder="Acab..." autocomplete="off"
-                  style="font-size:12px;padding:4px 28px 4px 8px;" disabled>
-                <button type="button" class="input-clear-btn ${item.type ? '' : 'd-none'} dup-clear-acab" data-index="${index}">
-                  <i class="bi bi-x"></i>
-                </button>
-              </div>
-              <div class="autocomplete-dropdown" id="dup-acab-dd-${index}"></div>
-            </div>`
-        }
-      </td>
-
-      
-      <td class="text-center small">${item.quantidade}</td>
-      <td class="text-center small">${isDiversos ? "—" : item.comprimento.toFixed(4)}</td>
-      <td class="text-center small">${isDiversos ? "—" : item.largura.toFixed(4)}</td>
-
-      <!-- PREÇO -->
-      <td>
-        <input type="number" class="form-control form-control-sm dup-preco"
-          data-index="${index}" value="${item.preco_mt2}" min="0" step="0.01"
-          style="min-width:70px;font-size:12px;">
-      </td>
-
-      <!-- DESCONTO -->
-      <td>
-        <input type="number" class="form-control form-control-sm dup-desconto"
-          data-index="${index}" value="${item.desconto_percentagem || 0}"
-          min="0" max="100" step="0.01" style="min-width:60px;font-size:12px;">
-      </td>
-
-      <!-- TOTAL -->
-      <td class="text-center small fw-bold" id="dup-total-${index}">
-        ${calcDupLineTotal(item).toFixed(2)} €
-      </td>
-    `;
-
-    tbody.appendChild(tr);
-
-    // ── Inicializar autocompletes desta linha ──
-    if (!isDiversos) {
-      await initDupMarcaAutocomplete(index, item);
-    }
-  }
-
-  // Eventos preço / desconto
-  // DEPOIS
-  document.getElementById("duplicateItensBody").addEventListener("input", (e) => {
-    const index = parseInt(e.target.dataset.index);
-    if (isNaN(index)) return;
-
-    // DEPOIS
-    if (e.target.classList.contains("dup-preco")) {
-      duplicateItens[index].preco_mt2 = parseFloat(e.target.value) || 0;
-      duplicateItens[index].desconto_percentagem = 0;
-      const descInput = document.querySelector(`.dup-desconto[data-index="${index}"]`);
-      if (descInput) descInput.value = 0;
-    } else if (e.target.classList.contains("dup-desconto")) {
-      duplicateItens[index].desconto_percentagem = parseFloat(e.target.value) || 0;
-    } else if (e.target.classList.contains("dup-diversos-desc")) {
-      duplicateItens[index].descricao = e.target.value;
-    }
-
-    const cell = document.getElementById(`dup-total-${index}`);
-    if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-    recalcDuplicateTotal();
-  });
-
-  document.getElementById("duplicateItensBody").addEventListener("focusin", (e) => {
-    if (e.target.classList.contains("dup-preco") ||
-        e.target.classList.contains("dup-desconto")) {
-      e.target.select();
-    }
-  });
-
-  document.getElementById("duplicateItensBody").addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    const index = parseInt(e.target.dataset.index);
-    if (isNaN(index)) return;
-
-    if (e.target.classList.contains("dup-preco")) {
-      e.preventDefault();
-      const desc = document.querySelector(`.dup-desconto[data-index="${index}"]`);
-      if (desc) { desc.focus(); desc.select(); }
-    // DEPOIS
-    // DEPOIS
-    } else if (e.target.classList.contains("dup-desconto")) {
-      e.preventDefault();
-      const confirmBtn = document.getElementById("confirmDuplicateBtn");
-      confirmBtn.focus();
-      confirmBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  });
-}
-
-// ─── Calcular total de uma linha ─────────────────────────────────
-function calcDupLineTotal(item) {
-  const fator = 1 - ((item.desconto_percentagem || 0) / 100);
-  return item.quantidade * item.comprimento * item.largura * item.preco_mt2 * fator;
-}
-
-// ─── Recalcular total geral ───────────────────────────────────────
-function recalcDuplicateTotal() {
-  const total = duplicateItens.reduce((s, item) => s + calcDupLineTotal(item), 0);
-  document.getElementById("duplicateTotalGeral").textContent = total.toFixed(2) + " €";
-}
-
-// ─── Autocomplete MARCA ──────────────────────────────────────────
-async function initDupMarcaAutocomplete(index, item) {
-  const input = document.querySelector(`.dup-marca-input[data-index="${index}"]`);
-  const dd = document.getElementById(`dup-marca-dd-${index}`);
-  const clearBtn = document.querySelector(`.dup-clear-marca[data-index="${index}"]`);
-  if (!input || !dd) return;
-
-  function showMarcaOptions(filter = "") {
-    closeAllDupDropdowns();
-    const filtered = filter
-      ? brandsData.filter(b => b.display.toLowerCase().includes(filter.toLowerCase()))
-      : brandsData;
-
-    dd.innerHTML = "";
-    filtered.slice(0, 50).forEach((b, idx) => {
-      const div = document.createElement("div");
-      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
-      div.textContent = b.display;
-      div.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        input.value = b.display;
-        duplicateItens[index].brand = b.website_key;
-        duplicateItens[index]._brandDisplay = b.display;
-        if (clearBtn) clearBtn.classList.remove("d-none");
-        dd.classList.remove("show"); dd.innerHTML = "";
-        duplicateItens[index].descricao = "";
-        duplicateItens[index].espessura = null;
-        duplicateItens[index].preco_mt2 = 0;
-        const descInput = document.querySelector(`.dup-desc-input[data-index="${index}"]`);
-        const espInput = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
-        if (descInput) { descInput.value = ""; descInput.disabled = false; }
-        if (espInput) { espInput.value = ""; espInput.disabled = false; }
-        await initDupDescAutocomplete(index, b.website_key);
-        setTimeout(() => {
-          const descInput2 = document.querySelector(`.dup-desc-input[data-index="${index}"]`);
-          if (descInput2) descInput2.focus();
-        }, 50);
-      });
-      dd.appendChild(div);
-    });
-    if (filtered.length === 0) {
-      dd.innerHTML = '<div class="autocomplete-item disabled">Sem resultados</div>';
-    }
-    dd.classList.add("show");
-  }
-
-  function moveDupFocus(dd, direction) {
-    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
-    if (!items.length) return;
-    const current = dd.querySelector(".autocomplete-active");
-    let idx = Array.from(items).indexOf(current);
-    items.forEach(i => i.classList.remove("autocomplete-active"));
-    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
-    else idx = (idx > 0) ? idx - 1 : items.length - 1;
-    items[idx].classList.add("autocomplete-active");
-    items[idx].scrollIntoView({ block: "nearest" });
-  }
-
-  input.addEventListener("click", (e) => { e.stopPropagation(); showMarcaOptions(input.value); });
-  input.addEventListener("focus", () => showMarcaOptions(input.value));
-  input.addEventListener("input", () => {
-    showMarcaOptions(input.value);
-    if (clearBtn) clearBtn.classList.toggle("d-none", !input.value.trim());
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); moveDupFocus(dd, "down"); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupFocus(dd, "up"); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      const active = dd.querySelector(".autocomplete-active");
-      if (active) active.click();
-      else { dd.classList.remove("show"); dd.innerHTML = ""; }
-    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
-  });
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      input.value = "";
-      clearBtn.classList.add("d-none");
-      duplicateItens[index].brand = "";
-      duplicateItens[index].descricao = "";
-      duplicateItens[index].espessura = null;
-      duplicateItens[index].preco_mt2 = 0;
-      duplicateItens[index].desconto_percentagem = 0;
-      dd.classList.remove("show"); dd.innerHTML = "";
-      // Limpar campos visuais da linha
-      const descInput = document.querySelector(`.dup-desc-input[data-index="${index}"]`);
-      const espInput = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
-      const precoInput = document.querySelector(`.dup-preco[data-index="${index}"]`);
-      const descontoInput = document.querySelector(`.dup-desconto[data-index="${index}"]`);
-      if (descInput) { descInput.value = ""; const cb = document.querySelector(`.dup-clear-desc[data-index="${index}"]`); if(cb) cb.classList.add("d-none"); }
-      if (espInput) { espInput.value = ""; const cb = document.querySelector(`.dup-clear-esp[data-index="${index}"]`); if(cb) cb.classList.add("d-none"); }
-      if (precoInput) precoInput.value = 0;
-      if (descontoInput) descontoInput.value = 0;
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = "0.00 €";
-      recalcDuplicateTotal();
-    });
-  }
-
-  // Inicializar também descrição e espessura com os valores actuais
-  await initDupDescAutocomplete(index, item.brand, item.descricao, item.espessura, item.preco_mt2);
-}
-
-// ─── Autocomplete DESCRIÇÃO ──────────────────────────────────────
-async function initDupDescAutocomplete(index, brandKey, currentDesc = "", currentEsp = null, currentPreco = null) {
-  const input = document.querySelector(`.dup-desc-input[data-index="${index}"]`);
-  const dd = document.getElementById(`dup-desc-dd-${index}`);
-  const clearBtn = document.querySelector(`.dup-clear-desc[data-index="${index}"]`);
-  if (!input || !dd) return;
-
-  const produtos = produtosWebsite.filter(p => p.Brand === brandKey).map(p => ({
-    display: p.Title_pt, id: p.id
-  }));
-
-  function showDescOptions(filter = "") {
-    closeAllDupDropdowns();
-    const filtered = filter
-      ? produtos.filter(p => p.display.toLowerCase().includes(filter.toLowerCase()))
-      : produtos;
-
-    dd.innerHTML = "";
-    filtered.slice(0, 50).forEach((p, idx) => {
-      const div = document.createElement("div");
-      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
-      div.textContent = p.display;
-      div.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        input.value = p.display;
-        duplicateItens[index].descricao = p.display;
-        duplicateItens[index]._produtoId = p.id;
-        if (clearBtn) clearBtn.classList.remove("d-none");
-        dd.classList.remove("show"); dd.innerHTML = "";
-        await initDupEspAutocomplete(index, p.id);
-        setTimeout(() => {
-          const espInput2 = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
-          if (espInput2) espInput2.focus();
-        }, 50);
-      });
-      dd.appendChild(div);
-    });
-    if (filtered.length === 0) {
-      dd.innerHTML = '<div class="autocomplete-item disabled">Sem resultados</div>';
-    }
-    dd.classList.add("show");
-  }
-
-  function moveDupDescFocus(direction) {
-    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
-    if (!items.length) return;
-    const current = dd.querySelector(".autocomplete-active");
-    let idx = Array.from(items).indexOf(current);
-    items.forEach(i => i.classList.remove("autocomplete-active"));
-    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
-    else idx = (idx > 0) ? idx - 1 : items.length - 1;
-    items[idx].classList.add("autocomplete-active");
-    items[idx].scrollIntoView({ block: "nearest" });
-  }
-
-  input.addEventListener("click", (e) => { e.stopPropagation(); showDescOptions(input.value); });
-  input.addEventListener("focus", () => showDescOptions(input.value));
-  input.addEventListener("input", () => {
-    showDescOptions(input.value);
-    if (clearBtn) clearBtn.classList.toggle("d-none", !input.value.trim());
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); moveDupDescFocus("down"); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupDescFocus("up"); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      const active = dd.querySelector(".autocomplete-active");
-      if (active) active.click();
-      else { dd.classList.remove("show"); dd.innerHTML = ""; }
-    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
-  });
-
-  // ✅ ESCRITA MANUAL — aceita o texto escrito mesmo que não
-  // corresponda a nenhum produto da lista (não obriga a escolher).
-  input.addEventListener("blur", () => {
-    setTimeout(() => {
-      const val = input.value.trim();
-      if (val === "" || val === duplicateItens[index].descricao) return;
-
-      duplicateItens[index].descricao = val;
-      duplicateItens[index]._produtoId = null;
-      if (clearBtn) clearBtn.classList.remove("d-none");
-
-      const espInput = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
-      if (espInput) { espInput.disabled = false; espInput.placeholder = "Escreve a espessura manualmente (mm)..."; }
-      const acabInput = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
-      if (acabInput) { acabInput.disabled = false; acabInput.placeholder = "Escreve o acabamento manualmente..."; }
-
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-      recalcDuplicateTotal();
-    }, 200);
-  });
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      input.value = "";
-      clearBtn.classList.add("d-none");
-      duplicateItens[index].descricao = "";
-      duplicateItens[index].espessura = null;
-      duplicateItens[index].preco_mt2 = 0;
-      duplicateItens[index].desconto_percentagem = 0;
-      dd.classList.remove("show"); dd.innerHTML = "";
-      const espInput = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
-      const precoInput = document.querySelector(`.dup-preco[data-index="${index}"]`);
-      const descontoInput = document.querySelector(`.dup-desconto[data-index="${index}"]`);
-      if (espInput) { espInput.value = ""; const cb = document.querySelector(`.dup-clear-esp[data-index="${index}"]`); if(cb) cb.classList.add("d-none"); }
-      if (precoInput) precoInput.value = 0;
-      if (descontoInput) descontoInput.value = 0;
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = "0.00 €";
-      recalcDuplicateTotal();
-    });
-  }
-
-  // Se já há descrição, carregar espessuras
-  if (currentDesc) {
-    const prod = produtos.find(p => p.display === currentDesc);
-    if (prod) {
-      duplicateItens[index]._produtoId = prod.id;
-      await initDupEspAutocomplete(index, prod.id, currentEsp, currentPreco);
-    }
-  }
-}
-
-// ─── Autocomplete ESPESSURA ──────────────────────────────────────
-async function initDupEspAutocomplete(index, produtoId, currentEsp = null, currentPreco = null) {
-  const input = document.querySelector(`.dup-esp-input[data-index="${index}"]`);
-  const dd = document.getElementById(`dup-esp-dd-${index}`);
-  const clearBtn = document.querySelector(`.dup-clear-esp[data-index="${index}"]`);
-  if (!input || !dd) return;
-
-  // Buscar espessuras se não estiver em cache
-  if (!precosPorProduto[produtoId]) {
-    try {
-      const { data, error } = await supabase
-        .from("product_thicknesses")
-        .select("thickness, price_per_m2")
-        .eq("website_item_id", produtoId)
-        .order("thickness", { ascending: true });
-      if (!error && data) {
-        precosPorProduto[produtoId] = {};
-        data.forEach(t => { precosPorProduto[produtoId][t.thickness] = t.price_per_m2; });
-      }
-    } catch (err) { console.error(err); }
-  }
-
-  const espessuras = precosPorProduto[produtoId]
-    ? Object.entries(precosPorProduto[produtoId]).map(([t, p]) => ({
-        display: `${t}mm`, thickness: parseInt(t), price: p
-      }))
-    : [];
-
-  function showEspOptions(filter = "") {
-    closeAllDupDropdowns();
-    const filtered = filter
-      ? espessuras.filter(e => {
-          const num = filter.replace(/mm$/i, "").trim();
-          return e.display.toLowerCase().startsWith(num.toLowerCase());
-        })
-      : espessuras;
-
-    dd.innerHTML = "";
-    filtered.forEach((e, idx) => {
-      const div = document.createElement("div");
-      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
-      div.textContent = e.display;
-      div.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        input.value = e.display;
-        duplicateItens[index].espessura = e.thickness;
-        if (clearBtn) clearBtn.classList.remove("d-none");
-        dd.classList.remove("show"); dd.innerHTML = "";
-        // DEPOIS
-        initDupAcabAutocomplete(index, e.thickness).then(() => {
-          setTimeout(() => {
-            const acabInput2 = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
-            if (acabInput2 && !acabInput2.disabled) acabInput2.focus();
-            else {
-              const precoInput2 = document.querySelector(`.dup-preco[data-index="${index}"]`);
-              if (precoInput2) precoInput2.focus();
-            }
-          }, 50);
-        });
-        const cell = document.getElementById(`dup-total-${index}`);
-        if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-        recalcDuplicateTotal();
-      });
-      dd.appendChild(div);
-    });
-    if (filtered.length === 0) {
-      dd.innerHTML = '<div class="autocomplete-item disabled">Sem espessuras</div>';
-    }
-    dd.classList.add("show");
-  }
-
-  function moveDupEspFocus(direction) {
-    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
-    if (!items.length) return;
-    const current = dd.querySelector(".autocomplete-active");
-    let idx = Array.from(items).indexOf(current);
-    items.forEach(i => i.classList.remove("autocomplete-active"));
-    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
-    else idx = (idx > 0) ? idx - 1 : items.length - 1;
-    items[idx].classList.add("autocomplete-active");
-    items[idx].scrollIntoView({ block: "nearest" });
-  }
-
-  input.addEventListener("click", (e) => { e.stopPropagation(); showEspOptions(input.value); });
-  input.addEventListener("focus", () => showEspOptions(input.value));
-  input.addEventListener("input", () => {
-    showEspOptions(input.value);
-    if (clearBtn) clearBtn.classList.toggle("d-none", !input.value.trim());
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); moveDupEspFocus("down"); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupEspFocus("up"); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      const active = dd.querySelector(".autocomplete-active");
-      if (active) active.click();
-      else { dd.classList.remove("show"); dd.innerHTML = ""; }
-    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
-  });
-
-  // ✅ ESCRITA MANUAL — aceita a espessura escrita mesmo que não
-  // exista na tabela de preços (não obriga a escolher da lista).
-  input.addEventListener("blur", () => {
-    setTimeout(() => {
-      const val = input.value.trim();
-      if (val === "") return;
-      const match = val.replace(",", ".").match(/[\d]+(\.\d+)?/);
-      const numero = match ? parseFloat(match[0]) : null;
-      if (numero === null || numero === duplicateItens[index].espessura) return;
-
-      duplicateItens[index].espessura = numero;
-      if (clearBtn) clearBtn.classList.remove("d-none");
-
-      const acabInput = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
-      if (acabInput) { acabInput.disabled = false; acabInput.placeholder = "Escreve o acabamento manualmente..."; }
-
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-      recalcDuplicateTotal();
-    }, 200);
-  });
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      input.value = "";
-      clearBtn.classList.add("d-none");
-      duplicateItens[index].espessura = null;
-      duplicateItens[index].type = null;
-      duplicateItens[index].preco_mt2 = 0;
-      duplicateItens[index].desconto_percentagem = 0;
-      dd.classList.remove("show"); dd.innerHTML = "";
-      // Limpar e desabilitar acabamento
-      const acabInput = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
-      const acabClear = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
-      if (acabInput) { acabInput.value = ""; acabInput.disabled = true; }
-      if (acabClear) acabClear.classList.add("d-none");
-      const precoInput = document.querySelector(`.dup-preco[data-index="${index}"]`);
-      const descontoInput = document.querySelector(`.dup-desconto[data-index="${index}"]`);
-      if (precoInput) precoInput.value = 0;
-      if (descontoInput) descontoInput.value = 0;
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = "0.00 €";
-      recalcDuplicateTotal();
-    });
-  }
-
-  // Preencher valor atual
-  if (currentEsp !== null) {
-    input.value = `${currentEsp}mm`;
-    if (clearBtn) clearBtn.classList.remove("d-none");
-    // Inicializar acabamentos com a espessura atual
-    initDupAcabAutocomplete(index, currentEsp, duplicateItens[index].type);
-  }
-  if (currentPreco !== null) {
-    duplicateItens[index].preco_mt2 = currentPreco;
-  }
-}
-
-// ─── Autocomplete ACABAMENTO ─────────────────────────────────────
-async function initDupAcabAutocomplete(index, espessuraSelecionada, currentAcab = null) {
-  const input = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
-  const dd = document.getElementById(`dup-acab-dd-${index}`);
-  const clearBtn = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
-  if (!input || !dd) return;
-
-  const produtoId = duplicateItens[index]._produtoId;
-  if (!produtoId || !precosPorProduto[produtoId]) {
-    input.disabled = true;
-    return;
-  }
-
-  // Buscar acabamentos disponíveis para esta espessura
-  let acabamentosData = [];
-  try {
-    const { data, error } = await supabase
-      .from("product_thicknesses")
-      .select("type, price_per_m2")
-      .eq("website_item_id", produtoId)
-      .eq("thickness", espessuraSelecionada);
-    if (!error && data) {
-      acabamentosData = data.map(a => ({ display: a.type, value: a.type, price: a.price_per_m2 }));
-    }
-  } catch (err) { console.error(err); }
-
-  // Habilitar campo
-  input.disabled = false;
-  input.value = "";
-  if (clearBtn) clearBtn.classList.add("d-none");
-  duplicateItens[index].type = null;
-  dd.classList.remove("show"); dd.innerHTML = "";
-
-
-
-  // Preencher valor atual se passado
-  if (currentAcab) {
-    input.value = currentAcab;
-    duplicateItens[index].type = currentAcab;
-    if (clearBtn) clearBtn.classList.remove("d-none");
-  }
-
-  // Remover listeners anteriores clonando o input
-  const newInput = input.cloneNode(true);
-  input.parentNode.replaceChild(newInput, input);
-  const inp = document.querySelector(`.dup-acab-input[data-index="${index}"]`);
-
-  function showAcabOptions(filter = "") {
-    closeAllDupDropdowns();
-    const filtered = filter
-      ? acabamentosData.filter(a => a.display.toLowerCase().includes(filter.toLowerCase()))
-      : acabamentosData;
-
-    dd.innerHTML = "";
-    filtered.forEach((a, idx) => {
-      const div = document.createElement("div");
-      div.className = "autocomplete-item" + (idx === 0 ? " autocomplete-active" : "");
-      div.textContent = a.display;
-      const priceSpan = document.createElement("span");
-      priceSpan.textContent = ` — ${parseFloat(a.price).toFixed(2)} €/m²`;
-      priceSpan.style.fontSize = "11px";
-      priceSpan.style.opacity = "0.7";
-      div.appendChild(priceSpan);
-      div.addEventListener("mousedown", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        inp.value = a.display;
-        duplicateItens[index].type = a.value;
-        if (clearBtn) clearBtn.classList.remove("d-none");
-        dd.classList.remove("show"); dd.innerHTML = "";
-        setTimeout(() => {
-          const precoInput2 = document.querySelector(`.dup-preco[data-index="${index}"]`);
-          if (precoInput2) precoInput2.focus();
-        }, 50);
-        const cell = document.getElementById(`dup-total-${index}`);
-        if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-        recalcDuplicateTotal();
-      });
-      dd.appendChild(div);
-    });
-    if (filtered.length === 0) {
-      dd.innerHTML = '<div class="autocomplete-item disabled">Sem acabamentos</div>';
-    }
-    dd.classList.add("show");
-  }
-
-  function moveDupAcabFocus(direction) {
-    const items = dd.querySelectorAll(".autocomplete-item:not(.disabled)");
-    if (!items.length) return;
-    const current = dd.querySelector(".autocomplete-active");
-    let idx = Array.from(items).indexOf(current);
-    items.forEach(i => i.classList.remove("autocomplete-active"));
-    if (direction === "down") idx = (idx < items.length - 1) ? idx + 1 : 0;
-    else idx = (idx > 0) ? idx - 1 : items.length - 1;
-    items[idx].classList.add("autocomplete-active");
-    items[idx].scrollIntoView({ block: "nearest" });
-  }
-
-  inp.addEventListener("click", (e) => { e.stopPropagation(); showAcabOptions(inp.value); });
-  inp.addEventListener("focus", () => showAcabOptions(inp.value));
-  inp.addEventListener("input", () => {
-    showAcabOptions(inp.value);
-    if (clearBtn) clearBtn.classList.toggle("d-none", !inp.value.trim());
-  });
-  inp.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); moveDupAcabFocus("down"); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); moveDupAcabFocus("up"); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      const active = dd.querySelector(".autocomplete-active");
-      if (active) active.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-      else { dd.classList.remove("show"); dd.innerHTML = ""; }
-    } else if (e.key === "Escape") { dd.classList.remove("show"); dd.innerHTML = ""; }
-  });
-
-  // ✅ ESCRITA MANUAL — aceita o acabamento escrito mesmo que não
-  // exista na tabela de preços (não obriga a escolher da lista).
-  inp.addEventListener("blur", () => {
-    setTimeout(() => {
-      const val = inp.value.trim();
-      if (val === "" || val === duplicateItens[index].type) return;
-
-      duplicateItens[index].type = val;
-      const cb2 = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
-      if (cb2) cb2.classList.remove("d-none");
-
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-      recalcDuplicateTotal();
-    }, 200);
-  });
-
-  if (clearBtn) {
-    // Clonar para remover listeners antigos
-    const newClear = clearBtn.cloneNode(true);
-    clearBtn.parentNode.replaceChild(newClear, clearBtn);
-    const cb = document.querySelector(`.dup-clear-acab[data-index="${index}"]`);
-    cb.addEventListener("click", (e) => {
-      e.stopPropagation();
-      inp.value = "";
-      cb.classList.add("d-none");
-      duplicateItens[index].type = null;
-      dd.classList.remove("show"); dd.innerHTML = "";
-      const cell = document.getElementById(`dup-total-${index}`);
-      if (cell) cell.textContent = calcDupLineTotal(duplicateItens[index]).toFixed(2) + " €";
-      recalcDuplicateTotal();
-    });
-  }
-}
-
-// ─── Fechar todos os dropdowns do modal duplicar ─────────────────
-function closeAllDupDropdowns() {
-  document.querySelectorAll("#duplicateModal .autocomplete-dropdown").forEach(dd => {
-    dd.classList.remove("show");
-    dd.innerHTML = "";
-  });
-}
-
-document.addEventListener("click", (e) => {
-  if (!e.target.closest("#duplicateModal .autocomplete-wrapper")) {
-    closeAllDupDropdowns();
-  }
-});
-
-// ─── Confirmar duplicação ────────────────────────────────────────
-// DEPOIS
-document.getElementById("confirmDuplicateBtn").addEventListener("click", async () => {
-  if (!orcamentoToDuplicate || duplicateItens.length === 0) return;
-
-  for (let i = 0; i < duplicateItens.length; i++) {
-    const item = duplicateItens[i];
-    const isDiversos = item.brand === "diversos" || item.espessura === 0 || !item.brand;
-
-    if (isDiversos) {
-      if (!item.descricao || item.descricao.trim() === "") {
-        showMessage(`⚠️ Linha ${i + 1}: preenche a descrição`, "warning"); return;
-      }
-    } else {
-      if (!item.brand) {
-        showMessage(`⚠️ Linha ${i + 1}: seleciona a marca`, "warning"); return;
-      }
-      if (!item.descricao || item.descricao.trim() === "") {
-        showMessage(`⚠️ Linha ${i + 1}: seleciona a descrição`, "warning"); return;
-      }
-      // DEPOIS
-      if (!item.espessura) {
-        showMessage(`⚠️ Linha ${i + 1}: seleciona a espessura`, "warning"); return;
-      }
-      if (!item.type || item.type.trim() === "") {
-        showMessage(`⚠️ Linha ${i + 1}: seleciona o acabamento`, "warning"); return;
-      }
-    }
-
-    if (!item.preco_mt2 || item.preco_mt2 <= 0) {
-      showMessage(`⚠️ Linha ${i + 1}: preço/m² deve ser maior que zero`, "warning"); return;
-    }
-  }
-
-  try {
-    showMessage("⏳ A duplicar orçamento...", "info");
-
-    const totalGeral = duplicateItens.reduce((s, item) => s + calcDupLineTotal(item), 0);
-
-    const { data: novoOrc, error: e1 } = await supabase
-      .from("orcamentos")
-      .insert({
-        cliente_nome: orcamentoToDuplicate.cliente_nome,
-        cliente_id: orcamentoToDuplicate.cliente_id || null,
-        total_geral: totalGeral
-      })
-      .select().single();
-    if (e1) throw e1;
-
-    const itensParaInserir = duplicateItens.map(item => ({
-      orcamento_id: novoOrc.id,
-      tipo_id: item.tipo_id,
-      brand: item.brand,
-      descricao: item.descricao,
-      quantidade: item.quantidade,
-      comprimento: item.comprimento,
-      largura: item.largura,
-      espessura: item.espessura ?? 0,
-      type: item.type || null,
-      preco_mt2: item.preco_mt2,
-      desconto_percentagem: item.desconto_percentagem || 0
-    }));
-
-    const { error: e2 } = await supabase.from("orcamento_itens").insert(itensParaInserir);
-    if (e2) throw e2;
-
-    showMessage(`✅ Orçamento duplicado! Novo nº: ${novoOrc.id}`, "success");
-
-    bootstrap.Offcanvas.getInstance(document.getElementById("duplicateModal")).hide();
-    orcamentoToDuplicate = null;
-    duplicateItens = [];
-    loadData();
-
-  } catch (err) {
-    console.error("Erro ao duplicar:", err);
-    showMessage("❌ Erro ao duplicar: " + err.message, "danger");
-  }
-});
 
   await loadBrands();
   await loadTipos();

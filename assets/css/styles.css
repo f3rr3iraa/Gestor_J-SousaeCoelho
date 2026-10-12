@@ -1381,6 +1381,42 @@ td img {
   color: #fff;
 }
 
+/* ─── TOTAIS POR OPÇÃO (só no ecrã, na vista "Ver"; não vão para o PDF) ─── */
+#printableArea .pdf-table tbody td.orc-screen-totais-cell {
+  padding: 0;
+  height: auto;
+  max-height: none;
+  border: 0;
+  background: #fff;
+  white-space: normal;
+  overflow: visible;
+  text-align: right;
+}
+#printableArea .orc-screen-totais {
+  display: inline-block;
+  width: 260px;
+  margin: 8px 0 14px;
+  text-align: right;
+}
+#printableArea .orc-screen-totais .r {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 12px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+#printableArea .orc-screen-totais .l { color: var(--pdf-mid); font-weight: 500; }
+#printableArea .orc-screen-totais .v { color: var(--pdf-dark); font-weight: 600; }
+#printableArea .orc-screen-totais .r.t {
+  background: var(--pdf-bg-total);
+  padding: 8px 12px;
+  font-size: 11px;
+  margin-top: 4px;
+}
+#printableArea .orc-screen-totais .r.t .l { color: rgba(255, 255, 255, 0.85); font-weight: 700; }
+#printableArea .orc-screen-totais .r.t .v { color: #fff; font-weight: 700; }
+
 /* ─── SEÇÃO LEGAL ─── */
 #printableArea .pdf-divider-legal {
   border: none;
@@ -2180,3 +2216,67 @@ input[type="number"] {
 .btn-filtro {
   margin: 0 !important;
 }
+
+/* =====================================================
+   ORÇAMENTO — GRELHA TIPO EXCEL
+   ===================================================== */
+.orc-hint { display:flex; gap:18px; flex-wrap:wrap; font-size:.8rem; color:#5b6b73; margin:6px 0 8px; }
+.orc-hint kbd { background:#22333B; color:#fff; border-radius:3px; padding:1px 6px; font-size:.75rem; }
+
+.orc-grid-wrap { overflow-x:auto; outline:none; border:2px solid #2e4752; background:#fff; }
+.orc-grid { border-collapse:collapse; width:100%; min-width:1110px; font-size:.85rem; table-layout:fixed; }
+.orc-grid thead th { background:#22333B; color:#fff; padding:8px 6px; text-align:center; white-space:nowrap; position:sticky; top:0; z-index:2; border:1px solid #373b3e; }
+.orc-grid td { border:1px solid #cbccce; padding:0 6px; height:34px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:cell; user-select:none; }
+.orc-grid .c-n { width:52px; text-align:center; color:#7a8a92; background:#eef0f1; }
+.orc-grid .c-tipo { width:110px; }
+.orc-grid .c-prod { width:230px; min-width:230px; }
+.orc-grid .c-num { width:96px; }
+.orc-grid td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.orc-grid td.ro { background:#f4f6f7; color:#34444c; }
+.orc-grid td.total { font-weight:600; }
+.orc-grid td.acc { font-weight:700; background:#e8eef1; }
+.orc-grid td.sel { outline:2px solid #1f6feb; outline-offset:-2px; background:#e7f0ff; }
+.orc-grid td.ro.sel, .orc-grid td.acc.sel { background:#dce8fb; }
+.orc-grid td.ref-hint { color:#9aa7ad; font-style:italic; }
+.orc-grid tr.row-done td.c-n { background:#d9ecd9; color:#2f6b2f; }
+.orc-grid td.c-n .row-x { display:inline; border:0; background:none; color:#b02a37; padding:0 0 0 3px; line-height:1; cursor:pointer; opacity:.45; }
+.orc-grid td.c-n .row-x:hover { opacity:1; }
+.orc-grid td input.cell-input { width:100%; height:100%; border:0; outline:0; background:#fff; font-size:.85rem; text-align:right; padding:0; }
+.orc-grid tfoot td { background:#22333B; color:#fff; font-weight:700; padding:8px 6px; border:1px solid #373b3e; cursor:default; }
+.orc-foot-label { text-align:right; }
+.orc-foot-total { text-align:right; font-size:1rem; }
+
+.orc-overlay { position:fixed; inset:0; background:rgba(15,25,30,.55); z-index:3000; display:flex; align-items:flex-start; justify-content:center; padding-top:8vh; }
+.orc-modal { background:#fff; border:2px solid #2e4752; box-shadow:0 10px 30px rgba(0,0,0,.35); width:min(92vw,520px); }
+.orc-modal.orc-picker { width:min(94vw,820px); }
+.orc-modal header { background:#22333B; color:#fff; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; font-weight:600; }
+.orc-modal header button { background:none; border:0; color:#fff; font-size:1.1rem; cursor:pointer; }
+.orc-modal .orc-body { padding:14px; }
+.orc-modal input.orc-input { width:100%; padding:10px; font-size:.95rem; border:2px solid #2e4752; border-radius:0; outline:none; background:#f8f9fa; }
+.orc-modal input.orc-input:focus { border-color:#1f6feb; }
+.orc-modal label { font-size:.8rem; font-weight:700; color:#2e4752; margin:10px 0 3px; display:block; }
+.orc-list { max-height:52vh; overflow-y:auto; border:1px solid #d5d9dc; margin-top:10px; }
+.orc-item { padding:8px 12px; font-size:.92rem; border-bottom:1px solid #eef0f1; cursor:pointer; display:flex; justify-content:space-between; gap:12px; }
+.orc-item small { color:#7a8a92; white-space:nowrap; }
+.orc-item.active, .orc-item:hover { background:#2e4752; color:#fff; }
+.orc-item.active small, .orc-item:hover small { color:#cfd8dc; }
+.orc-item.empty { cursor:default; font-style:italic; color:#6c757d; background:#f8f9fa; }
+.orc-foot { padding:8px 14px; font-size:.78rem; color:#5b6b73; border-top:1px solid #e1e5e7; background:#f8f9fa; }
+.orc-dims-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.orc-m2 { margin-top:14px; padding:10px; background:#e8eef1; font-weight:700; text-align:center; font-size:1.05rem; }
+
+/* ===== OPÇÕES DO ORÇAMENTO (abas) ===== */
+.orc-tabs { display:flex; flex-wrap:wrap; align-items:flex-end; gap:4px; margin-bottom:-2px; position:relative; z-index:1; }
+.orc-tab { display:flex; align-items:stretch; background:#e8eef1; border:2px solid #2e4752; border-bottom:0; }
+.orc-tab.active { background:#22333B; }
+.orc-tab-btn { border:0; background:none; padding:8px 14px; font-weight:600; color:#22333B; cursor:pointer; }
+.orc-tab.active .orc-tab-btn { color:#fff; }
+.orc-tab-btn small { font-weight:400; opacity:.85; }
+.orc-tab-x { border:0; background:none; padding:0 9px 0 0; color:#b02a37; cursor:pointer; opacity:.6; }
+.orc-tab.active .orc-tab-x { color:#ff9aa5; }
+.orc-tab-x:hover { opacity:1; }
+.orc-tab-add { border:2px dashed #2e4752; border-bottom:0; background:#fff; color:#2e4752; padding:8px 14px; font-weight:600; cursor:pointer; }
+.orc-tab-add:hover { background:#e8eef1; }
+.orc-grid td.pend { background:#fff8e1; }
+.orc-grid td.pend::before { content:"Escolher produto…"; color:#b58900; font-style:italic; }
+.orc-grid td.pend.sel { background:#e7f0ff; }
