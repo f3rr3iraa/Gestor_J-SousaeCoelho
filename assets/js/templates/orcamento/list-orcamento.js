@@ -1384,7 +1384,10 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
         // "Diversos" = sem marca/espessura e medidas 1×1. Um produto escrito à mão
         // (sem marca) mas com medidas reais continua a mostrar comp./larg.
         const isDiversos = item.brand === "diversos" || (item.espessura === 0 && item.comprimento === 1 && item.largura === 1);
-        const brandName = isDiversos || !item.brand ? "" : (brandMap[item.brand] || formatBrand(item.brand));
+        // "Linear": como Diversos (sem comp./larg./espessura) mas com m² real
+        const isLinear = tipoNome.trim().toLowerCase() === "linear";
+        const semMedidas = isDiversos || isLinear;
+        const brandName = semMedidas || !item.brand ? "" : (brandMap[item.brand] || formatBrand(item.brand));
 
         let descontoFormatado;
         if (item.desconto_percentagem && item.desconto_percentagem > 0) {
@@ -1397,12 +1400,12 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${tipoNome}</td>
-          <td>${isDiversos ? item.descricao : (brandName ? brandName + " - " : "") + item.descricao + (item.type ? " " + item.type : "")}</td>
+          <td>${semMedidas ? item.descricao : (brandName ? brandName + " - " : "") + item.descricao + (item.type ? " " + item.type : "")}</td>
           <td>${item.quantidade}</td>
-          <td>${isDiversos ? "" : item.comprimento.toFixed(4)}</td>
-          <td>${isDiversos ? "" : item.largura.toFixed(4)}</td>
-          <td>${isDiversos ? "" : (item.espessura || "")}</td>
-          <td>${isDiversos ? Number(item.quantidade).toFixed(4) : item.mt2.toFixed(4)}</td>
+          <td>${semMedidas ? "" : item.comprimento.toFixed(4)}</td>
+          <td>${semMedidas ? "" : item.largura.toFixed(4)}</td>
+          <td>${semMedidas ? "" : (item.espessura || "")}</td>
+          <td>${isLinear ? item.mt2.toFixed(4) : isDiversos ? Number(item.quantidade).toFixed(4) : item.mt2.toFixed(4)}</td>
           <td>${item.preco_mt2.toFixed(2)} €</td>
           <td>${descontoFormatado}</td>
           <td>${item.subtotal.toFixed(2)} €</td>

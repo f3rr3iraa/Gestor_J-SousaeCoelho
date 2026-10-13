@@ -82,6 +82,7 @@ window.initOrcamentoForm = async function () {
 
   const novaLinha = () => ({
     tipoId: null, tipoNome: "", diversos: false,
+    linear: false, m2: null, // Linear = como Diversos, mas pede Qtd + m² (m² total, editável)
     brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "",
     refPreco: null,
     qtd: null, comp: null, larg: null, preco: null, desc: 0,
@@ -123,6 +124,12 @@ window.initOrcamentoForm = async function () {
     const larg = row.diversos ? 1 : row.larg || 0;
     const preco = row.preco || 0;
     const desc = Math.min(100, Math.max(0, row.desc || 0));
+    if (row.linear) {
+      // Linear: o m² é escrito à mão (total da linha) → total = m² × preço
+      const mt2 = row.m2 || 0;
+      const total = mt2 * preco * (1 - desc / 100);
+      return { mt2, subtotal: qtd > 0 ? total / qtd : 0, total };
+    }
     const mt2 = row.diversos ? 0 : qtd * comp * larg;
     const subtotal = comp * larg * preco * (1 - desc / 100); // 1 peça
     const total = subtotal * qtd;
@@ -130,12 +137,13 @@ window.initOrcamentoForm = async function () {
   }
 
   function linhaVazia(row) {
-    return !row.tipoId && !row.descricao && !row.qtd && !row.comp && !row.larg && !row.preco;
+    return !row.tipoId && !row.descricao && !row.qtd && !row.comp && !row.larg && !row.m2 && !row.preco;
   }
 
   function linhaCompleta(row) {
     if (!row.tipoId || !row.descricao.trim()) return false;
     if (!(row.qtd > 0) || !(row.preco > 0)) return false;
+    if (row.linear) return row.m2 > 0;
     if (!row.diversos && (!(row.comp > 0) || !(row.larg > 0))) return false;
     return true;
   }
@@ -244,7 +252,7 @@ window.initOrcamentoForm = async function () {
         ${cell(C.QTD, "num", row.qtd ? row.qtd : "")}
         ${cell(C.COMP, "num", row.diversos ? "" : fmt4(row.comp))}
         ${cell(C.LARG, "num", row.diversos ? "" : fmt4(row.larg))}
-        ${cell(C.M2, "num ro", k.mt2 > 0 ? fmt4(k.mt2) : "")}
+        ${cell(C.M2, row.linear ? "num" : "num ro", k.mt2 > 0 ? fmt4(k.mt2) : "", row.linear ? "Linear: Enter / duplo clique para editar o m²" : "")}
         ${cell(C.PRECO, "num", precoTxt)}
         ${cell(C.DESC, "num", row.preco || row.qtd ? fmt2(row.desc || 0) : "")}
         ${cell(C.SUB, "num ro", k.subtotal > 0 ? fmt2(k.subtotal) + " €" : "")}
@@ -313,7 +321,7 @@ window.initOrcamentoForm = async function () {
     // copia só a estrutura: tipo, qtd, comp., larg. — sem produto, preço e desconto
     const novas = base.map((r) => (linhaVazia(r)
       ? novaLinha()
-      : { ...novaLinha(), tipoId: r.tipoId, tipoNome: r.tipoNome, diversos: r.diversos, qtd: r.qtd, comp: r.comp, larg: r.larg }));
+      : { ...novaLinha(), tipoId: r.tipoId, tipoNome: r.tipoNome, diversos: r.diversos, linear: r.linear, m2: r.m2, qtd: r.qtd, comp: r.comp, larg: r.larg }));
     const primeira = Math.max(0, novas.findIndex((r) => !linhaVazia(r)));
     opcoes.push({ rows: novas, cur: { r: primeira, c: C.PROD } });
     opcaoAtiva = opcoes.length - 1;
@@ -495,27 +503,31 @@ window.initOrcamentoForm = async function () {
   }
 
   // Janela pequena: Qtd / Comprimento / Largura  (+ m² ao vivo)
-  // campoInicial: "qtd" | "comp" | "larg" → campo que fica com o cursor ao abrir
+  //   Diversos → só Qtd | Linear → Qtd + m² (editável) | restantes → Qtd / Comp. / Larg.
+  // campoInicial: "qtd" | "comp" | "larg" | "m2" → campo que fica com o cursor ao abrir
   function abrirDimensoes(r, campoInicial = "qtd") {
     const row = rows[r];
-    const soQtd = row.diversos;
+    const linear = !!row.linear;
+    const soQtd = row.diversos && !linear;
     const el = criarOverlay(`
       <header><span>${esc(row.label || row.descricao)}</span><button type="button" data-x>✕</button></header>
       <div class="orc-body">
         <div class="${soQtd ? "" : "orc-dims-grid"}">
           <div><label>Quantidade</label><input type="text" inputmode="decimal" class="orc-input" data-f="qtd" autocomplete="off" /></div>
-          ${soQtd ? "" : `
+          ${linear ? `
+          <div><label>m² (total)</label><input type="text" inputmode="decimal" class="orc-input" data-f="m2" autocomplete="off" /></div>` : soQtd ? "" : `
           <div><label>Comprimento (m)</label><input type="text" inputmode="decimal" class="orc-input" data-f="comp" autocomplete="off" /></div>
           <div><label>Largura (m)</label><input type="text" inputmode="decimal" class="orc-input" data-f="larg" autocomplete="off" /></div>`}
         </div>
-        ${soQtd ? "" : `<div class="orc-m2">m²: <span data-m2>0.0000</span></div>`}
+        ${soQtd || linear ? "" : `<div class="orc-m2">m²: <span data-m2>0.0000</span></div>`}
       </div>
       `);
 
     const campos = [...el.querySelectorAll("input[data-f]")];
     const f = (n) => el.querySelector(`[data-f="${n}"]`);
     f("qtd").value = row.qtd || 1;
-    if (!soQtd) { f("comp").value = row.comp ? fmt4(row.comp) : ""; f("larg").value = row.larg ? fmt4(row.larg) : ""; }
+    if (linear) f("m2").value = row.m2 ? fmt4(row.m2) : "";
+    else if (!soQtd) { f("comp").value = row.comp ? fmt4(row.comp) : ""; f("larg").value = row.larg ? fmt4(row.larg) : ""; }
 
     const m2El = el.querySelector("[data-m2]");
     const atualizarM2 = () => {
@@ -527,15 +539,19 @@ window.initOrcamentoForm = async function () {
     function confirmar() {
       const q = parseNum(f("qtd").value);
       if (!(q > 0)) { toast("⚠️ Quantidade deve ser maior que zero", "warning"); f("qtd").focus(); return; }
-      let co = 1, la = 1;
-      if (!soQtd) {
+      let co = 1, la = 1, m2 = null;
+      if (linear) {
+        m2 = parseNum(f("m2").value);
+        if (!(m2 > 0)) { toast("⚠️ O m² deve ser maior que zero", "warning"); f("m2").focus(); return; }
+      } else if (!soQtd) {
         co = parseNum(f("comp").value); la = parseNum(f("larg").value);
         if (!(co > 0)) { toast("⚠️ Comprimento deve ser maior que zero", "warning"); f("comp").focus(); return; }
         if (!(la > 0)) { toast("⚠️ Largura deve ser maior que zero", "warning"); f("larg").focus(); return; }
       }
       pushUndo();
       row.qtd = q;
-      if (!soQtd) { row.comp = co; row.larg = la; }
+      if (linear) row.m2 = m2;
+      else if (!soQtd) { row.comp = co; row.larg = la; }
       fecharOverlay();
       guardarRascunho();
       setCur(r, C.PRECO); // m² já calculados na linha → Enter para meter o preço
@@ -582,13 +598,17 @@ window.initOrcamentoForm = async function () {
     pushUndo();
     const row = rows[r];
     const eraDiv = row.diversos;
-    const isDiv = t.nome.trim().toLowerCase() === "diversos";
+    const nomeTipo = (t.nome || "").trim().toLowerCase();
+    const isLinear = nomeTipo === "linear";
+    const isDiv = nomeTipo === "diversos" || isLinear; // Linear comporta-se como Diversos (artigo livre, sem comp./larg.)
     row.tipoId = t.id;
     row.tipoNome = t.nome;
     row.diversos = isDiv;
+    if (!isLinear) row.m2 = null;
+    row.linear = isLinear;
     if (eraDiv !== isDiv) {
-      // mudou entre "diversos" e normal → o produto deixa de fazer sentido
-      Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "", refPreco: null, comp: null, larg: null });
+      // mudou entre "diversos/linear" e normal → o produto deixa de fazer sentido
+      Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "", refPreco: null, comp: null, larg: null, m2: null });
     }
     guardarRascunho();
     setCur(r, C.PROD);
@@ -605,7 +625,7 @@ window.initOrcamentoForm = async function () {
           const { data, error } = await supabase.from("type_products").insert([{ nome: n }]).select();
           if (error) throw error;
           tipos.push({ id: data[0].id, nome: data[0].nome });
-          tipos.sort((a, b) => a.nome.localeCompare(b.nome, "pt"));
+          tipos.sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt"));
           toast("✅ Novo tipo adicionado", "success");
           definirTipo(r, { id: data[0].id, nome: data[0].nome });
         } catch (err) {
@@ -620,7 +640,7 @@ window.initOrcamentoForm = async function () {
   // (ex.: opção copiada da anterior) vai direto ao preço; senão pede as medidas.
   function seguirAposProduto(r) {
     const row = rows[r];
-    const medidasOk = row.qtd > 0 && (row.diversos || (row.comp > 0 && row.larg > 0));
+    const medidasOk = row.qtd > 0 && (row.linear ? row.m2 > 0 : row.diversos || (row.comp > 0 && row.larg > 0));
     if (medidasOk) setCur(r, C.PRECO); else abrirDimensoes(r);
   }
 
@@ -630,7 +650,7 @@ window.initOrcamentoForm = async function () {
 
     if (row.diversos) {
       pedirTexto({
-        titulo: `Linha ${r + 1} — Artigo (Diversos)`,
+        titulo: `Linha ${r + 1} — Artigo (${row.linear ? "Linear" : "Diversos"})`,
         label: "Descrição do artigo",
         valor: row.descricao,
         placeholder: "Descreve o artigo...",
@@ -686,6 +706,12 @@ window.initOrcamentoForm = async function () {
     });
   }
 
+  // Há clientes na BD sem "descricao" (null): nunca devolve null, senão o sort rebenta
+  const labelCliente = (c) => {
+    const nome = (c.descricao || "").trim() || (c.descricao2 || "").trim() || `Cliente ${c.id}`;
+    return c.descricao && c.descricao2 ? `${c.descricao} (${c.descricao2})` : nome;
+  };
+
   const detalhesClienteHtml = (c) =>
     `${esc(c.contribuinte || "---")} | <strong>Telefone:</strong> ${esc(c.telefone || "---")}<br><small>${esc(c.morada || "")}</small>`;
 
@@ -723,9 +749,9 @@ window.initOrcamentoForm = async function () {
           .select();
         if (error) throw error;
         const c = data[0];
-        const label = c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao;
-        clientes.push({ label, extra: c.contribuinte || "", original: c, _s: norm(c.descricao) });
-        clientes.sort((a, b) => a.label.localeCompare(b.label, "pt"));
+        const label = labelCliente(c);
+        clientes.push({ label, extra: c.contribuinte || "", original: c, _s: norm(label) });
+        clientes.sort((a, b) => (a.label || "").localeCompare(b.label || "", "pt"));
         toast("✅ Cliente adicionado", "success");
         fecharOverlay();
         selecionarCliente(c);
@@ -845,7 +871,13 @@ window.initOrcamentoForm = async function () {
       case C.PRECO: case C.DESC:
         if (!row.descricao) { toast("⚠️ Escolhe primeiro o produto", "warning"); setCur(r, row.tipoId ? C.PROD : C.TIPO); return; }
         editarInline(r, c, seed || null); break;
-      default: // m², subtotal, totais: só leitura
+      case C.M2:
+        if (row.linear) { // só no Linear o m² pode ser alterado à mão
+          if (!row.descricao) { toast("⚠️ Escolhe primeiro o produto", "warning"); setCur(r, C.PROD); return; }
+          abrirDimensoes(r, "m2"); break;
+        }
+        setCur(r, C.PRECO); break;
+      default: // subtotal, totais: só leitura
         setCur(r, C.PRECO);
     }
   }
@@ -867,6 +899,7 @@ window.initOrcamentoForm = async function () {
     else if (c === C.QTD) row.qtd = null;
     else if (c === C.COMP) row.comp = null;
     else if (c === C.LARG) row.larg = null;
+    else if (c === C.M2 && row.linear) row.m2 = null;
     else if (c === C.PRECO) row.preco = null;
     else if (c === C.DESC) row.desc = 0;
     // se a linha ficou totalmente vazia, desaparece e as de baixo sobem
@@ -959,7 +992,7 @@ window.initOrcamentoForm = async function () {
       clipInterno = {
         tipo: "prod", texto,
         dados: {
-          diversos: row.diversos, tipoId: row.tipoId, tipoNome: row.tipoNome,
+          diversos: row.diversos, linear: row.linear, tipoId: row.tipoId, tipoNome: row.tipoNome,
           brandKey: row.brandKey, brandNome: row.brandNome, webId: row.webId, descricao: row.descricao,
           acabamento: row.acabamento, espessura: row.espessura, label: row.label,
         },
@@ -987,7 +1020,7 @@ window.initOrcamentoForm = async function () {
 
     pushUndo();
     if (!row.tipoId && src) {
-      Object.assign(row, { tipoId: src.tipoId, tipoNome: src.tipoNome, diversos: !!src.diversos });
+      Object.assign(row, { tipoId: src.tipoId, tipoNome: src.tipoNome, diversos: !!src.diversos, linear: !!src.linear });
     }
     if (dados) {
       Object.assign(row, {
@@ -1114,7 +1147,7 @@ window.initOrcamentoForm = async function () {
         mudarOpcao(o);
         toast(`⚠️ ${nome}linha(s) incompleta(s): ${incompletas.map((x) => x.i + 1).join(", ")}. Completa-as ou limpa-as antes de guardar.`, "warning");
         const f = incompletas[0].row;
-        const colFalta = !f.tipoId ? C.TIPO : !f.descricao.trim() ? C.PROD : !(f.qtd > 0) ? C.QTD : (!f.diversos && (!(f.comp > 0) || !(f.larg > 0))) ? C.COMP : C.PRECO;
+        const colFalta = !f.tipoId ? C.TIPO : !f.descricao.trim() ? C.PROD : !(f.qtd > 0) ? C.QTD : f.linear ? (!(f.m2 > 0) ? C.M2 : C.PRECO) : (!f.diversos && (!(f.comp > 0) || !(f.larg > 0))) ? C.COMP : C.PRECO;
         setCur(incompletas[0].i, colFalta);
         return;
       }
@@ -1139,7 +1172,7 @@ window.initOrcamentoForm = async function () {
               brand: row.diversos ? "" : row.brandKey || "",
               descricao: row.descricao,
               quantidade: row.qtd,
-              comprimento: row.diversos ? 1 : row.comp,
+              comprimento: row.linear ? Number((row.m2 / row.qtd).toFixed(6)) : row.diversos ? 1 : row.comp,
               largura: row.diversos ? 1 : row.larg,
               espessura: row.diversos ? 0 : row.espessura ?? 0,
               type: row.diversos ? null : row.acabamento || null,
@@ -1235,8 +1268,8 @@ window.initOrcamentoForm = async function () {
     tipos = tiposRes.map((t) => ({ id: t.id, nome: t.nome }));
 
     clientes = clientesRes.map((c) => {
-      const label = c.descricao2 ? `${c.descricao} (${c.descricao2})` : c.descricao;
-      return { label, extra: c.contribuinte || "", original: c, _s: norm(c.descricao) };
+      const label = labelCliente(c);
+      return { label, extra: c.contribuinte || "", original: c, _s: norm(label) };
     });
 
     const brandNome = {};
@@ -1275,7 +1308,7 @@ window.initOrcamentoForm = async function () {
       });
     });
 
-    lista.sort((a, b) => a.label.localeCompare(b.label, "pt", { numeric: true }));
+    lista.sort((a, b) => (a.label || "").localeCompare(b.label || "", "pt", { numeric: true }));
     produtos = lista;
   }
 
@@ -1285,7 +1318,8 @@ window.initOrcamentoForm = async function () {
   function itemParaLinha(it) {
     const tipo = tipos.find((t) => String(t.id) === String(it.tipo_id));
     const tipoNome = tipo ? tipo.nome : `Tipo ${it.tipo_id}`;
-    const diversos = tipoNome.trim().toLowerCase() === "diversos" || it.brand === "diversos";
+    const linear = tipoNome.trim().toLowerCase() === "linear";
+    const diversos = tipoNome.trim().toLowerCase() === "diversos" || it.brand === "diversos" || linear;
     const brandKey = diversos ? "" : it.brand || "";
     const brandNome = brandKey ? brandNomePorKey[brandKey] || brandKey : "";
     const acabamento = diversos ? "" : it.type || "";
@@ -1297,7 +1331,8 @@ window.initOrcamentoForm = async function () {
       : `${brandNome} - ${it.descricao}${acabamento ? " " + acabamento : ""}${espessura !== null ? " " + espessura + "mm" : ""}`;
     return {
       ...novaLinha(),
-      tipoId: it.tipo_id, tipoNome, diversos,
+      tipoId: it.tipo_id, tipoNome, diversos, linear,
+      m2: linear ? (Number(it.quantidade) || 0) * (Number(it.comprimento) || 0) * (Number(it.largura) || 1) || null : null,
       brandKey, brandNome, webId: prod ? prod.webId : null,
       descricao: it.descricao || "", acabamento, espessura, label,
       qtd: Number(it.quantidade) || null,
