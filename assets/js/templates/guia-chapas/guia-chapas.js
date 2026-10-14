@@ -1,6 +1,7 @@
 // =====================================================
 // GUIA-CHAPAS.JS — Encaixe de peças em chapas (à escala real, em mm)
 // Todas as chapas ficam empilhadas na vertical; peças numeradas automaticamente.
+// Peças podem ser retângulos ou círculos (c: true, w = h = diâmetro).
 // =====================================================
 window.initGuiaChapas = function () {
   const KEY = "guiaChapas_v1", EPS = 0.01;
@@ -44,6 +45,7 @@ window.initGuiaChapas = function () {
     if (r >= 1000) return (r / 1000).toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",") + " m";
     return (r / 10).toFixed(1).replace(/\.0$/, "").replace(".", ",") + " cm";
   };
+  const dims = (p) => (p.c ? "Ø " + fmt(p.w) : fmt(p.w) + " × " + fmt(p.h));
   const presetLabel = (q) => (q[0] / 1000).toFixed(2).replace(".", ",") + " × " + (q[1] / 1000).toFixed(2).replace(".", ",") + " m";
   const msg = (t) => {
     const el = $("gcMsg"); if (!el) return;
@@ -53,10 +55,24 @@ window.initGuiaChapas = function () {
 
   // ---------- Geometria ----------
   const placed = (sid, skip) => st.pieces.filter((o) => o.placed && o.s === sid && o.id !== skip);
+
+  // Sobreposição entre a peça p (na posição x,y) e a peça o (retângulo ou círculo)
+  const hit = (p, x, y, o) => {
+    if (!p.c && !o.c)
+      return x < o.x + o.w - EPS && x + p.w > o.x + EPS && y < o.y + o.h - EPS && y + p.h > o.y + EPS;
+    if (p.c && o.c)
+      return Math.hypot((x + p.w / 2) - (o.x + o.w / 2), (y + p.w / 2) - (o.y + o.w / 2)) < (p.w + o.w) / 2 - EPS;
+    // círculo vs retângulo
+    const C = p.c ? { x, y, d: p.w } : { x: o.x, y: o.y, d: o.w };
+    const R = p.c ? o : { x, y, w: p.w, h: p.h };
+    const cx = C.x + C.d / 2, cy = C.y + C.d / 2;
+    const nx = Math.max(R.x, Math.min(cx, R.x + R.w)), ny = Math.max(R.y, Math.min(cy, R.y + R.h));
+    return Math.hypot(cx - nx, cy - ny) < C.d / 2 - EPS;
+  };
   const valid = (p, s, x, y) => {
     if (!s) return false;
     if (x < -EPS || y < -EPS || x + p.w > s.w + EPS || y + p.h > s.h + EPS) return false;
-    return !placed(s.id, p.id).some((o) => x < o.x + o.w - EPS && x + p.w > o.x + EPS && y < o.y + o.h - EPS && y + p.h > o.y + EPS);
+    return !placed(s.id, p.id).some((o) => hit(p, x, y, o));
   };
   const pick = (v, c, T) => {
     let b = v, d = T;
@@ -74,7 +90,9 @@ window.initGuiaChapas = function () {
 
   // ---------- Desenho ----------
   const color = (p) => `hsl(${p.hue},60%,80%)`;
-  const label = (p) => `<b>${nome(p)}</b><span>${fmt(p.w)} × ${fmt(p.h)}</span>`;
+  const label = (p) => `<b>${nome(p)}</b><span>${dims(p)}</span>`;
+  const pieceCss = (p, x, y) =>
+    `left:${x * scale}px;top:${y * scale}px;width:${p.w * scale}px;height:${p.h * scale}px;background:${color(p)}${p.c ? ";border-radius:50%" : ""}`;
 
   // Estrutura: um bloco por chapa, empilhados de cima para baixo
   function buildSlabs() {
@@ -137,9 +155,9 @@ window.initGuiaChapas = function () {
         const d = document.createElement("div");
         d.className = "gc-piece" + (p.id === sel ? " sel" : "");
         d.dataset.id = p.id;
-        d.style.cssText = `left:${p.x * scale}px;top:${p.y * scale}px;width:${p.w * scale}px;height:${p.h * scale}px;background:${color(p)}`;
+        d.style.cssText = pieceCss(p, p.x, p.y);
         if (p.w * scale < 70 || p.h * scale < 34) d.style.fontSize = "10px";
-        d.title = `${nome(p)}: ${fmt(p.w)} × ${fmt(p.h)}`;
+        d.title = `${nome(p)}: ${dims(p)}`;
         d.innerHTML = label(p);
         el.appendChild(d);
       });
@@ -151,10 +169,10 @@ window.initGuiaChapas = function () {
     $("gcList").innerHTML = un.length
       ? un.map((p) => {
           const big = !st.slabs.some((s) => (p.w <= s.w && p.h <= s.h) || (p.h <= s.w && p.w <= s.h));
-          return `<div class="gc-item" data-id="${p.id}"><span class="gc-sw" style="background:${color(p)}"></span>
+          return `<div class="gc-item" data-id="${p.id}"><span class="gc-sw" style="background:${color(p)}${p.c ? ";border-radius:50%" : ""}"></span>
             <div class="flex-grow-1 text-truncate"><b>${nome(p)}</b>
-            <div class="small ${big ? "text-danger" : "text-muted"}">${fmt(p.w)} × ${fmt(p.h)}${big ? " — não cabe em nenhuma chapa" : ""}</div></div>
-            <button class="btn btn-sm btn-light" data-act="rot" title="Rodar"><i class="bi bi-arrow-repeat"></i></button>
+            <div class="small ${big ? "text-danger" : "text-muted"}">${dims(p)}${big ? " — não cabe em nenhuma chapa" : ""}</div></div>
+            ${p.c ? "" : '<button class="btn btn-sm btn-light" data-act="rot" title="Rodar"><i class="bi bi-arrow-repeat"></i></button>'}
             <button class="btn btn-sm btn-light" data-act="del" title="Apagar"><i class="bi bi-x-lg"></i></button></div>`;
         }).join("")
       : '<div class="small text-muted">Sem peças por colocar.</div>';
@@ -162,7 +180,9 @@ window.initGuiaChapas = function () {
     const m2 = (v) => (v / 1e6).toFixed(2).replace(".", ",");
     st.slabs.forEach((s) => {
       const blk = $("gcSlabs").querySelector(`.gc-block[data-sid="${s.id}"]`); if (!blk) return;
-      const pl = placed(s.id), area = pl.reduce((a, p) => a + p.w * p.h, 0), tot = s.w * s.h;
+      const pl = placed(s.id), tot = s.w * s.h;
+      // área real: círculo = π·r², retângulo = w·h
+      const area = pl.reduce((a, p) => a + (p.c ? Math.PI * (p.w / 2) * (p.w / 2) : p.w * p.h), 0);
       blk.querySelector("[data-stat]").textContent = `${pl.length} peça(s) · ${m2(area)} de ${m2(tot)} m² (${((area / tot) * 100).toFixed(1).replace(".", ",")}%)`;
     });
     const nPl = st.pieces.length - un.length;
@@ -220,13 +240,13 @@ window.initGuiaChapas = function () {
 
     // chapa que está debaixo do rato
     if (drag.moved || !drag.fromSlab) {
-      let hit = null;
+      let hitSlab = null;
       st.slabs.forEach((s) => {
-        const el = slabEl(s.id); if (!el || hit) return;
+        const el = slabEl(s.id); if (!el || hitSlab) return;
         const r = el.getBoundingClientRect();
-        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) hit = s.id;
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) hitSlab = s.id;
       });
-      if (hit && hit !== drag.sid) { drag.sid = hit; slabEl(hit).appendChild(drag.ghost); }
+      if (hitSlab && hitSlab !== drag.sid) { drag.sid = hitSlab; slabEl(hitSlab).appendChild(drag.ghost); }
     }
 
     const s = slabById(drag.sid), el = slabEl(drag.sid), r = el.getBoundingClientRect();
@@ -237,7 +257,7 @@ window.initGuiaChapas = function () {
     drag.pos = [x, y];
     drag.ok = valid(p, s, x, y);
     const g = drag.ghost;
-    g.style.cssText = `left:${x * scale}px;top:${y * scale}px;width:${p.w * scale}px;height:${p.h * scale}px;background:${color(p)}`;
+    g.style.cssText = pieceCss(p, x, y);
     g.classList.toggle("gc-bad", !drag.ok);
     g.innerHTML = label(p);
   }
@@ -261,7 +281,7 @@ window.initGuiaChapas = function () {
   }
 
   function rotate(p) {
-    if (!p) return;
+    if (!p || p.c) return; // círculos não rodam
     [p.w, p.h] = [p.h, p.w];
     if (drag && drag.p === p) {
       if (!drag.fromSlab) { drag.offx = p.w / 2; drag.offy = p.h / 2; }
@@ -354,21 +374,34 @@ window.initGuiaChapas = function () {
   $("gcAddSlab").onclick = addSlab;
   $("gcNW").onkeydown = $("gcNH").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addSlab(); } };
 
+  // Forma da peça: retângulo ou círculo
+  const updKind = () => {
+    const c = $("gcPKind").value === "c";
+    $("gcPH").style.display = c ? "none" : "";
+    $("gcPH").required = !c;
+    $("gcPW").placeholder = c ? "Diâmetro (Ex: 0.6 ou 50 cm)" : "Comprimento (Ex: 64.3 cm)";
+  };
+  $("gcPKind").onchange = updKind;
+  updKind();
+
   // Adicionar peças (sem nome: Nº1, Nº2, ... automático)
   $("gcAddForm").onsubmit = (e) => {
     e.preventDefault();
-    const w = parse($("gcPW").value), h = parse($("gcPH").value);
+    const c = $("gcPKind").value === "c";
+    const w = parse($("gcPW").value), h = c ? w : parse($("gcPH").value);
     const q = Math.min(200, Math.max(1, parseInt($("gcPQ").value) || 1));
-    if (!(w > 0 && h > 0)) return msg("Medidas da peça inválidas.");
+    if (!(w > 0 && h > 0)) return msg(c ? "Diâmetro inválido." : "Medidas da peça inválidas.");
     const hue = (st.seq++ * 47) % 360;
     for (let i = 0; i < q; i++) {
-      st.pieces.push({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), w, h, x: 0, y: 0, placed: false, s: null, hue });
+      st.pieces.push({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), w, h, c, x: 0, y: 0, placed: false, s: null, hue });
     }
+    const kind = $("gcPKind").value;
     e.target.reset();
+    $("gcPKind").value = kind; updKind(); // mantém a forma escolhida
     renderAll();
     $("gcPW").focus();
   };
-  $("gcPW").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); $("gcPH").focus(); } };
+  $("gcPW").onkeydown = (e) => { if (e.key === "Enter" && $("gcPKind").value !== "c") { e.preventDefault(); $("gcPH").focus(); } };
 
   $("gcRot").onclick = () => rotate(selected());
   $("gcUnplace").onclick = () => unplace(selected());
