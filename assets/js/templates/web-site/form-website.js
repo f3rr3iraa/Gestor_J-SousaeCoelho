@@ -39,7 +39,7 @@ window.initWebsiteForm = function () {
   const combinationsContainer = document.getElementById("combinationsContainer");
 
   const THICKNESS_OPTIONS = [3, 4, 6, 8, 12, 20, 30];
-  const TYPE_OPTIONS = ['Polido', 'Matte', 'Velvet', 'Feel', 'Sat', 'U. Soft', 'Riv'];
+  const TYPE_OPTIONS = ['Polido', 'Matte', 'Velvet', 'Feel', 'Sat', 'U. Soft', 'Riv', 'Anticato', 'Açanitado'];
 
   // =====================================================
   // FUNÇÃO AUTOCOMPLETE GENÉRICA
