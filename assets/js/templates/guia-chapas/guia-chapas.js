@@ -375,6 +375,14 @@ window.initGuiaChapas = function () {
   $("gcNW").onkeydown = $("gcNH").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addSlab(); } };
 
   // Forma da peça: retângulo ou círculo
+  // (se o HTML antigo não tiver o seletor, cria-o aqui)
+  if (!$("gcPKind")) {
+    const sk = document.createElement("select");
+    sk.id = "gcPKind";
+    sk.className = "form-select form-select-sm mb-2";
+    sk.innerHTML = '<option value="r">Retângulo</option><option value="c">Círculo (diâmetro)</option>';
+    $("gcAddForm").insertBefore(sk, $("gcAddForm").firstChild);
+  }
   const updKind = () => {
     const c = $("gcPKind").value === "c";
     $("gcPH").style.display = c ? "none" : "";
