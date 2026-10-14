@@ -245,7 +245,7 @@ window.initWebsiteList = async function () {
         thicknessHtml = item.thicknesses
           .map(
             (t) =>
-              `<span class="thickness-badge">${t.thickness}mm ${t.type}: <strong>${parseFloat(t.price_per_m2).toFixed(2)}€</strong></span>`
+              `<span class="thickness-badge">${t.thickness}mm${t.type ? " " + t.type : ""}: <strong>${parseFloat(t.price_per_m2).toFixed(2)}€</strong></span>`
           )
           .join(" ");
       } else {
@@ -392,6 +392,7 @@ const editCombinationsContainer = document.getElementById("editCombinationsConta
 
 const THICKNESS_OPTIONS = [3, 4, 6, 8, 12, 20, 30];
   const TYPE_OPTIONS = ['Polido', 'Matte', 'Velvet', 'Feel', 'Sat', 'U. Soft', 'Riv', 'Anticato', 'Açanitado'];
+  const NO_FINISH = "__none__";
 
 function renderEditCombinations() {
   editCombinationsContainer.innerHTML = "";
@@ -411,6 +412,7 @@ function renderEditCombinations() {
         <label class="text">Acabamento:</label>
         <select class="input edit-combo-type" data-index="${index}">
           <option value="" disabled ${!combo.type ? 'selected' : ''}>Seleciona...</option>
+          <option value="${NO_FINISH}" ${combo.type === NO_FINISH ? 'selected' : ''}>Sem acabamento</option>
           ${TYPE_OPTIONS.map(t => `<option value="${t}" ${combo.type === t ? 'selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('')}
         </select>
       </div>
@@ -489,27 +491,26 @@ editAddCombinationBtn.addEventListener("click", () => {
         .classList.toggle("d-none", !isMarbles);
 
       // Carregar espessuras existentes
-      // Carregar espessuras existentes
-try {
-  const { data: thicknesses, error } = await supabase
-    .from("product_thicknesses")
-    .select("thickness, type, price_per_m2")
-    .eq("website_item_id", itemId)
-    .order("thickness", { ascending: true });
+      try {
+        const { data: thicknesses, error } = await supabase
+          .from("product_thicknesses")
+          .select("thickness, type, price_per_m2")
+          .eq("website_item_id", itemId)
+          .order("thickness", { ascending: true });
 
-  if (error) throw error;
+        if (error) throw error;
 
-  editCombinations = (thicknesses || []).map(t => ({
-    thickness: t.thickness,
-    type: t.type,
-    price: parseFloat(t.price_per_m2)
-  }));
+        editCombinations = (thicknesses || []).map(t => ({
+          thickness: t.thickness,
+          type: t.type ? t.type : NO_FINISH,
+          price: parseFloat(t.price_per_m2)
+        }));
 
-  renderEditCombinations();
+        renderEditCombinations();
 
-} catch (err) {
-  console.error("Erro ao carregar espessuras:", err);
-}
+      } catch (err) {
+        console.error("Erro ao carregar espessuras:", err);
+      }
 
       editOffcanvas.show();
     }
@@ -598,43 +599,43 @@ try {
       const id = websiteEditId.value;
       let imageURL = websiteEditFotoAtual.value;
 
+      // Sincronizar estado com os inputs antes de validar
+      editCombinationsContainer.querySelectorAll('.edit-combo-thickness').forEach(el => {
+        editCombinations[parseInt(el.dataset.index)].thickness = parseInt(el.value) || '';
+      });
+      editCombinationsContainer.querySelectorAll('.edit-combo-type').forEach(el => {
+        editCombinations[parseInt(el.dataset.index)].type = el.value || '';
+      });
+      editCombinationsContainer.querySelectorAll('.edit-combo-price').forEach(el => {
+        editCombinations[parseInt(el.dataset.index)].price = parseFloat(el.value) || 0;
+      });
+
       // Validar combinações
-// Sincronizar estado com os inputs antes de validar
-editCombinationsContainer.querySelectorAll('.edit-combo-thickness').forEach(el => {
-  editCombinations[parseInt(el.dataset.index)].thickness = parseInt(el.value) || '';
-});
-editCombinationsContainer.querySelectorAll('.edit-combo-type').forEach(el => {
-  editCombinations[parseInt(el.dataset.index)].type = el.value || '';
-});
-editCombinationsContainer.querySelectorAll('.edit-combo-price').forEach(el => {
-  editCombinations[parseInt(el.dataset.index)].price = parseFloat(el.value) || 0;
-});
+      if (editCombinations.length === 0) {
+        throw new Error("Adiciona pelo menos uma espessura/tipo");
+      }
 
-// Validar combinações
-if (editCombinations.length === 0) {
-  throw new Error("Adiciona pelo menos uma espessura/tipo");
-}
+      const thicknessPrices = [];
+      for (const combo of editCombinations) {
+        if (!combo.thickness) {
+          throw new Error("Seleciona a espessura em todas as linhas");
+        }
+        if (!combo.type) {
+          throw new Error(`Seleciona o acabamento para ${combo.thickness}mm`);
+        }
+        const typeValue = combo.type === NO_FINISH ? "" : combo.type;
+        const typeLabel = typeValue || "sem acabamento";
 
-const thicknessPrices = [];
-for (const combo of editCombinations) {
-  if (!combo.thickness) {
-    throw new Error("Seleciona a espessura em todas as linhas");
-  }
-  if (!combo.type) {
-    throw new Error(`Seleciona o acabamento para ${combo.thickness}mm`);
-  }
-  if (!combo.price || combo.price <= 0) {
-    throw new Error(`Preço inválido para ${combo.thickness}mm ${combo.type}`);
-  }
-  const key = `${combo.thickness}_${combo.type}`;
-  if (thicknessPrices.some(t => `${t.thickness}_${t.type}` === key)) {
-    throw new Error(`Combinação duplicada: ${combo.thickness}mm ${combo.type}`);
-  }
-  thicknessPrices.push({ thickness: combo.thickness, type: combo.type, price: combo.price });
-}
+        if (!combo.price || combo.price <= 0) {
+          throw new Error(`Preço inválido para ${combo.thickness}mm ${typeLabel}`);
+        }
+        const key = `${combo.thickness}_${typeValue}`;
+        if (thicknessPrices.some(t => `${t.thickness}_${t.type}` === key)) {
+          throw new Error(`Combinação duplicada: ${combo.thickness}mm ${typeLabel}`);
+        }
+        thicknessPrices.push({ thickness: combo.thickness, type: typeValue, price: combo.price });
+      }
 
-
-      
       const { data: existingProducts, error: checkError } = await supabase
         .from("website")
         .select("id, Title_pt, Brand")
@@ -653,7 +654,7 @@ for (const combo of editCombinations) {
       const file = document.getElementById("websiteEditFoto").files[0];
       if (file) {
         showMessage("📸 A carregar imagem...", "info");
-        
+
         if (websiteEditFotoAtual.value) {
           try {
             const oldUrl = new URL(websiteEditFotoAtual.value);
@@ -716,11 +717,11 @@ for (const combo of editCombinations) {
 
       // Inserir novas espessuras
       const thicknessInserts = thicknessPrices.map(tp => ({
-  website_item_id: parseInt(id),
-  thickness: tp.thickness,
-  type: tp.type,
-  price_per_m2: tp.price
-}));
+        website_item_id: parseInt(id),
+        thickness: tp.thickness,
+        type: tp.type,
+        price_per_m2: tp.price
+      }));
 
       const { error: thicknessError } = await supabase
         .from("product_thicknesses")

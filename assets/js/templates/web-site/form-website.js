@@ -40,6 +40,7 @@ window.initWebsiteForm = function () {
 
   const THICKNESS_OPTIONS = [3, 4, 6, 8, 12, 20, 30];
   const TYPE_OPTIONS = ['Polido', 'Matte', 'Velvet', 'Feel', 'Sat', 'U. Soft', 'Riv', 'Anticato', 'Açanitado'];
+  const NO_FINISH = "__none__";
 
   // =====================================================
   // FUNÇÃO AUTOCOMPLETE GENÉRICA
@@ -293,6 +294,7 @@ window.initWebsiteForm = function () {
           <label class="text">Acabamento:</label>
           <select class="input combo-type" data-index="${index}">
             <option value="" disabled ${!combo.type ? 'selected' : ''}>Seleciona...</option>
+            <option value="${NO_FINISH}" ${combo.type === NO_FINISH ? 'selected' : ''}>Sem acabamento</option>
             ${TYPE_OPTIONS.map(t => `<option value="${t}" ${combo.type === t ? 'selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('')}
           </select>
         </div>
@@ -396,14 +398,17 @@ window.initWebsiteForm = function () {
         if (!combo.type) {
           throw new Error(`Seleciona o acabamento para ${combo.thickness}mm`);
         }
+        const typeValue = combo.type === NO_FINISH ? "" : combo.type;
+        const typeLabel = typeValue || "sem acabamento";
+
         if (!combo.price || combo.price <= 0) {
-          throw new Error(`Preço inválido para ${combo.thickness}mm ${combo.type}`);
+          throw new Error(`Preço inválido para ${combo.thickness}mm ${typeLabel}`);
         }
-        const key = `${combo.thickness}_${combo.type}`;
+        const key = `${combo.thickness}_${typeValue}`;
         if (thicknessPrices.some(t => `${t.thickness}_${t.type}` === key)) {
-          throw new Error(`Combinação duplicada: ${combo.thickness}mm ${combo.type}`);
+          throw new Error(`Combinação duplicada: ${combo.thickness}mm ${typeLabel}`);
         }
-        thicknessPrices.push({ thickness: combo.thickness, type: combo.type, price: combo.price });
+        thicknessPrices.push({ thickness: combo.thickness, type: typeValue, price: combo.price });
       }
 
       const { data: existingProducts, error: checkError } = await supabase
