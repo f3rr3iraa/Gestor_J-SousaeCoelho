@@ -43,16 +43,20 @@
             <th class="c-num">m²</th>
             <th class="c-num">Preço/m²</th>
             <th class="c-num">Desc. (%)</th>
-            <th class="c-num">Subtotal</th>
-            <th class="c-num">Total</th>
-            <th class="c-num">Total Orçamento</th>
+            <th class="c-num">Subtotal (s/ IVA)</th>
+            <th class="c-num">Total (s/ IVA)</th>
+            <th class="c-num">Total Orçamento (s/ IVA)</th>
           </tr>
         </thead>
         <tbody id="orcGridBody"></tbody>
         <tfoot>
           <tr>
-            <td colspan="11" class="orc-foot-label" id="orcFootLabel">Total do Orçamento</td>
+            <td colspan="11" class="orc-foot-label" id="orcFootLabel">Total Orçamento (sem IVA)</td>
             <td class="orc-foot-total" id="orcTotalGeral">0.00 €</td>
+          </tr>
+          <tr>
+            <td colspan="11" class="orc-foot-label" id="orcFootLabelIva">Total Orçamento (com IVA)</td>
+            <td class="orc-foot-total" id="orcTotalComIva">0.00 €</td>
           </tr>
         </tfoot>
       </table>
@@ -78,4 +82,4 @@
       <i class="bi bi-save me-2"></i> <span id="btnGuardarTxt">Guardar Orçamento</span>
     </button>
   </div>
-</div>a
+</div>

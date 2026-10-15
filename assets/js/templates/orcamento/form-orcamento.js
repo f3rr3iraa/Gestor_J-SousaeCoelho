@@ -9,6 +9,8 @@
 //   Preço/m² (Enter → escreve) → Enter → Desc. (%) → Enter → linha seguinte
 //
 // "Total Orçamento" (última coluna) = soma acumulada dos totais, linha a linha.
+// Todos os valores da tabela são SEM IVA. No rodapé aparecem:
+//   Total Orçamento (sem IVA)  e  Total Orçamento (com IVA).
 // Guarda nas mesmas tabelas de sempre: orcamentos + orcamento_itens.
 //
 // MODO EDIÇÃO: /form-orcamento?edit=<id> abre o orçamento já preenchido
@@ -33,6 +35,7 @@ window.initOrcamentoForm = async function () {
   const DEFAULT_ROWS = 12;
   const ADD_ROWS = 5;
   const STORAGE_KEY = "orcamentoGridDraft_v2";
+  const TAXA_IVA = 0.23;
 
   // modo edição: /form-orcamento?edit=123
   const editParam = new URLSearchParams(window.location.search).get("edit");
@@ -50,7 +53,9 @@ window.initOrcamentoForm = async function () {
   const wrap = document.getElementById("orcGridWrap");
   const tbody = document.getElementById("orcGridBody");
   const totalGeralEl = document.getElementById("orcTotalGeral");
+  const totalComIvaEl = document.getElementById("orcTotalComIva");
   const footLabelEl = document.getElementById("orcFootLabel");
+  const footLabelIvaEl = document.getElementById("orcFootLabelIva");
   const tabsEl = document.getElementById("orcTabs");
   const clienteNome = document.getElementById("clienteNome");
   const clienteId = document.getElementById("clienteId");
@@ -117,7 +122,7 @@ window.initOrcamentoForm = async function () {
     return out;
   }
 
-  // cálculos de uma linha
+  // cálculos de uma linha (valores SEM IVA)
   function calc(row) {
     const qtd = row.qtd || 0;
     const comp = row.diversos ? 1 : row.comp || 0;
@@ -262,8 +267,13 @@ window.initOrcamentoForm = async function () {
     }).join("");
 
     tbody.innerHTML = html;
+
+    // Rodapé: total sem IVA e total com IVA
+    const sufixoOpc = opcoes.length > 1 ? ` — Opção ${opcaoAtiva + 1}` : "";
     totalGeralEl.textContent = fmt2(acumulado) + " €";
-    if (footLabelEl) footLabelEl.textContent = opcoes.length > 1 ? `Total — Opção ${opcaoAtiva + 1}` : "Total do Orçamento";
+    if (totalComIvaEl) totalComIvaEl.textContent = fmt2(acumulado * (1 + TAXA_IVA)) + " €";
+    if (footLabelEl) footLabelEl.textContent = `Total Orçamento (sem IVA)${sufixoOpc}`;
+    if (footLabelIvaEl) footLabelIvaEl.textContent = `Total Orçamento (com IVA)${sufixoOpc}`;
     renderTabs();
 
     const td = tbody.querySelector("td.sel");
@@ -1158,7 +1168,7 @@ window.initOrcamentoForm = async function () {
       btnGuardar.disabled = true;
       toast(modoEdicao ? "⏳ A guardar alterações..." : "⏳ A guardar orçamento...", "info");
 
-      // As opções são alternativas (não se somam): total_geral = total da Opção 1
+      // As opções são alternativas (não se somam): total_geral = total da Opção 1 (SEM IVA)
       const totalGeral = usadasPorOpcao[0].reduce((s, x) => s + calc(x.row).total, 0);
 
       const montarItens = (orcId) => {
