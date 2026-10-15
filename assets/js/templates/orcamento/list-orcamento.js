@@ -5,6 +5,7 @@
 // ✅ Preenchimento automático do preço ao selecionar espessura
 // ✅ Edição de produtos existentes
 // ✅ NOVO: Botão "Cancelar Edição" ao lado do "Atualizar Produto"
+// ✅ NOVO: Coluna Total mostra valor SEM IVA e COM IVA
 // =====================================================
 
 window.initOrcamentoList = async function () {
@@ -14,6 +15,7 @@ window.initOrcamentoList = async function () {
   }
 
   const supabase = window.supabaseClient;
+  const TAXA_IVA = 0.23;
 
   let cleanupRealtime = null;
 
@@ -1176,14 +1178,24 @@ editProdutoAcabamento.disabled = true;
     }
   }
 
+  // ✅ Coluna Total: mostra SEM IVA e COM IVA (uma secção por opção quando há várias)
   function totalHtmlLista(orc) {
+    const bloco = (semIva, prefixo = "") => {
+      const comIva = semIva * (1 + TAXA_IVA);
+      return `<div style="white-space:nowrap;">
+        ${prefixo}
+        <div><small class="text-muted">s/ IVA</small> <strong>${semIva.toFixed(2)} €</strong></div>
+        <div><small class="text-muted">c/ IVA</small> <strong>${comIva.toFixed(2)} €</strong></div>
+      </div>`;
+    };
+
     const grupos = agruparPorOpcao(orc.itens);
     if (grupos.length > 1) {
       return grupos
-        .map((g) => `<div style="white-space:nowrap;"><small class="text-muted">Op.${g.numero}</small> <strong>${totaisOpcao(g.itens).total.toFixed(2)} €</strong></div>`)
-        .join("");
+        .map((g) => bloco(totaisOpcao(g.itens).semIva, `<small class="text-muted fw-bold">Opção ${g.numero}</small>`))
+        .join('<hr class="my-1">');
     }
-    return `<strong>${parseFloat(orc.total_geral).toFixed(2)} €</strong>`;
+    return bloco(parseFloat(orc.total_geral) || 0);
   }
 
   function renderTable(orcamentos) {
@@ -1280,16 +1292,19 @@ return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${aca
       .map((n) => ({ numero: n, itens: grupos[n] }));
   }
 
+  // ✅ Os valores guardados (item.total / total_geral) são SEM IVA.
+  // `semIva` = soma dos totais; `iva` = 23%; `total` = COM IVA.
   function totaisOpcao(itens) {
-    let total = 0;
+    let somaSemIva = 0;
     let desconto = 0;
     (itens || []).forEach((it) => {
       const bruto = it.quantidade * it.comprimento * it.largura * it.preco_mt2;
-      total += it.total;
+      somaSemIva += it.total;
       desconto += Math.max(0, bruto - it.total);
     });
-    const semIva = total / 1.23;
-    return { total, desconto, semIva, iva: total - semIva };
+    const semIva = somaSemIva;
+    const iva = semIva * TAXA_IVA;
+    return { total: semIva + iva, desconto, semIva, iva };
   }
 
   // Preenche o bloco de totais (.pdf-totais) com os valores de uma opção
@@ -1470,9 +1485,10 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
         tFinal = totaisOpcao(ult.itens);
         sufixo = ` — Opção ${ult.numero}`;
       } else {
-        const totalGeral = parseFloat(orcamento.total_geral);
-        const semIva = totalGeral / 1.23;
-        tFinal = { total: totalGeral, desconto: totaisOpcao(itens).desconto, semIva, iva: totalGeral - semIva };
+        // total_geral guardado é SEM IVA
+        const semIva = parseFloat(orcamento.total_geral) || 0;
+        const iva = semIva * TAXA_IVA;
+        tFinal = { total: semIva + iva, desconto: totaisOpcao(itens).desconto, semIva, iva };
       }
       aplicarTotaisNoBloco(tFinal, sufixo);
       const viewOffcanvas = new bootstrap.Offcanvas(document.getElementById("viewOffcanvas"));
@@ -1732,7 +1748,6 @@ if (produto.type) {
     renderEditProdutosTable();
     
     // Scroll para o formulário
-    document.querySelector('fieldset legend:contains("Adicionar Novo Produto")') || 
     document.querySelector('#btnAdicionarProdutoEdit').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     
     showMessage("✏️ Produto carregado para edição. Altere os campos e clique em 'Atualizar Produto'", "info");
