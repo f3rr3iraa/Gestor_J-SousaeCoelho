@@ -1335,7 +1335,11 @@ window.initOrcamentoForm = async function () {
       fetchAll("clientes", "*", "descricao"),
     ]);
 
-    tipos = tiposRes.map((t) => ({ id: t.id, nome: t.nome }));
+    tipos = tiposRes
+  .map((t) => ({ id: t.id, nome: t.nome }))
+  .sort((a, b) =>
+    (a.nome || "").localeCompare(b.nome || "", "pt", { sensitivity: "base" })
+  );
 
     clientes = clientesRes.map((c) => {
       const label = labelCliente(c);

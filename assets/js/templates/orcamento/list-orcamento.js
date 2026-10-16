@@ -551,7 +551,9 @@ editProdutoLargura.addEventListener("input", function() {
         tiposMap[tipo.id] = tipo.nome;
       });
       
-      tiposData = data.map(tipo => ({
+      tiposData = [...data]
+  .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt", { sensitivity: "base" }))
+  .map(tipo => ({
         display: tipo.nome,
         value: tipo.id,
         id: tipo.id,
