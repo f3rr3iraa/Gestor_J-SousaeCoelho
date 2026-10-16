@@ -41,6 +41,7 @@ async function initHomeSpaceSupabase() {
                 : ""
               }</td>
               <td>${item.observacoes ?? ""}</td>
+              <td>${item.cliente ?? ""}</td>
               <td>${item.data_off
                 ? new Date(item.data_off).toLocaleString("pt-PT")
                 : ""
@@ -48,7 +49,7 @@ async function initHomeSpaceSupabase() {
             </tr>`;
           })
           .join("")
-        : `<tr><td colspan="8">Nenhum pedido encontrado.</td></tr>`;
+        : `<tr><td colspan="9">Nenhum pedido encontrado.</td></tr>`;
 
     }
 
