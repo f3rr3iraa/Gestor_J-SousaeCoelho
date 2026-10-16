@@ -21,22 +21,30 @@ async function initAuth() {
     const { data: { session } } = await supabase.auth.getSession();
     currentSession = session;
     window.currentSession = session;
+    // Guarda o utilizador atual para distinguir um login/logout REAL de
+    // eventos "falsos" que o Supabase dispara ao voltar à aba.
+    let currentUserId = session?.user?.id ?? null;
     updateUI();
     if (typeof window.locationHandler === "function") {
         window.locationHandler();
     }
 
-        supabase.auth.onAuthStateChange((event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
         currentSession = session;
         window.currentSession = session;
-        updateUI();
 
-        // Só recarrega a rota atual quando o estado de autenticação
-        // realmente muda (login/logout). Eventos como TOKEN_REFRESHED ou
-        // USER_UPDATED disparam sozinhos quando se volta a dar foco à
-        // aba (ex: minimizar e voltar) e não devem recarregar a página
-        // atual, para não perder o que estava a ser preenchido/desenhado.
-        if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
+        const newUserId = session?.user?.id ?? null;
+        const userChanged = newUserId !== currentUserId;
+        currentUserId = newUserId;
+
+        // O Supabase dispara "SIGNED_IN" sempre que a aba volta a ter foco
+        // (mesmo sem ninguém ter feito login). Por isso só atualizamos a UI
+        // e recarregamos a rota quando o utilizador mudou mesmo
+        // (login real ou logout). Caso contrário, a página atual era
+        // re-renderizada e perdia-se tudo o que estava preenchido.
+        if (!userChanged) return;
+
+        updateUI();
 
         if (typeof window.locationHandler === "function") {
             window.locationHandler();
