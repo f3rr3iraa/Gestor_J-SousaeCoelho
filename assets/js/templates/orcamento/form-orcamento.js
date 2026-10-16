@@ -13,6 +13,10 @@
 //   Total Orçamento (sem IVA)  e  Total Orçamento (com IVA).
 // Guarda nas mesmas tabelas de sempre: orcamentos + orcamento_itens.
 //
+// DIVERSOS: o tipo "Diversos" tem uma lista de artigos guardada na BD
+// (tabela diversos_opcoes). Escolhe-se um existente ou escreve-se um novo,
+// que fica guardado para os próximos orçamentos.
+//
 // MODO EDIÇÃO: /form-orcamento?edit=<id> abre o orçamento já preenchido
 // (cliente, opções, linhas, preços, descontos). Ao guardar, atualiza o
 // orçamento existente (não cria um novo) e volta à lista.
@@ -74,6 +78,7 @@ window.initOrcamentoForm = async function () {
   let tipos = [];          // [{id, nome}]
   let produtos = [];       // lista plana já "composta" (marca - desc acabamento espessura)
   let clientes = [];
+  let diversosOpcoes = []; // [{id, label, _s}] artigos "Diversos" guardados na BD
   let rows = [];           // linhas da OPÇÃO ATIVA (mesma referência que opcoes[opcaoAtiva].rows)
   let opcoes = [{ rows: [], cur: { r: 0, c: C.TIPO } }]; // Opção 1, Opção 2, ...
   let opcaoAtiva = 0;
@@ -329,10 +334,14 @@ window.initOrcamentoForm = async function () {
     }
     pushUndo();
     // copia só a estrutura: tipo, qtd, comp., larg. — sem produto, preço e desconto
-    const novas = base.map((r) => (linhaVazia(r)
-      ? novaLinha()
-      : { ...novaLinha(), tipoId: r.tipoId, tipoNome: r.tipoNome, diversos: r.diversos, linear: r.linear, m2: r.m2, qtd: r.qtd, comp: r.comp, larg: r.larg }));
-    const primeira = Math.max(0, novas.findIndex((r) => !linhaVazia(r)));
+        const novas = base.map((r) => {
+      if (linhaVazia(r)) return novaLinha();
+      // Diversos (não Linear): copia a linha exatamente igual (artigo, qtd, preço e desconto)
+      if (r.diversos && !r.linear) return { ...novaLinha(), ...r };
+      return { ...novaLinha(), tipoId: r.tipoId, tipoNome: r.tipoNome, diversos: r.diversos, linear: r.linear, m2: r.m2, qtd: r.qtd, comp: r.comp, larg: r.larg };
+    });
+    // vai para a primeira linha que ainda precisa de produto (salta as de Diversos já completas)
+    const primeira = Math.max(0, novas.findIndex((r) => !linhaVazia(r) && !linhaCompleta(r)));
     opcoes.push({ rows: novas, cur: { r: primeira, c: C.PROD } });
     opcaoAtiva = opcoes.length - 1;
     rows = novas;
@@ -411,8 +420,9 @@ window.initOrcamentoForm = async function () {
     return overlay;
   }
 
-  // Lista com pesquisa (usada para Tipo, Produto e Cliente)
-  function abrirLista({ titulo, itens, placeholder, seed = "", onSelect, onFreeText, max = 300, freeLabel, isFree }) {
+  // Lista com pesquisa (usada para Tipo, Produto, Diversos e Cliente)
+  // allowNew: mostra sempre "+ ..." no fim da lista quando o texto escrito ainda não existe
+  function abrirLista({ titulo, itens, placeholder, seed = "", onSelect, onFreeText, max = 300, freeLabel, isFree, allowNew = false }) {
     const el = criarOverlay(`
       <header><span>${esc(titulo)}</span><button type="button" data-x>✕</button></header>
       <div class="orc-body">
@@ -426,6 +436,13 @@ window.initOrcamentoForm = async function () {
     const foot = el.querySelector(".orc-foot");
     let filtrados = [];
     let ativo = 0;
+
+    // "novo" = o texto escrito não existe exatamente na lista
+    const temNovo = () => {
+      const txt = input.value.trim();
+      return !!(allowNew && onFreeText && txt && !itens.some((it) => norm(it.label) === norm(txt)));
+    };
+    const total = () => Math.min(filtrados.length, max) + (temNovo() && filtrados.length ? 1 : 0);
 
     function filtrar() {
       const tokens = norm(input.value).split(/\s+/).filter(Boolean);
@@ -445,9 +462,14 @@ window.initOrcamentoForm = async function () {
           ? `<div class="orc-item active" data-free>${esc(freeLabel ? freeLabel(txt) : `Usar "${txt}"`)}</div>`
           : `<div class="orc-item empty">Nenhum resultado</div>`;
       } else {
-        list.innerHTML = vis.map((it, i) =>
+        let html = vis.map((it, i) =>
           `<div class="orc-item${i === ativo ? " active" : ""}" data-i="${i}"><span>${esc(it.label)}</span>${it.extra ? `<small>${esc(it.extra)}</small>` : ""}</div>`
         ).join("");
+        if (temNovo()) {
+          const txt = input.value.trim();
+          html += `<div class="orc-item${ativo === vis.length ? " active" : ""}" data-free>${esc(freeLabel ? freeLabel(txt) : `Usar "${txt}"`)}</div>`;
+        }
+        list.innerHTML = html;
       }
       foot.textContent = `${filtrados.length} resultado(s)`;
       const a = list.querySelector(".active");
@@ -455,7 +477,7 @@ window.initOrcamentoForm = async function () {
     }
 
     function escolher(i) {
-      const it = filtrados[i];
+      const it = i >= 0 && i < Math.min(filtrados.length, max) ? filtrados[i] : null;
       if (!it) {
         if (onFreeText && input.value.trim() && (!isFree || isFree(input.value.trim()))) { const t = input.value.trim(); fecharOverlay(); onFreeText(t); }
         return;
@@ -466,9 +488,9 @@ window.initOrcamentoForm = async function () {
 
     input.addEventListener("input", filtrar);
     input.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowDown") { e.preventDefault(); ativo = Math.min(ativo + 1, Math.min(filtrados.length, max) - 1); desenhar(); }
+      if (e.key === "ArrowDown") { e.preventDefault(); ativo = Math.max(0, Math.min(ativo + 1, total() - 1)); desenhar(); }
       else if (e.key === "ArrowUp") { e.preventDefault(); ativo = Math.max(ativo - 1, 0); desenhar(); }
-      else if (e.key === "PageDown") { e.preventDefault(); ativo = Math.min(ativo + 8, Math.min(filtrados.length, max) - 1); desenhar(); }
+      else if (e.key === "PageDown") { e.preventDefault(); ativo = Math.max(0, Math.min(ativo + 8, total() - 1)); desenhar(); }
       else if (e.key === "PageUp") { e.preventDefault(); ativo = Math.max(ativo - 8, 0); desenhar(); }
       else if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) escolher(ativo); }
       else if (e.key === "Escape") { e.preventDefault(); fecharOverlay(); }
@@ -487,8 +509,8 @@ window.initOrcamentoForm = async function () {
     input.setSelectionRange(input.value.length, input.value.length);
   }
 
-  // Pede um texto simples
-  function pedirTexto({ titulo, label, valor = "", placeholder = "", onOk }) {
+  // Pede um texto simples (seed = letra(s) já escritas na grelha → aparecem no campo)
+  function pedirTexto({ titulo, label, valor = "", seed = "", placeholder = "", onOk }) {
     const el = criarOverlay(`
       <header><span>${esc(titulo)}</span><button type="button" data-x>✕</button></header>
       <div class="orc-body">
@@ -497,7 +519,7 @@ window.initOrcamentoForm = async function () {
       </div>
       `);
     const input = el.querySelector("input");
-    input.value = valor;
+    input.value = seed || valor;
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -509,7 +531,9 @@ window.initOrcamentoForm = async function () {
       e.stopPropagation();
     });
     el.querySelector("[data-x]").addEventListener("click", fecharOverlay);
-    input.focus(); input.select();
+    input.focus();
+    if (seed) input.setSelectionRange(input.value.length, input.value.length);
+    else input.select();
   }
 
   // Janela pequena: Qtd / Comprimento / Largura  (+ m² ao vivo)
@@ -654,23 +678,58 @@ window.initOrcamentoForm = async function () {
     if (medidasOk) setCur(r, C.PRECO); else abrirDimensoes(r);
   }
 
+  // Aplica um artigo livre (Diversos / Linear) à linha
+  function aplicarDiverso(r, texto) {
+    const row = rows[r];
+    pushUndo();
+    Object.assign(row, { descricao: texto, label: texto, brandKey: "", brandNome: "", webId: null, acabamento: "", espessura: null, refPreco: null });
+    guardarRascunho();
+    setCur(r, C.PROD);
+    seguirAposProduto(r);
+  }
+
+  // Guarda um artigo novo de "Diversos" na base de dados (tabela diversos_opcoes)
+  async function guardarOpcaoDiverso(texto) {
+    if (diversosOpcoes.some((d) => norm(d.label) === norm(texto))) return;
+    try {
+      const { data, error } = await supabase.from("diversos_opcoes").insert([{ descricao: texto }]).select();
+      if (error) throw error;
+      diversosOpcoes.push({ id: data[0].id, label: data[0].descricao, _s: norm(data[0].descricao) });
+      diversosOpcoes.sort((a, b) => a.label.localeCompare(b.label, "pt"));
+
+    } catch (err) {
+      toast("⚠️ Não foi possível guardar na base de dados: " + (err.message || err), "warning");
+    }
+  }
+
   function abrirProduto(r, seed = "") {
     const row = rows[r];
     if (!row.tipoId) { toast("⚠️ Escolhe primeiro o tipo", "warning"); setCur(r, C.TIPO); return; }
 
-    if (row.diversos) {
+    // DIVERSOS: lista de artigos guardados na BD (pesquisa + "guardar e usar" se for novo)
+    if (row.diversos && !row.linear) {
+      abrirLista({
+        titulo: `Linha ${r + 1} — Artigo (Diversos)`,
+        itens: diversosOpcoes,
+        placeholder: "Pesquisar ou escrever novo artigo...",
+        seed,
+        allowNew: true,
+        freeLabel: (t) => `+ Guardar e usar "${t}"`,
+        onSelect: (it) => aplicarDiverso(r, it.label),
+        onFreeText: async (t) => { await guardarOpcaoDiverso(t); aplicarDiverso(r, t); },
+      });
+      return;
+    }
+
+    // LINEAR: texto livre
+    if (row.linear) {
       pedirTexto({
-        titulo: `Linha ${r + 1} — Artigo (${row.linear ? "Linear" : "Diversos"})`,
+        titulo: `Linha ${r + 1} — Artigo (Linear)`,
         label: "Descrição do artigo",
         valor: row.descricao,
+        seed,
         placeholder: "Descreve o artigo...",
-        onOk: (t) => {
-          pushUndo();
-          Object.assign(row, { descricao: t, label: t, brandKey: "", brandNome: "", webId: null, acabamento: "", espessura: null });
-          guardarRascunho();
-          setCur(r, C.PROD);
-          seguirAposProduto(r);
-        },
+        onOk: (t) => aplicarDiverso(r, t),
       });
       return;
     }
@@ -841,7 +900,7 @@ window.initOrcamentoForm = async function () {
         // Desc. → próxima linha
         if (opcaoAtiva > 0) {
           // opção copiada: salta para o produto da próxima linha já criada
-          const prox = rows.findIndex((x, idx) => idx > r && !linhaVazia(x));
+                    const prox = rows.findIndex((x, idx) => idx > r && !linhaVazia(x) && !linhaCompleta(x));
           if (prox !== -1) { setCur(prox, C.PROD); return; }
         }
         garantirLinhas(r + 1);
@@ -867,7 +926,7 @@ window.initOrcamentoForm = async function () {
   }
 
   // -------------------------------------------------
-  // AÇÃO DE UMA CÉLULA (Enter / duplo clique)
+  // AÇÃO DE UMA CÉLULA (Enter / duplo clique / escrever uma letra)
   // -------------------------------------------------
   function ativarCelula(r, c, seed = "") {
     const row = rows[r];
@@ -949,6 +1008,7 @@ window.initOrcamentoForm = async function () {
       case "End": e.preventDefault(); setCur(r, LAST_COL); break;
       default:
         // escrever diretamente numa célula de preço/desc (como no Excel) ou para pesquisar
+        // (Tipo / Produto — inclui Diversos e Linear: a letra aparece logo no campo)
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
           if ((c === C.PRECO || c === C.DESC) && /[0-9.,]/.test(e.key)) { e.preventDefault(); ativarCelula(r, c, e.key); }
           else if ((c === C.TIPO || c === C.PROD) && /\S/.test(e.key)) { e.preventDefault(); ativarCelula(r, c, e.key); }
@@ -1264,7 +1324,7 @@ window.initOrcamentoForm = async function () {
   });
 
   // -------------------------------------------------
-  // CARREGAR DADOS (tipos, marcas, produtos + espessuras, clientes)
+  // CARREGAR DADOS (tipos, marcas, produtos + espessuras, clientes, diversos)
   // -------------------------------------------------
   async function carregarDados() {
     const [tiposRes, brandsRes, website, thick, clientesRes] = await Promise.all([
@@ -1320,6 +1380,16 @@ window.initOrcamentoForm = async function () {
 
     lista.sort((a, b) => (a.label || "").localeCompare(b.label || "", "pt", { numeric: true }));
     produtos = lista;
+
+    // Artigos "Diversos" guardados — fora do Promise.all para não rebentar
+    // se a tabela diversos_opcoes ainda não existir
+    try {
+      const dv = await fetchAll("diversos_opcoes", "id, descricao", "descricao");
+      diversosOpcoes = dv.map((d) => ({ id: d.id, label: d.descricao, _s: norm(d.descricao) }));
+    } catch (err) {
+      console.warn("⚠️ Tabela diversos_opcoes indisponível:", err);
+      diversosOpcoes = [];
+    }
   }
 
   // -------------------------------------------------

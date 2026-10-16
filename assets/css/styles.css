@@ -536,7 +536,7 @@ select.input option {
 
 #filtrosContainer .coolinput {
   width: 100%;
-  margin-top: 0; /
+  margin-top: 0;
 }
 
 
@@ -1087,7 +1087,7 @@ td img {
 
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   color: #2c3e50;
-  font-size: 11px;
+  font-size: 12px; /* era 11px */
   line-height: 1.45;
   padding: 0;
   background: #fff;
@@ -1159,7 +1159,7 @@ td img {
 }
 
 #printableArea .pdf-header-empresa .empresa-nome {
-  font-size: 17px;
+  font-size: 19px; /* era 17px */
   font-weight: 700;
   color: #000;
   letter-spacing: 0.3px;
@@ -1173,7 +1173,7 @@ td img {
 
 #printableArea .pdf-header-empresa p {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px; /* era 14px */
   color: #000;
   /* ✅ TRUNCAR SE MUITO LONGO */
   white-space: nowrap;
@@ -1217,6 +1217,24 @@ td img {
   font-size: 14px;
 }
 
+/* ─── CLIENTE NO CABEÇALHO (canto superior direito) — MAIOR E COM DESTAQUE ─── */
+#printableArea #viewClientePrint {
+  /* sem caixa/fundo/borda: só texto maior */
+}
+
+#printableArea #viewClientePrint .cli-nome {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 3px;
+}
+
+#printableArea #viewClientePrint .cli-linha {
+  font-size: 12.5px;
+  color: #000;
+}
+
 /* ─── SEPARADOR ─── */
 #printableArea .pdf-divider {
   border: none;
@@ -1224,12 +1242,17 @@ td img {
   margin: 0 0 20px 0;
 }
 
-/* ─── CLIENTE - COM TRUNCAMENTO ─── */
+/* ─── CAIXA "ORÇAMENTO Nº / DATA / AUTOR" - COM TRUNCAMENTO ─── */
 #printableArea .pdf-cliente {
   margin-bottom: 22px;
-  padding: 14px 18px;
+  padding: 10px 14px !important;
   background: #f7f9fb;
   border-left: 3px solid var(--pdf-dark);
+  font-size: 13px;
+}
+
+#printableArea .pdf-cliente #viewRefPrint {
+  font-size: 15px;
 }
 
 #printableArea .pdf-cliente .cliente-label {
@@ -1264,7 +1287,7 @@ td img {
 #printableArea .pdf-table thead th {
   background: var(--pdf-dark);
   color: #fff;
-  font-size: 9.5px;
+  font-size: 10.5px; /* era 9.5px */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -1273,21 +1296,21 @@ td img {
   border: none;
   white-space: nowrap;
   /* ✅ ALTURA FIXA DO CABEÇALHO */
-  height: 28px;
+  height: 30px; /* era 28px */
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 #printableArea .pdf-table tbody td {
-  font-size: 10.5px;
+  font-size: 11.5px; /* era 10.5px */
   padding: 7px 6px;
   text-align: center;
   color: var(--pdf-dark);
   border-bottom: 1px solid #e8ecef;
   /* ✅ ALTURA FIXA DA LINHA */
-  height: 32px;
-  max-height: 32px;
+  height: 34px; /* era 32px */
+  max-height: 34px;
   line-height: 1.3;
   /* ✅ TRUNCAR TEXTO LONGO */
   white-space: nowrap;
@@ -1335,7 +1358,7 @@ td img {
 }
 
 #printableArea .pdf-totais-table td {
-  font-size: 10.5px;
+  font-size: 11.5px; /* era 10.5px */
   padding: 6px 12px;
   /* ✅ TRUNCAR SE MUITO LONGO */
   white-space: nowrap;
@@ -1368,7 +1391,7 @@ td img {
 #printableArea .pdf-totais-table .tot-total td {
   color: #fff;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 12.5px; /* era 11px */
   padding: 8px 12px;
 }
 
@@ -1403,7 +1426,7 @@ td img {
   justify-content: space-between;
   gap: 12px;
   padding: 5px 12px;
-  font-size: 10.5px;
+  font-size: 11.5px; /* era 10.5px */
   white-space: nowrap;
 }
 #printableArea .orc-screen-totais .l { color: var(--pdf-mid); font-weight: 500; }
@@ -1411,7 +1434,7 @@ td img {
 #printableArea .orc-screen-totais .r.t {
   background: var(--pdf-bg-total);
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: 12.5px; /* era 11px */
   margin-top: 4px;
 }
 #printableArea .orc-screen-totais .r.t .l { color: rgba(255, 255, 255, 0.85); font-weight: 700; }

@@ -6,6 +6,7 @@
 // ✅ Edição de produtos existentes
 // ✅ NOVO: Botão "Cancelar Edição" ao lado do "Atualizar Produto"
 // ✅ NOVO: Coluna Total mostra valor SEM IVA e COM IVA
+// ✅ NOVO: PDF com coluna "Produto" (Marca - Descrição Acabamento Espessura), sem coluna Esp.
 // =====================================================
 
 window.initOrcamentoList = async function () {
@@ -1341,6 +1342,66 @@ return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${aca
     return out;
   }
 
+  // Nome do ficheiro: orcamento_<n>_<nome_cliente>.pdf
+  function nomeFicheiroOrcamento(orc) {
+    const nome = (orc.clientes?.descricao || orc.cliente_nome || "cliente")
+      .toString()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return `orcamento_${orc.id}_${nome || "cliente"}.pdf`;
+  }
+
+  // Modal depois de guardar: Download / Imprimir / Sair
+  function mostrarModalPosGuardar(opts = {}) {
+    const antigo = document.getElementById("posGuardarModal");
+    if (antigo) antigo.remove();
+
+    const el = document.createElement("div");
+    el.className = "modal fade";
+    el.id = "posGuardarModal";
+    el.tabIndex = -1;
+    el.setAttribute("data-bs-backdrop", "static");
+    el.setAttribute("data-bs-keyboard", "false");
+    el.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">${opts.soDownload ? "Orçamento pronto" : "Orçamento guardado"}</h5>
+          </div>
+          <div class="modal-body">${opts.soDownload ? "Clique em Download para escolher onde guardar o PDF." : "O que pretende fazer com o orçamento?"}</div>
+          <div class="modal-footer d-flex gap-2">
+            <button type="button" class="btn btn-success flex-fill" data-acao="download">
+              <i class="bi bi-download me-2"></i>Download
+            </button>
+            ${opts.soDownload ? "" : `<button type="button" class="btn btn-primary flex-fill" data-acao="imprimir">
+              <i class="bi bi-printer me-2"></i>Imprimir
+            </button>`}
+            <button type="button" class="btn btn-secondary flex-fill" data-acao="sair">Sair</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+
+    const modal = new bootstrap.Modal(el);
+    el.addEventListener("hidden.bs.modal", () => el.remove());
+
+    el.querySelector("[data-acao='download']").addEventListener("click", () => {
+      document.getElementById("btnDownloadPDF").click();
+    });
+    const btnImp = el.querySelector("[data-acao='imprimir']");
+    if (btnImp) btnImp.addEventListener("click", () => {
+      document.getElementById("btnPrintPDF").click();
+    });
+    el.querySelector("[data-acao='sair']").addEventListener("click", () => {
+      modal.hide();
+      const off = bootstrap.Offcanvas.getInstance(document.getElementById("viewOffcanvas"));
+      if (off) off.hide();
+    });
+
+    modal.show();
+  }
+
   async function mostrarOrcamentoCompleto(orcamentoId) {
     try {
       const { data: orcamento, error: orcError } = await supabase
@@ -1371,16 +1432,17 @@ return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${aca
 
 if (cliente) {
   const linhas = [];
-  const estiloLinha = 'font-size: 11px; color: #000;'; // ← substitui pelos valores reais do teu CSS
-  if (cliente.descricao) linhas.push(`<strong style="color: #000;">${cliente.descricao}</strong>`);
-  if (cliente.descricao2)   linhas.push(`<span style="${estiloLinha}">${cliente.descricao2}</span>`);
-  if (cliente.morada)       linhas.push(`<span style="${estiloLinha}">${cliente.morada}</span>`);
+  const linha = (t) => `<span class="cli-linha">${t}</span>`;
+  if (cliente.descricao)  linhas.push(`<strong class="cli-nome">${cliente.descricao}</strong>`);
+  if (cliente.descricao2) linhas.push(linha(cliente.descricao2));
+  if (cliente.morada)     linhas.push(linha(cliente.morada));
   const localidade = [cliente.codpostal, cliente.morada2].filter(Boolean).join(' ');
-  if (localidade)           linhas.push(`<span style="${estiloLinha}">${localidade}</span>`);
-  if (cliente.contribuinte) linhas.push(`<span style="${estiloLinha}">${cliente.contribuinte}</span>`);
+  if (localidade)         linhas.push(linha(localidade));
+  if (cliente.contribuinte) linhas.push(linha(`NIF: ${cliente.contribuinte}`));
   document.getElementById("viewClientePrint").innerHTML = linhas.join('<br>');
 } else {
-  document.getElementById("viewClientePrint").textContent = orcamento.cliente_nome;
+  document.getElementById("viewClientePrint").innerHTML =
+    `<strong class="cli-nome">${orcamento.cliente_nome}</strong>`;
 }
 const data = new Date(orcamento.data_criacao);
 document.getElementById("viewDataPrint").innerHTML = 
@@ -1412,14 +1474,18 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
           descontoFormatado = '0.00%';
         }
 
+        // Produto: "Marca - Descrição Acabamento Espessura" (a espessura vai no fim, não numa coluna)
+        const produtoTexto = semMedidas
+          ? item.descricao
+          : (brandName ? brandName + " - " : "") + item.descricao + (item.type ? " " + item.type : "") + (item.espessura > 0 ? " " + item.espessura + "mm" : "");
+
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${tipoNome}</td>
-          <td>${semMedidas ? item.descricao : (brandName ? brandName + " - " : "") + item.descricao + (item.type ? " " + item.type : "")}</td>
+          <td>${produtoTexto}</td>
           <td>${item.quantidade}</td>
           <td>${semMedidas ? "" : item.comprimento.toFixed(4)}</td>
           <td>${semMedidas ? "" : item.largura.toFixed(4)}</td>
-          <td>${semMedidas ? "" : (item.espessura || "")}</td>
           <td>${isLinear ? item.mt2.toFixed(4) : isDiversos ? Number(item.quantidade).toFixed(4) : item.mt2.toFixed(4)}</td>
           <td>${item.preco_mt2.toFixed(2)} €</td>
           <td>${descontoFormatado}</td>
@@ -1435,7 +1501,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
         const tr = document.createElement("tr");
         tr.dataset.screenOnly = "true";
         tr.innerHTML = `
-          <td colspan="11" class="orc-screen-totais-cell">
+          <td colspan="10" class="orc-screen-totais-cell">
             <div class="orc-screen-totais">
               <div class="r"><span class="l">Desconto Total${sufixo}</span><span class="v">${Math.max(0, t.desconto).toFixed(2)} €</span></div>
               <div class="r"><span class="l">Subtotal (sem IVA)${sufixo}</span><span class="v">${t.semIva.toFixed(2)} €</span></div>
@@ -1454,7 +1520,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
           // Cada opção (menos a 1.ª) começa SEMPRE numa página nova do PDF.
           if (multi) {
             const trTitulo = document.createElement("tr");
-            trTitulo.innerHTML = `<td colspan="11" style="text-align:left;font-weight:700;letter-spacing:0.5px;background:#e8eef1;">OPÇÃO ${g.numero}</td>`;
+            trTitulo.innerHTML = `<td colspan="10" style="text-align:left;font-weight:700;letter-spacing:0.5px;background:#e8eef1;">OPÇÃO ${g.numero}</td>`;
             trTitulo.dataset.keepNext = "true";
             if (gi > 0) trTitulo.dataset.pageBreakBefore = "true";
             viewProdutosBodyPrint.appendChild(trTitulo);
@@ -1473,7 +1539,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
           }
         });
       } else {
-        viewProdutosBodyPrint.innerHTML = `<tr><td colspan="11">Sem produtos</td></tr>`;
+        viewProdutosBodyPrint.innerHTML = `<tr><td colspan="10">Sem produtos</td></tr>`;
       }
 
       // Bloco final de totais: orçamento simples → total do orçamento;
@@ -1961,6 +2027,21 @@ type: p.type || null,
       return;
     }
 
+    // Pergunta onde guardar. Tem de ser logo no início, enquanto o clique ainda é válido.
+    const filename = nomeFicheiroOrcamento(currentOrcamento);
+    let fileHandle = null;
+    if (window.showSaveFilePicker) {
+      try {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }]
+        });
+      } catch (e) {
+        if (e.name === "AbortError") return; // cancelou
+        fileHandle = null;
+      }
+    }
+
     try {
       showMessage("⏳ A Gerar PDF...", "info");
 
@@ -2042,7 +2123,6 @@ type: p.type || null,
       // 4. Aguardar renderização do DOM com texto truncado
       await new Promise(resolve => setTimeout(resolve, 250));
 
-      const filename = `Orcamento_${currentOrcamento.id}.pdf`;
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
       
@@ -2266,8 +2346,14 @@ type: p.type || null,
         );
       }
       
-      // Salvar
-      pdf.save(filename);
+      // Salvar (no local escolhido; se o browser não suportar, usa o download normal)
+      if (fileHandle) {
+        const writable = await fileHandle.createWritable();
+        await writable.write(pdf.output("blob"));
+        await writable.close();
+      } else {
+        pdf.save(filename);
+      }
       
       showMessage("✅ PDF gerado com sucesso!", "success");
       console.log("✅ PDF gerado com", pageNumber, "página(s) - Truncamento automático aplicado");
@@ -2603,6 +2689,24 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
   await loadTipos();
   await loadProdutosWebsite();
   loadData();
+
+  // Vindo do formulário depois de guardar: abre o orçamento e pergunta o que fazer
+  // acao=imprimir → imprime logo | acao=download → pede para escolher onde guardar | sem acao → Download/Imprimir/Sair
+  const paramsPos = new URLSearchParams(window.location.search);
+  const posId = paramsPos.get("pos");
+  const posAcao = paramsPos.get("acao");
+  if (posId && /^\d+$/.test(posId)) {
+    try { history.replaceState(null, "", window.location.pathname); } catch (e) { /* ignora */ }
+    await mostrarOrcamentoCompleto(posId);
+    if (posAcao === "imprimir") {
+      await new Promise((r) => setTimeout(r, 700)); // espera o painel acabar de abrir
+      document.getElementById("btnPrintPDF").click();
+    } else if (posAcao === "download") {
+      mostrarModalPosGuardar({ soDownload: true });
+    } else {
+      mostrarModalPosGuardar();
+    }
+  }
 
   console.log("✅ Lista de Orçamentos - Versão com Edição de Produtos Existentes e Botão Cancelar Edição");
 };
