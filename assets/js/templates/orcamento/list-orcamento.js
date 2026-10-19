@@ -7,6 +7,7 @@
 // ✅ NOVO: Botão "Cancelar Edição" ao lado do "Atualizar Produto"
 // ✅ NOVO: Coluna Total mostra valor SEM IVA e COM IVA
 // ✅ NOVO: PDF com coluna "Produto" (Marca - Descrição Acabamento Espessura), sem coluna Esp.
+// ✅ NOVO: Na lista, produtos com o mesmo nome exato aparecem só uma vez
 // =====================================================
 
 window.initOrcamentoList = async function () {
@@ -1214,17 +1215,32 @@ editProdutoAcabamento.disabled = true;
       const dataFormatada = data.toLocaleDateString("pt-PT");
       let descricaoProdutos = "";
       if (orc.itens && orc.itens.length > 0) {
+        // ✅ Produtos com o mesmo nome EXATO aparecem só uma vez
+        const vistos = new Set();
         descricaoProdutos = orc.itens
-  .map(item => {
-    const isDiversos = item.brand === "diversos" || item.espessura === 0;
-    if (isDiversos) {
-      return `<span class="produto-badge">${item.descricao}</span>`;
-    }
-    const brandName = brandMap[item.brand] || formatBrand(item.brand);
-   const acabamento = item.type ? ` ${item.type}` : "";
-return `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${acabamento}</span>`;
-  })
-  .join(" ");
+          .map(item => {
+            const isDiversos = item.brand === "diversos" || item.espessura === 0;
+            if (isDiversos) {
+              return {
+                key: item.descricao,
+                html: `<span class="produto-badge">${item.descricao}</span>`
+              };
+            }
+            const brandName = brandMap[item.brand] || formatBrand(item.brand);
+            const acabamento = item.type ? ` ${item.type}` : "";
+            const texto = `${brandName} - ${item.descricao}${acabamento}`;
+            return {
+              key: texto,
+              html: `<span class="produto-badge"><b>${brandName}</b> - ${item.descricao}${acabamento}</span>`
+            };
+          })
+          .filter(p => {
+            if (vistos.has(p.key)) return false; // já apareceu com o mesmo nome exato
+            vistos.add(p.key);
+            return true;
+          })
+          .map(p => p.html)
+          .join(" ");
       } else {
         descricaoProdutos = '<span class="text-muted">Sem produtos</span>';
       }

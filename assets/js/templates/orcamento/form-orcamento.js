@@ -17,6 +17,8 @@
 // (tabela diversos_opcoes). Escolhe-se um existente ou escreve-se um novo,
 // que fica guardado para os próximos orçamentos.
 //
+// LINEAR: igual ao Diversos, mas com a sua própria lista (tabela linear_opcoes).
+//
 // MODO EDIÇÃO: /form-orcamento?edit=<id> abre o orçamento já preenchido
 // (cliente, opções, linhas, preços, descontos). Ao guardar, atualiza o
 // orçamento existente (não cria um novo) e volta à lista.
@@ -79,6 +81,7 @@ window.initOrcamentoForm = async function () {
   let produtos = [];       // lista plana já "composta" (marca - desc acabamento espessura)
   let clientes = [];
   let diversosOpcoes = []; // [{id, label, _s}] artigos "Diversos" guardados na BD
+  let linearOpcoes = [];   // [{id, label, _s}] artigos "Linear" guardados na BD
   let rows = [];           // linhas da OPÇÃO ATIVA (mesma referência que opcoes[opcaoAtiva].rows)
   let opcoes = [{ rows: [], cur: { r: 0, c: C.TIPO } }]; // Opção 1, Opção 2, ...
   let opcaoAtiva = 0;
@@ -334,7 +337,7 @@ window.initOrcamentoForm = async function () {
     }
     pushUndo();
     // copia só a estrutura: tipo, qtd, comp., larg. — sem produto, preço e desconto
-        const novas = base.map((r) => {
+    const novas = base.map((r) => {
       if (linhaVazia(r)) return novaLinha();
       // Diversos (não Linear): copia a linha exatamente igual (artigo, qtd, preço e desconto)
       if (r.diversos && !r.linear) return { ...novaLinha(), ...r };
@@ -420,7 +423,7 @@ window.initOrcamentoForm = async function () {
     return overlay;
   }
 
-  // Lista com pesquisa (usada para Tipo, Produto, Diversos e Cliente)
+  // Lista com pesquisa (usada para Tipo, Produto, Diversos, Linear e Cliente)
   // allowNew: mostra sempre "+ ..." no fim da lista quando o texto escrito ainda não existe
   function abrirLista({ titulo, itens, placeholder, seed = "", onSelect, onFreeText, max = 300, freeLabel, isFree, allowNew = false }) {
     const el = criarOverlay(`
@@ -688,15 +691,17 @@ window.initOrcamentoForm = async function () {
     seguirAposProduto(r);
   }
 
-  // Guarda um artigo novo de "Diversos" na base de dados (tabela diversos_opcoes)
-  async function guardarOpcaoDiverso(texto) {
-    if (diversosOpcoes.some((d) => norm(d.label) === norm(texto))) return;
+  // Guarda um artigo novo na base de dados
+  //   Diversos → tabela diversos_opcoes | Linear → tabela linear_opcoes
+  async function guardarOpcaoArtigo(texto, linear = false) {
+    const lista = linear ? linearOpcoes : diversosOpcoes;
+    const tabela = linear ? "linear_opcoes" : "diversos_opcoes";
+    if (lista.some((d) => norm(d.label) === norm(texto))) return;
     try {
-      const { data, error } = await supabase.from("diversos_opcoes").insert([{ descricao: texto }]).select();
+      const { data, error } = await supabase.from(tabela).insert([{ descricao: texto }]).select();
       if (error) throw error;
-      diversosOpcoes.push({ id: data[0].id, label: data[0].descricao, _s: norm(data[0].descricao) });
-      diversosOpcoes.sort((a, b) => a.label.localeCompare(b.label, "pt"));
-
+      lista.push({ id: data[0].id, label: data[0].descricao, _s: norm(data[0].descricao) });
+      lista.sort((a, b) => a.label.localeCompare(b.label, "pt"));
     } catch (err) {
       toast("⚠️ Não foi possível guardar na base de dados: " + (err.message || err), "warning");
     }
@@ -706,30 +711,19 @@ window.initOrcamentoForm = async function () {
     const row = rows[r];
     if (!row.tipoId) { toast("⚠️ Escolhe primeiro o tipo", "warning"); setCur(r, C.TIPO); return; }
 
-    // DIVERSOS: lista de artigos guardados na BD (pesquisa + "guardar e usar" se for novo)
-    if (row.diversos && !row.linear) {
+    // DIVERSOS e LINEAR: lista de artigos guardados na BD (pesquisa + "guardar e usar" se for novo)
+    // (row.diversos é true também para o Linear — ver definirTipo)
+    if (row.diversos) {
+      const linear = !!row.linear;
       abrirLista({
-        titulo: `Linha ${r + 1} — Artigo (Diversos)`,
-        itens: diversosOpcoes,
+        titulo: `Linha ${r + 1} — Artigo (${linear ? "Linear" : "Diversos"})`,
+        itens: linear ? linearOpcoes : diversosOpcoes,
         placeholder: "Pesquisar ou escrever novo artigo...",
         seed,
         allowNew: true,
         freeLabel: (t) => `+ Guardar e usar "${t}"`,
         onSelect: (it) => aplicarDiverso(r, it.label),
-        onFreeText: async (t) => { await guardarOpcaoDiverso(t); aplicarDiverso(r, t); },
-      });
-      return;
-    }
-
-    // LINEAR: texto livre
-    if (row.linear) {
-      pedirTexto({
-        titulo: `Linha ${r + 1} — Artigo (Linear)`,
-        label: "Descrição do artigo",
-        valor: row.descricao,
-        seed,
-        placeholder: "Descreve o artigo...",
-        onOk: (t) => aplicarDiverso(r, t),
+        onFreeText: async (t) => { await guardarOpcaoArtigo(t, linear); aplicarDiverso(r, t); },
       });
       return;
     }
@@ -900,7 +894,7 @@ window.initOrcamentoForm = async function () {
         // Desc. → próxima linha
         if (opcaoAtiva > 0) {
           // opção copiada: salta para o produto da próxima linha já criada
-                    const prox = rows.findIndex((x, idx) => idx > r && !linhaVazia(x) && !linhaCompleta(x));
+          const prox = rows.findIndex((x, idx) => idx > r && !linhaVazia(x) && !linhaCompleta(x));
           if (prox !== -1) { setCur(prox, C.PROD); return; }
         }
         garantirLinhas(r + 1);
@@ -1324,7 +1318,7 @@ window.initOrcamentoForm = async function () {
   });
 
   // -------------------------------------------------
-  // CARREGAR DADOS (tipos, marcas, produtos + espessuras, clientes, diversos)
+  // CARREGAR DADOS (tipos, marcas, produtos + espessuras, clientes, diversos, linear)
   // -------------------------------------------------
   async function carregarDados() {
     const [tiposRes, brandsRes, website, thick, clientesRes] = await Promise.all([
@@ -1336,10 +1330,10 @@ window.initOrcamentoForm = async function () {
     ]);
 
     tipos = tiposRes
-  .map((t) => ({ id: t.id, nome: t.nome }))
-  .sort((a, b) =>
-    (a.nome || "").localeCompare(b.nome || "", "pt", { sensitivity: "base" })
-  );
+      .map((t) => ({ id: t.id, nome: t.nome }))
+      .sort((a, b) =>
+        (a.nome || "").localeCompare(b.nome || "", "pt", { sensitivity: "base" })
+      );
 
     clientes = clientesRes.map((c) => {
       const label = labelCliente(c);
@@ -1393,6 +1387,15 @@ window.initOrcamentoForm = async function () {
     } catch (err) {
       console.warn("⚠️ Tabela diversos_opcoes indisponível:", err);
       diversosOpcoes = [];
+    }
+
+    // Artigos "Linear" guardados — idem (tabela linear_opcoes)
+    try {
+      const ln = await fetchAll("linear_opcoes", "id, descricao", "descricao");
+      linearOpcoes = ln.map((d) => ({ id: d.id, label: d.descricao, _s: norm(d.descricao) }));
+    } catch (err) {
+      console.warn("⚠️ Tabela linear_opcoes indisponível:", err);
+      linearOpcoes = [];
     }
   }
 
