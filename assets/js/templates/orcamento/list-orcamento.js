@@ -1338,6 +1338,123 @@ editProdutoAcabamento.disabled = true;
     document.getElementById("viewTotalGeralPrint").textContent = t.total.toFixed(2) + " €";
   }
 
+  // =====================================================
+  // ✅ PDF: AJUSTAR O TAMANHO DA LETRA PARA CABER (nunca aparece "...")
+  // Encolhe a letra até o texto caber na célula. Se mesmo no tamanho
+  // mínimo não couber, deixa quebrar para a linha seguinte (nunca corta).
+  // =====================================================
+  const pdfFitOriginais = new Map();
+
+  function ajustarTextoPDF(el, minPx = 5, permitirQuebra = false) {
+    if (!pdfFitOriginais.has(el)) {
+      pdfFitOriginais.set(el, {
+        fs: el.style.fontSize, ws: el.style.whiteSpace,
+        to: el.style.textOverflow, ov: el.style.overflow
+      });
+    }
+    const o = pdfFitOriginais.get(el);
+    el.style.fontSize = o.fs;          // volta ao tamanho original antes de medir
+    el.style.whiteSpace = "nowrap";
+    el.style.textOverflow = "clip";    // nunca mostrar "..."
+    el.style.overflow = "hidden";
+
+    const cs = window.getComputedStyle(el);
+    const disponivel = () => el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const larguraTexto = () => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return r.getBoundingClientRect().width;
+    };
+
+    let size = parseFloat(cs.fontSize);
+    let guard = 0;
+    while (larguraTexto() > disponivel() + 0.5 && size > minPx && guard++ < 300) {
+      size -= 0.25;
+      el.style.fontSize = size + "px";
+    }
+
+    // Só quando permitido: não cabe numa linha → desce para a linha seguinte
+    if (permitirQuebra && larguraTexto() > disponivel() + 0.5) {
+      el.style.whiteSpace = "normal";
+      el.style.overflow = "visible";
+      el.style.wordBreak = "break-word";
+    }
+  }
+
+  function restaurarElementoPDF(el) {
+    const o = pdfFitOriginais.get(el);
+    if (!o) return;
+    el.style.fontSize = o.fs;
+    el.style.whiteSpace = o.ws;
+    el.style.textOverflow = o.to;
+    el.style.overflow = o.ov;
+    el.style.wordBreak = "";
+    pdfFitOriginais.delete(el);
+  }
+
+  function restaurarTextoPDF() {
+    Array.from(pdfFitOriginais.keys()).forEach(restaurarElementoPDF);
+  }
+
+  // Ajusta UMA COLUNA inteira com o mesmo tamanho de letra (fica uniforme).
+  // Procura o maior tamanho (até ao mínimo) em que todas as células cabem numa linha.
+  // permitirQuebra: as células que ainda assim não couberem descem para a linha seguinte.
+  function ajustarColunaPDF(cells, { minPx = 5, minRel = null, permitirQuebra = false } = {}) {
+    if (!cells.length) return;
+    cells.forEach((c) => {
+      if (!pdfFitOriginais.has(c)) {
+        pdfFitOriginais.set(c, { fs: c.style.fontSize, ws: c.style.whiteSpace, to: c.style.textOverflow, ov: c.style.overflow });
+      }
+      const o = pdfFitOriginais.get(c);
+      c.style.fontSize = o.fs;
+      c.style.whiteSpace = "nowrap";
+      c.style.textOverflow = "clip"; // nunca "..."
+      c.style.overflow = "hidden";
+      c.style.wordBreak = "";
+    });
+
+    const cabe = (c) => {
+      const cs = window.getComputedStyle(c);
+      const r = document.createRange();
+      r.selectNodeContents(c);
+      return r.getBoundingClientRect().width <= c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.5;
+    };
+    const todasCabem = () => cells.every(cabe);
+
+    const base = parseFloat(window.getComputedStyle(cells[0]).fontSize);
+    const minimo = minRel ? base * minRel : minPx;
+    let size = base;
+    let guard = 0;
+    while (!todasCabem() && size > minimo && guard++ < 400) {
+      size -= 0.25;
+      cells.forEach((c) => { c.style.fontSize = size + "px"; }); // mesmo tamanho em toda a coluna
+    }
+
+    if (permitirQuebra) {
+      cells.filter((c) => !cabe(c)).forEach((c) => {
+        c.style.whiteSpace = "normal";
+        c.style.overflow = "visible";
+        c.style.wordBreak = "break-word";
+      });
+    }
+  }
+
+  // Aplica o ajuste a tudo o que vai para o PDF (chamar com as larguras de captura já definidas)
+  //  • Coluna "Produto" (2.ª): pode encolher um pouco a letra (até 85%), igual em todas as linhas;
+  //    o que ainda não couber desce para a linha de baixo.
+  //  • Todas as outras colunas: ficam SEMPRE numa só linha (a letra encolhe se for preciso).
+  function ajustarTodoTextoPDF() {
+    const linhas = Array.from(document.querySelectorAll("#viewProdutosBodyPrint tr:not([data-screen-only])"))
+      .filter((tr) => tr.children.length >= 10); // ignora as linhas "OPÇÃO N"
+    for (let col = 0; col < 10; col++) {
+      const cells = linhas.map((tr) => tr.children[col]).filter(Boolean);
+      if (col === 1) ajustarColunaPDF(cells, { minRel: 0.85, permitirQuebra: true });
+      else ajustarColunaPDF(cells, { minPx: 5 });
+    }
+    document.querySelectorAll(".empresa-nome, .pdf-header-empresa p, .pdf-totais-table td, .legal-title, .footer-website")
+      .forEach((el) => ajustarTextoPDF(el, 5));
+  }
+
   // PDF: tira uma "foto" do bloco de totais de cada opção (mesmo aspeto para todas)
   async function capturarTotaisPorOpcao(totaisElement, scale, width) {
     const out = {};
@@ -1350,10 +1467,13 @@ editProdutoAcabamento.disabled = true;
     for (const tr of marcadas) {
       const t = JSON.parse(tr.dataset.opcaoTotais);
       aplicarTotaisNoBloco(t, ` — Opção ${t.numero}`);
+      totaisElement.querySelectorAll("td").forEach((td) => ajustarTextoPDF(td, 7)); // labels mais longos
       const canvas = await html2canvas(totaisElement, { scale, width, useCORS: true, logging: false, backgroundColor: "#ffffff" });
       out[t.numero] = { img: canvas.toDataURL("image/jpeg", 0.98), w: canvas.width, h: canvas.height };
     }
     document.querySelectorAll(".pdf-totais-table .tot-label").forEach((el, i) => { el.textContent = guardados.labels[i]; });
+    // volta a ajustar para os textos originais (captura final dos totais)
+    totaisElement.querySelectorAll("td").forEach((td) => { restaurarElementoPDF(td); ajustarTextoPDF(td, 5); });
     ["viewDescontoTotal", "viewSubtotalSemIVA", "viewValorIVA", "viewTotalGeralPrint"].forEach((id, i) => {
       document.getElementById(id).textContent = guardados.ids[i];
     });
@@ -2078,68 +2198,6 @@ type: p.type || null,
         await new Promise((resolve) => { script.onload = resolve; });
       }
 
-      // ✅ FUNÇÃO AUTOMÁTICA: Calcula quantos caracteres cabem baseado na largura da célula
-      function getMaxCharsForCell(cell) {
-        const cellWidth = cell.offsetWidth;
-        const fontSize = parseFloat(window.getComputedStyle(cell).fontSize);
-        
-        // Fórmula aproximada: largura / (fontSize * 0.6)
-        // 0.6 é um fator de proporção média para caracteres
-        const maxChars = Math.floor(cellWidth / (fontSize * 0.6));
-        
-        // Garantir um mínimo de 5 caracteres
-        return Math.max(5, maxChars);
-      }
-
-      // ✅ FUNÇÃO PARA TRUNCAR TEXTO COM "..."
-      function truncateText(element, maxLength) {
-        // ✅ Se o elemento contém HTML (como o desconto com span), não truncar
-        if (element.querySelector('span')) {
-          return null; // Não mexer em elementos com HTML interno
-        }
-        
-        const originalText = element.textContent.trim();
-        if (originalText.length > maxLength) {
-          element.textContent = originalText.substring(0, maxLength) + '...';
-          return originalText;
-        }
-        return null;
-      }
-
-      // ✅ GUARDAR TEXTOS ORIGINAIS E TRUNCAR AUTOMATICAMENTE
-      const textsToRestore = [];
-      
-      // 1. Cliente tem HTML com <br> — não truncar para preservar a formatação em linhas
-
-      // 2. Truncar células da tabela AUTOMATICAMENTE baseado na largura de cada célula
-      const tableRows = document.querySelectorAll('#viewProdutosBodyPrint tr:not([data-screen-only])');
-      tableRows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        cells.forEach((cell) => {
-          // ✅ CALCULA AUTOMATICAMENTE quantos caracteres cabem nesta célula
-          const maxChars = getMaxCharsForCell(cell);
-          const originalText = truncateText(cell, maxChars);
-          if (originalText) textsToRestore.push({ element: cell, text: originalText });
-        });
-      });
-
-      // 3. Truncar dados da empresa
-      const empresaNome = document.querySelector('.empresa-nome');
-      if (empresaNome) {
-        const maxChars = getMaxCharsForCell(empresaNome);
-        const originalEmpresaNome = truncateText(empresaNome, maxChars);
-        if (originalEmpresaNome) textsToRestore.push({ element: empresaNome, text: originalEmpresaNome });
-      }
-
-      const empresaParas = document.querySelectorAll('.pdf-header-empresa p');
-      empresaParas.forEach(p => {
-        const maxChars = getMaxCharsForCell(p);
-        const originalText = truncateText(p, maxChars);
-        if (originalText) textsToRestore.push({ element: p, text: originalText });
-      });
-
-      // 4. Aguardar renderização do DOM com texto truncado
-      await new Promise(resolve => setTimeout(resolve, 250));
 
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -2190,6 +2248,7 @@ type: p.type || null,
       }
       
       await new Promise(resolve => setTimeout(resolve, 150));
+      ajustarTodoTextoPDF(); // letra ajusta para caber (sem "...")
       
       const scale = 2.5;
       
@@ -2229,10 +2288,8 @@ type: p.type || null,
         rowCanvases.push(rowCanvas);
       }
       
-      // ✅ RESTAURAR TEXTOS ORIGINAIS IMEDIATAMENTE
-      textsToRestore.forEach(({ element, text }) => {
-        element.textContent = text;
-      });
+      // ✅ RESTAURAR TAMANHOS DE LETRA ORIGINAIS
+      restaurarTextoPDF();
       
       // Restaurar larguras
       headerElement.style.width  = originalWidths.header;
@@ -2409,45 +2466,6 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
       await new Promise((resolve) => { script.onload = resolve; });
     }
 
-    function getMaxCharsForCell(cell) {
-      const cellWidth = cell.offsetWidth;
-      const fontSize = parseFloat(window.getComputedStyle(cell).fontSize);
-      return Math.max(5, Math.floor(cellWidth / (fontSize * 0.6)));
-    }
-
-    function truncateText(element, maxLength) {
-      if (element.querySelector('span')) return null;
-      const originalText = element.textContent.trim();
-      if (originalText.length > maxLength) {
-        element.textContent = originalText.substring(0, maxLength) + '...';
-        return originalText;
-      }
-      return null;
-    }
-
-    const textsToRestore = [];
-
-    // Cliente tem HTML com <br> — não truncar para preservar a formatação em linhas
-
-    document.querySelectorAll('#viewProdutosBodyPrint tr:not([data-screen-only])').forEach(row => {
-      row.querySelectorAll('td').forEach(cell => {
-        const orig = truncateText(cell, getMaxCharsForCell(cell));
-        if (orig) textsToRestore.push({ element: cell, text: orig });
-      });
-    });
-
-    const empresaNomeEl = document.querySelector('.empresa-nome');
-    if (empresaNomeEl) {
-      const orig = truncateText(empresaNomeEl, getMaxCharsForCell(empresaNomeEl));
-      if (orig) textsToRestore.push({ element: empresaNomeEl, text: orig });
-    }
-
-    document.querySelectorAll('.pdf-header-empresa p').forEach(p => {
-      const orig = truncateText(p, getMaxCharsForCell(p));
-      if (orig) textsToRestore.push({ element: p, text: orig });
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 250));
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -2492,6 +2510,7 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
     }
 
     await new Promise(resolve => setTimeout(resolve, 150));
+    ajustarTodoTextoPDF(); // letra ajusta para caber (sem "...")
 
     const scale = 2.5;
 
@@ -2513,8 +2532,8 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
       rowCanvases.push(rowCanvas);
     }
 
-    // Restaurar textos e larguras
-    textsToRestore.forEach(({ element, text }) => { element.textContent = text; });
+    // Restaurar tamanhos de letra e larguras
+    restaurarTextoPDF();
     headerElement.style.width  = originalWidths.header;
     clienteElement.style.width = originalWidths.cliente;
     tabelaElement.style.width  = originalWidths.tabela;
