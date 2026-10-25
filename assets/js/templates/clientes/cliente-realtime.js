@@ -8,23 +8,28 @@ window.initClienteRealtime = function (reloadCallback) {
 
   const supabase = window.supabaseClient;
 
-  // ================================
-  // SUBSCRIÇÃO AO CANAL REALTIME
-  // ================================
+  // Remove canais de visitas anteriores (ver nota em orcamento-realtime.js)
+  supabase
+    .getChannels()
+    .filter((ch) => ch.topic.startsWith('realtime:cliente-changes'))
+    .forEach((ch) => supabase.removeChannel(ch));
+
+  let timer = null;
+  const pedirReload = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (typeof reloadCallback === 'function') {
+        reloadCallback();
+      }
+    }, 300);
+  };
+
   const channel = supabase
-    .channel('cliente-changes')
+    .channel(`cliente-changes-${Date.now()}`)
     .on(
       'postgres_changes',
-      {
-        event: '*', // INSERT, UPDATE, DELETE
-        schema: 'public',
-        table: 'clientes'
-      },
-      (payload) => {
-        if (typeof reloadCallback === 'function') {
-          reloadCallback();
-        }
-      }
+      { event: '*', schema: 'public', table: 'clientes' },
+      pedirReload
     )
     .subscribe();
 
@@ -32,6 +37,7 @@ window.initClienteRealtime = function (reloadCallback) {
   // RETORNAR FUNÇÃO DE CLEANUP
   // ================================
   return () => {
+    clearTimeout(timer);
     supabase.removeChannel(channel);
   };
 };

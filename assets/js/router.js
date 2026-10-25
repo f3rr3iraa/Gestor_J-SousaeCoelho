@@ -106,7 +106,24 @@ const route = (event) => {
 // ===========================
 // MAIN LOCATION HANDLER
 // ===========================
+// Cache dos templates HTML: só vai à rede da primeira vez que se abre cada página
+const templateCache = new Map();
+async function getTemplate(url) {
+  if (templateCache.has(url)) return templateCache.get(url);
+  const res = await fetch(url);
+  const html = await res.text();
+  if (res.ok) templateCache.set(url, html);
+  return html;
+}
+
 const locationHandler = async () => {
+  // Limpeza da página anterior (ex.: canais realtime). Numa SPA o
+  // 'beforeunload' não dispara ao navegar, por isso fazemos aqui.
+  if (typeof window.pageCleanup === "function") {
+    try { window.pageCleanup(); } catch (e) { console.warn("pageCleanup:", e); }
+    window.pageCleanup = null;
+  }
+
   if (!isLogged()) {
     console.log("Não está logado, redirecionando para login...");
     document.getElementById("content-login").classList.remove("d-none");
@@ -155,7 +172,7 @@ const locationHandler = async () => {
   }
 
   window.currentRoute = location;
-  const html = await fetch(route.template).then((res) => res.text());
+  const html = await getTemplate(route.template);
   document.getElementById("content").innerHTML = html;
 
   if (window.initFormSupabase && location === "/form-chapas-e-sobras") initFormSupabase();

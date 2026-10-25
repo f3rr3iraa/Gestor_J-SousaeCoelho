@@ -21,17 +21,27 @@ window.initOrcamentoList = async function () {
 
   let cleanupRealtime = null;
 
-try {
-  if (typeof window.initOrcamentoRealtime === 'function') {
-    cleanupRealtime = window.initOrcamentoRealtime(loadData);
+  try {
+    if (typeof window.initOrcamentoRealtime === 'function') {
+      // Alterações na BD: invalida o índice de produtos e recarrega a página atual
+      cleanupRealtime = window.initOrcamentoRealtime(() => {
+        indiceProdutos = null;
+        loadData();
+      });
+    }
+  } catch (err) {
+    console.warn("⚠️ Realtime não iniciado:", err);
   }
-} catch (err) {
-  console.warn("⚠️ Realtime não iniciado:", err);
-}
 
-window.addEventListener('beforeunload', () => {
-  if (cleanupRealtime) cleanupRealtime();
-});
+  // Esta app é uma SPA: ao mudar de página o 'beforeunload' NÃO dispara, por isso
+  // o router chama window.pageCleanup() quando se sai desta rota.
+  window.pageCleanup = () => {
+    if (cleanupRealtime) cleanupRealtime();
+    cleanupRealtime = null;
+  };
+  window.addEventListener('beforeunload', () => {
+    if (cleanupRealtime) cleanupRealtime();
+  });
 
   // =====================================================
   // CONFIG PAGINAÇÃO
@@ -1111,71 +1121,202 @@ editProdutoAcabamento.disabled = true;
     }
   });
 
+  // =====================================================
+  // CARREGAMENTO DA LISTA
+  // - Paginação feita no servidor (só vêm os 10/25/50/100 da página)
+  // - Os produtos de TODOS os orçamentos da página vêm num único pedido
+  //   (antes: 1 pedido por orçamento -> centenas de pedidos em simultâneo)
+  // =====================================================
+  let loadSeq = 0;                      // ignora respostas antigas/atrasadas
+  let metaReady = Promise.resolve();    // marcas carregadas (brandMap)
+  let indiceProdutos = null;            // cache leve p/ filtro de produto
+  let indiceProdutosTs = 0;
+  const INDICE_TTL_MS = 60000;
+  const LINHAS_POR_PEDIDO = 1000;       // limite por pedido do Supabase
+  const ITENS_CHUNK = 20;               // orçamentos por pedido de itens
+
+  const SELECT_ORCAMENTO = `
+    *,
+    clientes (
+      descricao,
+      descricao2,
+      morada,
+      morada2,
+      codpostal,
+      contribuinte
+    )
+  `;
+
+  function aplicarFiltrosBase(query) {
+    if (filtroReferencia.value) {
+      query = query.eq("id", parseInt(filtroReferencia.value) || 0);
+    }
+    if (filtroCliente.value) {
+      query = query.ilike("cliente_nome", `%${filtroCliente.value}%`);
+    }
+    return query;
+  }
+
+  // Lê todas as linhas de uma query, pedindo de 1000 em 1000
+  async function lerTodasAsLinhas(construirQuery) {
+    const todas = [];
+    for (let offset = 0; ; offset += LINHAS_POR_PEDIDO) {
+      const { data, error } = await construirQuery().range(offset, offset + LINHAS_POR_PEDIDO - 1);
+      if (error) throw error;
+      todas.push(...(data || []));
+      if (!data || data.length < LINHAS_POR_PEDIDO) break;
+    }
+    return todas;
+  }
+
+  async function obterIndiceProdutos() {
+    if (indiceProdutos && Date.now() - indiceProdutosTs < INDICE_TTL_MS) {
+      return indiceProdutos;
+    }
+    indiceProdutos = await lerTodasAsLinhas(() =>
+      supabase
+        .from("orcamento_itens")
+        .select("id, orcamento_id, brand, descricao")
+        .order("id", { ascending: true })
+    );
+    indiceProdutosTs = Date.now();
+    return indiceProdutos;
+  }
+
+  function normalizarTextoProduto(txt) {
+    return String(txt ?? "")
+      .toLowerCase()
+      .replace(/-/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // Devolve o Set (ids como string) dos orçamentos com algum produto que contenha o termo
+  async function idsComProduto(termoBruto) {
+    const termo = normalizarTextoProduto(termoBruto);
+    const indice = await obterIndiceProdutos();
+    const ids = new Set();
+    for (const item of indice) {
+      const chave = String(item.orcamento_id);
+      if (ids.has(chave)) continue;
+      const brandName = brandMap[item.brand] || formatBrand(item.brand || "");
+      if (normalizarTextoProduto(`${brandName} ${item.descricao ?? ""}`).includes(termo)) {
+        ids.add(chave);
+      }
+    }
+    return ids;
+  }
+
+  // Todos os itens dos orçamentos indicados, em poucos pedidos paralelos
+  async function carregarItensDosOrcamentos(ids) {
+    const porOrcamento = new Map();
+    if (!ids.length) return porOrcamento;
+
+    const grupos = [];
+    for (let i = 0; i < ids.length; i += ITENS_CHUNK) {
+      grupos.push(ids.slice(i, i + ITENS_CHUNK));
+    }
+    const respostas = await Promise.all(
+      grupos.map((grupo) =>
+        supabase
+          .from("orcamento_itens")
+          .select("*")
+          .in("orcamento_id", grupo)
+          .order("id", { ascending: true })
+      )
+    );
+    for (const { data, error } of respostas) {
+      if (error) throw error;
+      for (const item of data || []) {
+        const chave = String(item.orcamento_id);
+        if (!porOrcamento.has(chave)) porOrcamento.set(chave, []);
+        porOrcamento.get(chave).push(item);
+      }
+    }
+    return porOrcamento;
+  }
+
   async function loadData() {
+    if (!tbody.isConnected) return; // a página já foi abandonada
+    const seq = ++loadSeq;
     try {
       const from = (currentPage - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
-      let query = supabase
-        .from("orcamentos")
-.select(`
-  *,
-  clientes (
-    descricao,
-    descricao2,
-    morada,
-    morada2,
-    codpostal,
-    contribuinte
-  )
-`, { count: "exact" })
-        .order("id", { ascending: false });
-      if (filtroReferencia.value) {
-        query = query.eq("id", parseInt(filtroReferencia.value) || 0);
+      const termoProduto = filtroProduto.value.trim();
+
+      let orcamentos = [];
+
+      if (!termoProduto) {
+        // ---- Caminho rápido: 1 pedido só com a página pedida ----
+        const { data, count, error } = await aplicarFiltrosBase(
+          supabase
+            .from("orcamentos")
+            .select(SELECT_ORCAMENTO, { count: "exact" })
+            .order("id", { ascending: false })
+        ).range(from, to);
+
+        if (error) {
+          // Pedimos uma página para lá do fim (ex.: apagou o último da última página)
+          if (error.code === "PGRST103" && currentPage > 1) {
+            currentPage = 1;
+            return loadData();
+          }
+          throw error;
+        }
+        orcamentos = data || [];
+        totalItems = count ?? orcamentos.length;
+      } else {
+        // ---- Filtro por produto: descobre os ids e só carrega os da página ----
+        await metaReady; // precisa do brandMap para comparar com o nome da marca
+        const [permitidos, candidatos] = await Promise.all([
+          idsComProduto(termoProduto),
+          lerTodasAsLinhas(() =>
+            aplicarFiltrosBase(
+              supabase.from("orcamentos").select("id").order("id", { ascending: false })
+            )
+          ),
+        ]);
+        const idsFiltrados = candidatos
+          .map((o) => o.id)
+          .filter((id) => permitidos.has(String(id)));
+        totalItems = idsFiltrados.length;
+
+        const idsPagina = idsFiltrados.slice(from, to + 1);
+        if (idsPagina.length) {
+          const { data, error } = await supabase
+            .from("orcamentos")
+            .select(SELECT_ORCAMENTO)
+            .in("id", idsPagina)
+            .order("id", { ascending: false });
+          if (error) throw error;
+          orcamentos = data || [];
+        }
       }
-      if (filtroCliente.value) {
-        query = query.ilike("cliente_nome", `%${filtroCliente.value}%`);
+      if (seq !== loadSeq) return;
+
+      if (!orcamentos.length && totalItems > 0 && currentPage > 1) {
+        currentPage = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+        return loadData();
       }
-      const { data: allOrcamentos, error } = await query;
-      if (error) throw error;
-      let orcamentosComItens = await Promise.all(
-        (allOrcamentos || []).map(async (orcamento) => {
-          const { data: itens } = await supabase
-            .from("orcamento_itens")
-            .select("*")
-            .eq("orcamento_id", orcamento.id)
-            .order("id", { ascending: true });
-          return {
-            ...orcamento,
-            itens: itens || []
-          };
-        })
+
+      const itensPorOrcamento = await carregarItensDosOrcamentos(orcamentos.map((o) => o.id));
+      if (seq !== loadSeq) return;
+
+      await metaReady; // brandMap tem de estar pronto antes de desenhar
+      if (seq !== loadSeq) return;
+
+      renderTable(
+        orcamentos.map((orc) => ({
+          ...orc,
+          itens: itensPorOrcamento.get(String(orc.id)) || [],
+        }))
       );
-      if (filtroProduto.value) {
-        const termoProduto = filtroProduto.value
-          .toLowerCase()
-          .replace(/-/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        orcamentosComItens = orcamentosComItens.filter(orc => {
-          return orc.itens.some(item => {
-            const brandName = brandMap[item.brand] || formatBrand(item.brand);
-            const descricaoCompleta = `${brandName} ${item.descricao}`
-              .toLowerCase()
-              .replace(/-/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim();
-            return descricaoCompleta.includes(termoProduto);
-          });
-        });
-      }
-      totalItems = orcamentosComItens.length;
-      const orcamentosPaginados = orcamentosComItens.slice(from, to + 1);
-      renderTable(orcamentosPaginados);
       updatePagination();
       setTimeout(() => {
         tbody.style.opacity = "1";
       }, 50);
     } catch (err) {
+      if (seq !== loadSeq) return;
       tbody.innerHTML = `<tr><td colspan="8">Erro ao carregar dados</td></tr>`;
       tbody.style.opacity = "1";
       showMessage("❌ Erro: " + err.message, "danger");
@@ -2722,10 +2863,11 @@ document.getElementById("btnPrintPDF").addEventListener("click", async () => {
       .replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
-  await loadBrands();
-  await loadTipos();
-  await loadProdutosWebsite();
+  // Marcas/tipos/produtos e a lista pedem-se ao mesmo tempo
+  // (antes eram 4 pedidos um a seguir ao outro antes de aparecer qualquer coisa)
+  metaReady = Promise.all([loadBrands(), loadTipos(), loadProdutosWebsite()]);
   loadData();
+  await metaReady;
 
   // Vindo do formulário depois de guardar: abre o orçamento e pergunta o que fazer
   // acao=imprimir → imprime logo | acao=download → pede para escolher onde guardar | sem acao → Download/Imprimir/Sair

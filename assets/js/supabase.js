@@ -4,10 +4,37 @@ window.isRealtimeUpdate = false;
 async function initSupabaseClient() {
   if (window.supabaseClient) return window.supabaseClient;
 
-  const res = await fetch("/.netlify/functions/getSupabase");
-  const { supabaseUrl, supabaseKey } = await res.json();
-  window.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-  return window.supabaseClient;
+  // Várias partes da app (auth, router...) chamam isto ao mesmo tempo no arranque.
+  // Antes cada chamada ia à Netlify Function e criava o SEU cliente (vários clientes
+  // Supabase/GoTrue em paralelo). Agora partilham o mesmo pedido.
+  if (window.__supabaseClientPromise) return window.__supabaseClientPromise;
+
+  window.__supabaseClientPromise = (async () => {
+    // URL + anon key são públicas; guardamos na sessão para o F5 não ter de
+    // esperar pela Netlify Function (que pode ter "cold start" de vários segundos).
+    let cfg = null;
+    try {
+      cfg = JSON.parse(sessionStorage.getItem("supabaseCfg") || "null");
+    } catch (e) { /* ignora */ }
+
+    if (!cfg || !cfg.supabaseUrl || !cfg.supabaseKey) {
+      const res = await fetch("/.netlify/functions/getSupabase");
+      cfg = await res.json();
+      try {
+        sessionStorage.setItem("supabaseCfg", JSON.stringify(cfg));
+      } catch (e) { /* ignora */ }
+    }
+
+    window.supabaseClient = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+    return window.supabaseClient;
+  })();
+
+  try {
+    return await window.__supabaseClientPromise;
+  } catch (err) {
+    window.__supabaseClientPromise = null; // permite tentar de novo
+    throw err;
+  }
 }
 
 /**
