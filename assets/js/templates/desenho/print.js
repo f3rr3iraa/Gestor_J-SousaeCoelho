@@ -214,8 +214,10 @@ function neRodamaoLabelMarkup(anchorX, cy, quantidade, label) {
   const restRaw = label ? ` - ${label}` : "";
   const circleR = Math.max(2.2, fontSize * 0.5 + 0.5 * qtdRaw.length + 0.6);
   const gap = 1.2;
-  const restWidth = fontSize * restRaw.length * 0.55;
-  const totalWidth = circleR * 2 + (restRaw ? gap + restWidth : 0);
+  // mesma largura do editor, para a quantidade ficar sempre alinhada
+  const totalWidth = window.neRodamaoLabelWidthEstimate
+    ? window.neRodamaoLabelWidthEstimate(quantidade, label)
+    : circleR * 2 + (restRaw ? gap + fontSize * restRaw.length * 0.55 : 0);
   // anchorX = borda direita do bloco (encostado à esquerda da peça)
   const startX = anchorX - totalWidth;
   const circleCx = startX + circleR;

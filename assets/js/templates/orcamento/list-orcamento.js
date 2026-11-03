@@ -2295,6 +2295,74 @@ type: p.type || null,
     }
   });
 
+  // Janela "Guardar como" para browsers que não permitem escolher a pasta
+  // (sem showSaveFilePicker). Devolve o nome do ficheiro ou null se cancelar.
+  function pedirNomeFicheiroPDF(nomeSugerido) {
+    return new Promise((resolve) => {
+      const antigo = document.getElementById("guardarComoModal");
+      if (antigo) antigo.remove();
+
+      const el = document.createElement("div");
+      el.className = "modal fade";
+      el.id = "guardarComoModal";
+      el.tabIndex = -1;
+      el.setAttribute("data-bs-backdrop", "static");
+      el.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="bi bi-download me-2"></i>Guardar orçamento</h5>
+            </div>
+            <div class="modal-body">
+              <label class="form-label" for="guardarComoNome">Nome do ficheiro</label>
+              <input type="text" id="guardarComoNome" class="form-control" autocomplete="off">
+              <small class="text-muted d-block mt-2">
+                Este browser não deixa escolher a pasta daqui: o PDF vai para a pasta de Downloads.
+                Para escolher a pasta de cada vez, ative "Perguntar onde guardar cada ficheiro"
+                nas definições de downloads do browser (ou use o Chrome/Edge).
+              </small>
+            </div>
+            <div class="modal-footer d-flex gap-2">
+              <button type="button" class="btn btn-secondary flex-fill" data-acao="cancelar">Cancelar</button>
+              <button type="button" class="btn btn-success flex-fill" data-acao="guardar">
+                <i class="bi bi-download me-2"></i>Guardar
+              </button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(el);
+
+      const modal = new bootstrap.Modal(el);
+      const input = el.querySelector("#guardarComoNome");
+      input.value = nomeSugerido;
+
+      let resultado = null;
+      const confirmar = () => {
+        let nome = input.value.trim().replace(/[\\/:*?"<>|]+/g, "_");
+        if (!nome) return;
+        if (!/\.pdf$/i.test(nome)) nome += ".pdf";
+        resultado = nome;
+        modal.hide();
+      };
+
+      el.addEventListener("shown.bs.modal", () => {
+        input.focus();
+        input.setSelectionRange(0, input.value.replace(/\.pdf$/i, "").length);
+      });
+      el.addEventListener("hidden.bs.modal", () => {
+        el.remove();
+        resolve(resultado);
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); confirmar(); }
+      });
+      el.querySelector("[data-acao='guardar']").addEventListener("click", confirmar);
+      el.querySelector("[data-acao='cancelar']").addEventListener("click", () => modal.hide());
+
+      modal.show();
+    });
+  }
+
   // =====================================================
   // SUBSTITUA APENAS A PARTE DO btnDownloadPDF
   // TRUNCAMENTO AUTOMÁTICO BASEADO NA LARGURA DA COLUNA
@@ -2307,7 +2375,7 @@ type: p.type || null,
     }
 
     // Pergunta onde guardar. Tem de ser logo no início, enquanto o clique ainda é válido.
-    const filename = nomeFicheiroOrcamento(currentOrcamento);
+    let filename = nomeFicheiroOrcamento(currentOrcamento);
     let fileHandle = null;
     if (window.showSaveFilePicker) {
       try {
@@ -2319,6 +2387,14 @@ type: p.type || null,
         if (e.name === "AbortError") return; // cancelou
         fileHandle = null;
       }
+    }
+
+    // Browsers sem seletor de pasta (Firefox, Safari, telemóveis...): pergunta
+    // pelo menos o nome do ficheiro antes de descarregar.
+    if (!fileHandle) {
+      const nomeEscolhido = await pedirNomeFicheiroPDF(filename);
+      if (!nomeEscolhido) return; // cancelou
+      filename = nomeEscolhido;
     }
 
     try {

@@ -38,9 +38,17 @@
 
         <div class="col-3">
           <div class="coolinput">
-            <label for="notaMaterial" class="text">Material</label>
-            <input type="text" id="notaMaterial" class="input w-100"
-                   placeholder="Material.">
+            <label for="notaMaterialInput" class="text">Material</label>
+            <div class="d-flex align-items-center" style="gap: 0.35rem;">
+              <input type="text" id="notaMaterialInput" class="input w-100"
+                     placeholder="Material (Enter para adicionar)">
+              <button type="button" class="btn-form ne-btn-sm" id="notaMaterialAdd"
+                      title="Adicionar material" style="flex: 0 0 auto;">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <!-- guarda os materiais todos juntos (separados por " | ") -->
+            <input type="hidden" id="notaMaterial" value="">
           </div>
         </div>
 
@@ -71,6 +79,9 @@
         </div>
 
       </div>
+
+      <!-- Materiais adicionados (aparecem também no desenho) -->
+      <div id="notaMaterialLista" class="d-flex flex-wrap my-2" style="gap: 0.4rem;"></div>
 
             
 <div class="d-flex align-items-end" style="gap: 0.5rem; width: 100%;">
@@ -145,6 +156,9 @@
             <i class="bi bi-square-half me-1"></i> Pios
           </button>
           <ul class="dropdown-menu" aria-labelledby="neAddPioBtn">
+            <li><a class="dropdown-item ne-pio-option" href="#" data-pio="padrao">
+              <i class="bi bi-rulers me-2"></i>Padrão (50x40x10)
+            </a></li>
             <li><a class="dropdown-item ne-pio-option" href="#" data-pio="personalizado">
               <i class="bi bi-sliders me-2"></i>Personalizado
             </a></li>
@@ -677,6 +691,45 @@
     </div>
   </div>
 </div>
+<!-- Modal do Pio padrão (50x40x10): só pergunta o texto e se tem extras -->
+<div class="modal fade" id="neModalAddPioPadrao" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-rulers me-2"></i>Novo pio padrão (50x40x10)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="coolinput mb-3">
+          <label class="text">Texto dentro do pio</label>
+          <input type="text" id="nePioPadraoTexto" class="input w-100" placeholder="Ex: Pio 1 - Cozinha (deixa vazio para mostrar 50x40x10)">
+        </div>
+        <div class="coolinput mb-3">
+          <label class="text">Tem extras?</label>
+          <select id="nePioPadraoExtraTipo" class="input w-100">
+            <option value="">Não</option>
+            <option value="frisos">Sim - Frisos</option>
+            <option value="rampa">Sim - Rampa</option>
+          </select>
+        </div>
+        <div class="coolinput mb-1 d-none" id="nePioPadraoExtraLadoWrap">
+          <label class="text">Lado</label>
+          <select id="nePioPadraoExtraLado" class="input w-100">
+            <option value="direita">Direito</option>
+            <option value="esquerda">Esquerdo</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-form" style="background-color:#6c757d;" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-form" id="nePioPadraoConfirm">
+          <i class="bi bi-check-lg me-2"></i> Adicionar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para introduzir as medidas do Pio personalizado -->
 <div class="modal fade" id="neModalAddPio" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">

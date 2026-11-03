@@ -25,13 +25,14 @@ window.initFolhaHoras = async function () {
   const mesFimDropdown          = document.getElementById("mesFimDropdown");
   const anoDropdown             = document.getElementById("anoDropdown");
 
-   const inputFuncionarios       = document.getElementById("selectFuncionarios");
+  const inputFuncionarios       = document.getElementById("selectFuncionarios");
   const funcionariosDropdown    = document.getElementById("funcionariosDropdown");
   const btnGerarFolhas          = document.getElementById("btnGerarFolhas");
   const btnGerarPDF             = document.getElementById("btnGerarPDF");
   const btnGerarCalendarioImprimir = document.getElementById("btnGerarCalendarioImprimir");
   const btnGerarCalendarioPDF      = document.getElementById("btnGerarCalendarioPDF");
   const areaImpressao           = document.getElementById("areaImpressao");
+
   // =====================================================
   // ESTADO
   // =====================================================
@@ -74,6 +75,11 @@ window.initFolhaHoras = async function () {
     return new Date(ano, mes - 1, dia);
   }
 
+  function chaveData(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  // Devolve Map { "YYYY-MM-DD" => "Nome do feriado" }
   function getFeriadosPortugal(ano) {
     const pascoa = calcularPascoa(ano);
 
@@ -85,28 +91,25 @@ window.initFolhaHoras = async function () {
     const corpoDeus = new Date(pascoa);
     corpoDeus.setDate(pascoa.getDate() + 60);
 
-    const feriados = new Set();
-
-    const adicionar = (d) => {
-      feriados.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
-    };
+    const feriados = new Map();
+    const add = (d, nome) => feriados.set(chaveData(d), nome);
 
     // Fixos
-    adicionar(new Date(ano, 0, 1));   // Ano Novo
-    adicionar(new Date(ano, 3, 25));  // Dia da Liberdade
-    adicionar(new Date(ano, 4, 1));   // Dia do Trabalhador
-    adicionar(new Date(ano, 5, 10));  // Dia de Portugal
-    adicionar(new Date(ano, 7, 15));  // Assunção de Nossa Senhora
-    adicionar(new Date(ano, 9, 5));   // Implantação da República
-    adicionar(new Date(ano, 10, 1));  // Dia de Todos os Santos
-    adicionar(new Date(ano, 10, 11)); // Dia de São Martinho / Restauração
-    adicionar(new Date(ano, 11, 8));  // Imaculada Conceição
-    adicionar(new Date(ano, 11, 25)); // Natal
+    add(new Date(ano, 0, 1),   "Ano Novo");
+    add(new Date(ano, 3, 25),  "Dia da Liberdade");
+    add(new Date(ano, 4, 1),   "Dia do Trabalhador");
+    add(new Date(ano, 5, 10),  "Dia de Portugal");
+    add(new Date(ano, 7, 15),  "Assunção de Nossa Senhora");
+    add(new Date(ano, 9, 5),   "Implantação da República");
+    add(new Date(ano, 10, 1),  "Todos os Santos");
+    add(new Date(ano, 11, 1),  "Restauração da Independência");
+    add(new Date(ano, 11, 8),  "Imaculada Conceição");
+    add(new Date(ano, 11, 25), "Natal");
 
     // Móveis
-    adicionar(sextaSanta);
-    adicionar(pascoa);
-    adicionar(corpoDeus);
+    add(sextaSanta, "Sexta-feira Santa");
+    add(pascoa,     "Domingo de Páscoa");
+    add(corpoDeus,  "Corpo de Deus");
 
     return feriados;
   }
@@ -127,6 +130,174 @@ window.initFolhaHoras = async function () {
   const anosData = [];
   for (let a = anoAtual - 2; a <= anoAtual + 2; a++) {
     anosData.push({ display: String(a), value: a });
+  }
+
+  // =====================================================
+  // FERIADOS — PRÉ-VISUALIZAÇÃO / EDIÇÃO
+  // =====================================================
+  const FERIADOS_EXTRA_KEY = "fh-feriados-extra";
+  let feriadosExtra = {};              // { "YYYY-MM-DD": "descrição" } (guardado no browser)
+  try {
+    feriadosExtra = JSON.parse(localStorage.getItem(FERIADOS_EXTRA_KEY) || "{}");
+  } catch (e) {
+    feriadosExtra = {};
+  }
+
+  let feriadosDesmarcados = new Set(); // feriados nacionais que o utilizador NÃO quer
+  let feriadosConfirmados = new Set(); // resultado final usado na geração das folhas
+
+  function guardarFeriadosExtra() {
+    try {
+      localStorage.setItem(FERIADOS_EXTRA_KEY, JSON.stringify(feriadosExtra));
+    } catch (e) { /* ignora */ }
+  }
+
+  // Lista ordenada de feriados dentro do período selecionado
+  function listarFeriadosDoPeriodo() {
+    const ano = anoSelecionado;
+    const base = getFeriadosPortugal(ano);
+    const lista = [];
+
+    base.forEach((nome, chave) => {
+      const mes = parseInt(chave.slice(5, 7), 10);
+      if (mes >= mesInicioSelecionado && mes <= mesFimSelecionado) {
+        lista.push({ chave, nome, custom: false });
+      }
+    });
+
+    Object.entries(feriadosExtra).forEach(([chave, nome]) => {
+      const a = parseInt(chave.slice(0, 4), 10);
+      const m = parseInt(chave.slice(5, 7), 10);
+      if (a === ano && m >= mesInicioSelecionado && m <= mesFimSelecionado && !base.has(chave)) {
+        lista.push({ chave, nome, custom: true });
+      }
+    });
+
+    return lista.sort((x, y) => x.chave.localeCompare(y.chave));
+  }
+
+  function renderListaFeriados() {
+    const cont = document.getElementById("feriadosLista");
+    const lista = listarFeriadosDoPeriodo();
+
+    document.getElementById("feriadosPeriodoLabel").textContent =
+      MESES_PT[mesInicioSelecionado] +
+      (mesInicioSelecionado !== mesFimSelecionado ? ` a ${MESES_PT[mesFimSelecionado]}` : "") +
+      ` de ${anoSelecionado} — desmarca os que não queres como feriado.`;
+
+    if (!lista.length) {
+      cont.innerHTML = `<div class="text-muted small">Sem feriados neste período. Podes adicionar dias abaixo.</div>`;
+      return;
+    }
+
+    cont.innerHTML = "";
+    lista.forEach(f => {
+      const [a, m, d] = f.chave.split("-").map(Number);
+      const diaSemana = DIAS_SEMANA[new Date(a, m - 1, d).getDay()];
+      const fimSemana = diaSemana === "Sáb" || diaSemana === "Dom";
+      const checked = !feriadosDesmarcados.has(f.chave);
+
+      const row = document.createElement("div");
+      row.className = "d-flex align-items-center gap-2 py-1 border-bottom";
+      row.innerHTML = `
+        <input type="checkbox" class="form-check-input mt-0" data-chave="${f.chave}" ${checked ? "checked" : ""}>
+        <span style="min-width:78px">
+          <strong>${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}</strong>
+          <span class="text-muted small">${diaSemana}</span>
+        </span>
+        <span class="flex-grow-1">
+          ${f.nome}
+          ${f.custom ? '<span class="badge text-bg-info">extra</span>' : ""}
+          ${fimSemana ? '<span class="text-muted small">(fim de semana)</span>' : ""}
+        </span>
+        ${f.custom
+          ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" data-remover="${f.chave}" title="Remover">
+               <i class="bi bi-trash"></i>
+             </button>`
+          : ""}
+      `;
+      cont.appendChild(row);
+    });
+  }
+
+  document.getElementById("feriadosLista").addEventListener("change", (e) => {
+    const chave = e.target.dataset.chave;
+    if (!chave) return;
+    if (e.target.checked) feriadosDesmarcados.delete(chave);
+    else feriadosDesmarcados.add(chave);
+  });
+
+  document.getElementById("feriadosLista").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-remover]");
+    if (!btn) return;
+    delete feriadosExtra[btn.dataset.remover];
+    guardarFeriadosExtra();
+    renderListaFeriados();
+  });
+
+  document.getElementById("btnAddFeriado").addEventListener("click", () => {
+    const dataEl = document.getElementById("feriadoNovoData");
+    const nomeEl = document.getElementById("feriadoNovoNome");
+    const chave = dataEl.value; // YYYY-MM-DD
+    const nome = nomeEl.value.trim() || "Feriado";
+
+    if (!chave) {
+      showMessage("⚠️ Escolhe a data", "warning");
+      return;
+    }
+
+    const a = parseInt(chave.slice(0, 4), 10);
+    const m = parseInt(chave.slice(5, 7), 10);
+    if (a !== anoSelecionado || m < mesInicioSelecionado || m > mesFimSelecionado) {
+      showMessage("⚠️ A data tem de estar dentro do período selecionado", "warning");
+      return;
+    }
+
+    if (getFeriadosPortugal(a).has(chave)) {
+      feriadosDesmarcados.delete(chave); // já é nacional: apenas volta a marcar
+    } else {
+      feriadosExtra[chave] = nome;
+      guardarFeriadosExtra();
+    }
+
+    dataEl.value = "";
+    nomeEl.value = "";
+    renderListaFeriados();
+  });
+
+  // Abre a janela de feriados. Devolve Promise<boolean> (true = confirmado)
+  function confirmarFeriados() {
+    return new Promise((resolve) => {
+      const el = document.getElementById("feriadosModal");
+      const modal = bootstrap.Modal.getOrCreateInstance(el);
+      let decidido = false;
+
+      // Limita o seletor de data ao período escolhido
+      const dataInput = document.getElementById("feriadoNovoData");
+      const ultimoDia = new Date(anoSelecionado, mesFimSelecionado, 0).getDate();
+      dataInput.min = `${anoSelecionado}-${String(mesInicioSelecionado).padStart(2, "0")}-01`;
+      dataInput.max = `${anoSelecionado}-${String(mesFimSelecionado).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+
+      renderListaFeriados();
+
+      document.getElementById("btnFeriadosConfirmar").onclick = () => {
+        decidido = true;
+        feriadosConfirmados = new Set(
+          listarFeriadosDoPeriodo()
+            .filter(f => !feriadosDesmarcados.has(f.chave))
+            .map(f => f.chave)
+        );
+        modal.hide();
+        resolve(true);
+      };
+      document.getElementById("btnFeriadosCancelar").onclick = () => modal.hide();
+
+      el.addEventListener("hidden.bs.modal", () => {
+        if (!decidido) resolve(false);
+      }, { once: true });
+
+      modal.show();
+    });
   }
 
   // =====================================================
@@ -509,7 +680,6 @@ window.initFolhaHoras = async function () {
   function gerarFolhaHTML(funcionario, mes, ano) {
     const nomeMes = MESES_PT[mes];
     const diasNoMes = new Date(ano, mes, 0).getDate();
-    const feriados = getFeriadosPortugal(ano);
 
     let linhas = "";
     for (let dia = 1; dia <= diasNoMes; dia++) {
@@ -518,10 +688,9 @@ window.initFolhaHoras = async function () {
       const nomeDiaSemana = DIAS_SEMANA[diaSemana];
       const ehFimDeSemana = diaSemana === 0 || diaSemana === 6;
 
-      const chaveData = `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-      const ehFeriado = feriados.has(chaveData);
+      const chaveDia = `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      const ehFeriado = feriadosConfirmados.has(chaveDia);
 
-      let maEntr = "", maSaid = "", taEntr = "", taSaid = "";
       let classRow = "";
       let celulaHoras = "";
 
@@ -637,18 +806,18 @@ window.initFolhaHoras = async function () {
       for (let col = 0; col < 7; col++) {
         const dia = celulas[semana * 7 + col];
         const domingoClass = col === 6 ? "col-domingo" : "";
- if (dia === null) {
-  linhas += `<td class="cal-vazio ${domingoClass}"></td>`;
-} else if (col === 6) {
-  linhas += `<td class="${domingoClass}">
-    <div class="cal-dia-top-domingo"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></div>
-  </td>`;
-} else {
-  linhas += `<td class="${domingoClass}">
-    <div class="cal-dia-top"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></div>
-    <div class="cal-dia-bottom"></div>
-  </td>`;
-}
+        if (dia === null) {
+          linhas += `<td class="cal-vazio ${domingoClass}"></td>`;
+        } else if (col === 6) {
+          linhas += `<td class="${domingoClass}">
+            <div class="cal-dia-top-domingo"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></div>
+          </td>`;
+        } else {
+          linhas += `<td class="${domingoClass}">
+            <div class="cal-dia-top"><span class="cal-dia-num">${String(dia).padStart(2, "0")}</span></div>
+            <div class="cal-dia-bottom"></div>
+          </td>`;
+        }
       }
       linhas += "</tr>";
     }
@@ -738,197 +907,220 @@ window.initFolhaHoras = async function () {
   // GERAR FOLHAS
   // =====================================================
   function gerarFolhas() {
-  const mesInicio = mesInicioSelecionado;
-  const mesFim    = mesFimSelecionado;
-  const ano       = anoSelecionado;
+    const mesInicio = mesInicioSelecionado;
+    const mesFim    = mesFimSelecionado;
+    const ano       = anoSelecionado;
 
-  if (mesInicio > mesFim) {
-    showMessage("⚠️ O mês de início não pode ser posterior ao mês de fim", "warning");
-    return;
+    if (mesInicio > mesFim) {
+      showMessage("⚠️ O mês de início não pode ser posterior ao mês de fim", "warning");
+      return;
+    }
+
+    const selecionados = getFuncionariosSelecionados();
+    if (!selecionados.length) {
+      showMessage("⚠️ Seleciona pelo menos um funcionário", "warning");
+      return;
+    }
+
+    let html = "";
+    for (let mes = mesInicio; mes <= mesFim; mes++) {
+      selecionados.forEach(func => {
+        html += gerarFolhaHTML(func, mes, ano);
+      });
+    }
+
+    areaImpressao.innerHTML = html;
+    areaImpressao.classList.remove("d-none");
+
+    const totalFolhas = selecionados.length * (mesFim - mesInicio + 1);
+    return totalFolhas;
   }
 
-  const selecionados = getFuncionariosSelecionados();
-  if (!selecionados.length) {
-    showMessage("⚠️ Seleciona pelo menos um funcionário", "warning");
-    return;
+  // =====================================================
+  // VALIDAR + CONFIRMAR FERIADOS (antes de gerar as folhas)
+  // Devolve true se o utilizador confirmou
+  // =====================================================
+  async function validarEConfirmarFeriados() {
+    if (mesInicioSelecionado > mesFimSelecionado) {
+      showMessage("⚠️ O mês de início não pode ser posterior ao mês de fim", "warning");
+      return false;
+    }
+    if (!getFuncionariosSelecionados().length) {
+      showMessage("⚠️ Seleciona pelo menos um funcionário", "warning");
+      return false;
+    }
+    return await confirmarFeriados();
   }
 
-  let html = "";
-  for (let mes = mesInicio; mes <= mesFim; mes++) {
-    selecionados.forEach(func => {
-      html += gerarFolhaHTML(func, mes, ano);
-    });
+  // =====================================================
+  // CONVERTER PÁGINAS EM PDF (com progresso)
+  // =====================================================
+  async function converterParaPDF(paginas, opcoes = {}) {
+    const { orientation = "p", canvasWidth = 794 } = opcoes;
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF(orientation, "mm", "a4");
+
+    for (let i = 0; i < paginas.length; i++) {
+      showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar folha ${i + 1} de ${paginas.length}...`, "info");
+
+      const canvas = await html2canvas(paginas[i], {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        width: canvasWidth
+      });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
+    }
+
+    return pdf;
   }
 
-  areaImpressao.innerHTML = html;
-  areaImpressao.classList.remove("d-none");
-
-  const totalFolhas = selecionados.length * (mesFim - mesInicio + 1);
-  return totalFolhas;
-}
-
-// =====================================================
-// CONVERTER PÁGINAS EM PDF (com progresso)
-// =====================================================
-async function converterParaPDF(paginas, opcoes = {}) {
-  const { orientation = "p", canvasWidth = 794 } = opcoes;
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF(orientation, "mm", "a4");
-
-  for (let i = 0; i < paginas.length; i++) {
-    showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar folha ${i + 1} de ${paginas.length}...`, "info");
-
-    const canvas = await html2canvas(paginas[i], {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-      width: canvasWidth
-    });
-    const imgData = canvas.toDataURL("image/jpeg", 0.95);
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const imgH = (canvas.height * pageW) / canvas.width;
-    if (i > 0) pdf.addPage();
-    pdf.addImage(imgData, "JPEG", 0, 0, pageW, Math.min(imgH, pageH));
+  function setBotoesGeracao(desativado) {
+    btnGerarFolhas.disabled = desativado;
+    btnGerarPDF.disabled = desativado;
+    btnGerarCalendarioImprimir.disabled = desativado;
+    btnGerarCalendarioPDF.disabled = desativado;
   }
 
-  return pdf;
-}
-
-function setBotoesGeracao(desativado) {
-  btnGerarFolhas.disabled = desativado;
-  btnGerarPDF.disabled = desativado;
-  btnGerarCalendarioImprimir.disabled = desativado;
-  btnGerarCalendarioPDF.disabled = desativado;
-}
   // =====================================================
   // BOTÃO GERAR E IMPRIMIR
   // =====================================================
   btnGerarFolhas.addEventListener("click", async () => {
-  setBotoesGeracao(true);
-  try {
-    const total = gerarFolhas();
-    if (!total) return;
+    setBotoesGeracao(true);
+    try {
+      const confirmado = await validarEConfirmarFeriados();
+      if (!confirmado) return;
 
-    showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} folha(s), aguarde...`, "info");
+      const total = gerarFolhas();
+      if (!total) return;
 
-    if (!window.jspdf) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
+      showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} folha(s), aguarde...`, "info");
+
+      if (!window.jspdf) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+      if (!window.html2canvas) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+
+      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+      const pdf = await converterParaPDF(paginas);
+
+      showProgressToast(TOAST_PROGRESSO_ID, "⏳ A abrir diálogo de impressão...", "info");
+
+      pdf.autoPrint();
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      await new Promise((resolve) => {
+        let limpo = false;
+        const limpar = () => {
+          if (limpo) return;
+          limpo = true;
+          clearTimeout(timeoutSeguranca);
+          iframe.remove();
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+
+        // Rede de segurança INDEPENDENTE do onload — garante que nunca fica preso
+        const timeoutSeguranca = setTimeout(limpar, 15000);
+
+        iframe.onload = () => {
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            iframe.contentWindow.addEventListener("afterprint", limpar);
+          } catch (e) {
+            console.error("Erro ao imprimir iframe:", e);
+            limpar();
+          }
+        };
+      });
+
+      areaImpressao.innerHTML = "";
+      areaImpressao.classList.add("d-none");
+
+      showProgressToast(TOAST_PROGRESSO_ID, "✅ Impressão concluída!", "success");
+      fecharProgressToast(TOAST_PROGRESSO_ID);
+
+    } catch (err) {
+      console.error("Erro ao imprimir:", err);
+      showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao imprimir: " + err.message, "danger");
+      fecharProgressToast(TOAST_PROGRESSO_ID);
+    } finally {
+      setBotoesGeracao(false);
     }
-    if (!window.html2canvas) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
-    }
-
-    const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
-    const pdf = await converterParaPDF(paginas);
-
-    showProgressToast(TOAST_PROGRESSO_ID, "⏳ A abrir diálogo de impressão...", "info");
-
-    pdf.autoPrint();
-    const blob = pdf.output("blob");
-    const url = URL.createObjectURL(blob);
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = url;
-    document.body.appendChild(iframe);
-
-    await new Promise((resolve) => {
-      let limpo = false;
-      const limpar = () => {
-        if (limpo) return;
-        limpo = true;
-        clearTimeout(timeoutSeguranca);
-        iframe.remove();
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-
-      // Rede de segurança INDEPENDENTE do onload — garante que nunca fica preso
-      const timeoutSeguranca = setTimeout(limpar, 15000);
-
-      iframe.onload = () => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-          iframe.contentWindow.addEventListener("afterprint", limpar);
-        } catch (e) {
-          console.error("Erro ao imprimir iframe:", e);
-          limpar();
-        }
-      };
-    });
-
-    areaImpressao.innerHTML = "";
-    areaImpressao.classList.add("d-none");
-
-    showProgressToast(TOAST_PROGRESSO_ID, "✅ Impressão concluída!", "success");
-    fecharProgressToast(TOAST_PROGRESSO_ID);
-
-  } catch (err) {
-    console.error("Erro ao imprimir:", err);
-    showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao imprimir: " + err.message, "danger");
-    fecharProgressToast(TOAST_PROGRESSO_ID);
-  } finally {
-    setBotoesGeracao(false);
-  }
-});
+  });
 
   // =====================================================
   // BOTÃO EXPORTAR PDF
   // =====================================================
   btnGerarPDF.addEventListener("click", async () => {
-  setBotoesGeracao(true);
-  try {
-    const total = gerarFolhas();
-    if (!total) return;
+    setBotoesGeracao(true);
+    try {
+      const confirmado = await validarEConfirmarFeriados();
+      if (!confirmado) return;
 
-    showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} folha(s), aguarde...`, "info");
+      const total = gerarFolhas();
+      if (!total) return;
 
-    if (!window.jspdf) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
+      showProgressToast(TOAST_PROGRESSO_ID, `⏳ A gerar ${total} folha(s), aguarde...`, "info");
+
+      if (!window.jspdf) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+      if (!window.html2canvas) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        document.head.appendChild(script);
+        await new Promise(resolve => { script.onload = resolve; });
+      }
+
+      const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
+      const pdf = await converterParaPDF(paginas);
+
+      const nomeMesInicio = MESES_PT[mesInicioSelecionado];
+      const nomeMesFim    = MESES_PT[mesFimSelecionado];
+      let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
+      if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
+      nomeArquivo += `_${anoSelecionado}.pdf`;
+
+      pdf.save(nomeArquivo);
+
+      areaImpressao.innerHTML = "";
+      areaImpressao.classList.add("d-none");
+
+      showProgressToast(TOAST_PROGRESSO_ID, "✅ PDF exportado com sucesso!", "success");
+      fecharProgressToast(TOAST_PROGRESSO_ID);
+
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao gerar PDF: " + err.message, "danger");
+      fecharProgressToast(TOAST_PROGRESSO_ID);
+    } finally {
+      setBotoesGeracao(false);
     }
-    if (!window.html2canvas) {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      document.head.appendChild(script);
-      await new Promise(resolve => { script.onload = resolve; });
-    }
-
-    const paginas = areaImpressao.querySelectorAll(".folha-hora-page");
-    const pdf = await converterParaPDF(paginas);
-
-    const nomeMesInicio = MESES_PT[mesInicioSelecionado];
-    const nomeMesFim    = MESES_PT[mesFimSelecionado];
-    let nomeArquivo = `Folhas_Horas_${nomeMesInicio}`;
-    if (mesInicioSelecionado !== mesFimSelecionado) nomeArquivo += `_a_${nomeMesFim}`;
-    nomeArquivo += `_${anoSelecionado}.pdf`;
-
-    pdf.save(nomeArquivo);
-
-    areaImpressao.innerHTML = "";
-    areaImpressao.classList.add("d-none");
-
-    showProgressToast(TOAST_PROGRESSO_ID, "✅ PDF exportado com sucesso!", "success");
-    fecharProgressToast(TOAST_PROGRESSO_ID);
-
-  } catch (err) {
-    console.error("Erro ao gerar PDF:", err);
-    showProgressToast(TOAST_PROGRESSO_ID, "❌ Erro ao gerar PDF: " + err.message, "danger");
-    fecharProgressToast(TOAST_PROGRESSO_ID);
-  } finally {
-    setBotoesGeracao(false);
-  }
-});
+  });
 
   // =====================================================
   // BOTÃO CALENDÁRIO — IMPRIMIR
@@ -1079,7 +1271,7 @@ function setBotoesGeracao(desativado) {
           padding: 12mm 12mm 8mm 12mm !important;
           page-break-after: always;
         }
-              .folha-hora-page:last-child { page-break-after: auto; }
+        .folha-hora-page:last-child { page-break-after: auto; }
         .folha-calendario-page {
           border: none !important;
           margin: 0 !important;

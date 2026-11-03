@@ -12,7 +12,10 @@ window.initNotaEncomendaForm = async function () {
   const notaIdEl = document.getElementById("notaId");
   const notaNumeroEl = document.getElementById("notaNumero");
     const clienteEl = document.getElementById("notaCliente");
-  const materialEl = document.getElementById("notaMaterial");
+  const materialEl = document.getElementById("notaMaterial"); // campo escondido: guarda todos os materiais ("A | B | C")
+  const materialInputEl = document.getElementById("notaMaterialInput");
+  const materialAddBtn = document.getElementById("notaMaterialAdd");
+  const materialListaEl = document.getElementById("notaMaterialLista");
   const tipoEl = document.getElementById("notaTipo");
   const dataCriacaoEl = document.getElementById("notaDataCriacao");
   const dataEntregaEl = document.getElementById("notaDataEntrega");
@@ -190,7 +193,7 @@ window.initNotaEncomendaForm = async function () {
    function neColetarRascunho() {
     return {
       cliente: clienteEl.value,
-      material: materialEl.value,
+      material: [materialEl.value, materialInputEl.value.trim()].filter(Boolean).join(NE_MATERIAL_SEP),
       tipo: tipoEl.value,
       dataCriacao: dataCriacaoEl.value,
       dataEntrega: dataEntregaEl.value,
@@ -228,7 +231,7 @@ window.initNotaEncomendaForm = async function () {
     function neRestaurarRascunho(draft) {
     clienteEl.value = draft.cliente || "";
     toggleClearNotaCliente();
-    materialEl.value = draft.material || "";
+    neDefinirMateriais(draft.material || "");
     tipoEl.value = draft.tipo || "";
     if (draft.dataCriacao) bloquearDataCriacao(draft.dataCriacao);
     dataEntregaEl.value = draft.dataEntrega || "";
@@ -271,7 +274,75 @@ window.initNotaEncomendaForm = async function () {
     neRestaurarRascunho(draft);
   }
 
-  [clienteEl, materialEl, dataEntregaEl, observacoesEl].forEach((el) => {
+  // ---------------------------------------------------------------
+  // MATERIAIS (vários): cada um adicionado aparece logo como etiqueta no
+  // formulário e no topo da folha do desenho. Ficam guardados juntos,
+  // separados por " | ", no mesmo campo "material" da nota.
+  // ---------------------------------------------------------------
+  const NE_MATERIAL_SEP = " | ";
+  let neMateriais = [];
+
+  function neParseMateriais(texto) {
+    return String(texto || "").split("|").map((m) => m.trim()).filter(Boolean);
+  }
+
+  function neRenderMateriais() {
+    materialEl.value = neMateriais.join(NE_MATERIAL_SEP);
+    materialListaEl.innerHTML = neMateriais
+      .map((m, i) => `
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#22333B;color:#fff;border-radius:16px;padding:3px 6px 3px 12px;font-size:.85rem;">
+          ${escapeHtml(m)}
+          <button type="button" class="ne-material-remove" data-i="${i}" title="Remover material"
+                  style="border:0;background:rgba(255,255,255,.25);color:#fff;border-radius:50%;width:20px;height:20px;line-height:1;padding:0;cursor:pointer;">&times;</button>
+        </span>`)
+      .join("");
+    editor.setMateriais(neMateriais);
+  }
+
+  function neDefinirMateriais(texto) {
+    neMateriais = neParseMateriais(texto);
+    materialInputEl.value = "";
+    neRenderMateriais();
+  }
+
+  function neAdicionarMaterial(valor) {
+    const nome = String(valor || "").replace(/\|/g, " ").replace(/\s+/g, " ").trim();
+    if (!nome) return false;
+    if (!neMateriais.some((m) => m.toLowerCase() === nome.toLowerCase())) {
+      neMateriais.push(nome);
+      neRenderMateriais();
+      neGuardarRascunho();
+    }
+    return true;
+  }
+
+  // Se ficou texto escrito no campo e não se carregou em "+", junta-o já
+  // (para nunca perder um material ao guardar/imprimir).
+  function neJuntarMaterialPendente() {
+    if (neAdicionarMaterial(materialInputEl.value)) materialInputEl.value = "";
+  }
+
+  materialAddBtn.addEventListener("click", () => {
+    neAdicionarMaterial(materialInputEl.value);
+    materialInputEl.value = "";
+    materialInputEl.focus();
+  });
+  materialListaEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".ne-material-remove");
+    if (!btn) return;
+    neMateriais.splice(parseInt(btn.dataset.i, 10), 1);
+    neRenderMateriais();
+    neGuardarRascunho();
+  });
+
+  // Se apagarem o texto de um material diretamente no desenho, sai também da lista
+  editor.onMateriaisChange((lista) => {
+    neMateriais = lista;
+    neRenderMateriais();
+    neGuardarRascunho();
+  });
+
+  [clienteEl, dataEntregaEl, observacoesEl, materialInputEl].forEach((el) => {
     el.addEventListener("input", neGuardarRascunho);
   });
   tipoEl.addEventListener("change", neGuardarRascunho);
@@ -623,11 +694,53 @@ document.querySelectorAll(".ne-extra-pio-option").forEach((el) => {
     pioExtraLadoWrap.classList.toggle("d-none", !pioExtraTipo.value);
   });
 
+  // ---------------------------------------------------------------
+  // PIO PADRÃO: medidas fixas 50x40x10 (comprimento 50 cm, largura 40 cm,
+  // raio 10 cm). Só pergunta o texto que fica dentro do pio e se tem extras.
+  // ---------------------------------------------------------------
+  const NE_PIO_PADRAO = { comprimentoMm: 500, larguraMm: 400, raioMm: 100 };
+  const pioPadraoModalEl = document.getElementById("neModalAddPioPadrao");
+  const pioPadraoModal = new bootstrap.Modal(pioPadraoModalEl);
+  const pioPadraoTexto = document.getElementById("nePioPadraoTexto");
+  const pioPadraoExtraTipo = document.getElementById("nePioPadraoExtraTipo");
+  const pioPadraoExtraLado = document.getElementById("nePioPadraoExtraLado");
+  const pioPadraoExtraLadoWrap = document.getElementById("nePioPadraoExtraLadoWrap");
+
+  pioPadraoExtraTipo.addEventListener("change", () => {
+    pioPadraoExtraLadoWrap.classList.toggle("d-none", !pioPadraoExtraTipo.value);
+  });
+  pioPadraoModalEl.addEventListener("shown.bs.modal", () => pioPadraoTexto.focus());
+  pioPadraoTexto.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    pioPadraoExtraTipo.focus();
+  });
+  document.getElementById("nePioPadraoConfirm").addEventListener("click", () => {
+    editor.addPio(
+      NE_PIO_PADRAO.comprimentoMm,
+      NE_PIO_PADRAO.larguraMm,
+      NE_PIO_PADRAO.raioMm,
+      true,
+      pioPadraoTexto.value.trim(),
+      pioPadraoExtraTipo.value || null,
+      pioPadraoExtraLado.value
+    );
+    pioPadraoModal.hide();
+    refreshScaleInfo();
+  });
+
   document.querySelectorAll(".ne-pio-option").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       neDesativarModosEdgeDim();
-      // por agora só existe "Personalizado" — outras opções vêm depois
+      if (el.dataset.pio === "padrao") {
+        pioPadraoTexto.value = "";
+        pioPadraoExtraTipo.value = "";
+        pioPadraoExtraLado.value = "direita";
+        pioPadraoExtraLadoWrap.classList.add("d-none");
+        pioPadraoModal.show();
+        return;
+      }
       pioComprimento.value = "";
       pioLargura.value = "";
       pioRaio.value = "";
@@ -726,7 +839,8 @@ document.querySelectorAll(".ne-extra-pio-option").forEach((el) => {
       [[fRodComp, "rodComp"], [fRodLarg, "rodLarg"], [fRodEsp, "rodEsp"]].forEach(([el, key]) => {
     el.addEventListener("input", () => editor.updateSelected({ [key]: el.value }));
     el.addEventListener("change", () => {
-      const mm = window.neParseMeasure(el.value);
+      // espessura: "2" = 2 cm = 0,02 m
+      const mm = key === "rodEsp" ? window.neParseEspessura(el.value) : window.neParseMeasure(el.value);
       if (!isNaN(mm)) {
         el.value = window.neFormatMeasure(mm);
         editor.updateSelected({ [key]: el.value });
@@ -1106,7 +1220,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
   // Pronto e Entregue só se alteram na lista (list-desenho).
   // ---------------------------------------------------------------
   function neCamposEmFaltaParaEstado() {
-    const faltaMaterial = !materialEl.value.trim();
+    const faltaMaterial = !materialEl.value.trim() && !materialInputEl.value.trim();
     const faltaGestao = !tipoEl.value;
     const faltaEntrega = !dataEntregaEl.value;
     return faltaMaterial || faltaGestao || faltaEntrega;
@@ -1171,7 +1285,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
     notaClienteDropdown.querySelectorAll(".autocomplete-item").forEach((item) => {
       item.addEventListener("click", () => {
         selecionarNotaClienteItem(item.getAttribute("data-nome"));
-        materialEl.focus();
+        materialInputEl.focus();
       });
     });
   }
@@ -1211,7 +1325,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
       } else {
         fecharNotaClienteDropdown();
       }
-      materialEl.focus();
+      materialInputEl.focus();
     } else if (e.key === "Escape") {
       fecharNotaClienteDropdown();
     }
@@ -1239,8 +1353,16 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
     el.focus();
     if (typeof el.select === "function") el.select();
   }
-  materialEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") focarComEnter(tipoEl, e);
+  // Enter com texto = adiciona o material; Enter com o campo vazio = passa para Gestão
+  materialInputEl.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (materialInputEl.value.trim()) {
+      e.preventDefault();
+      neAdicionarMaterial(materialInputEl.value);
+      materialInputEl.value = "";
+    } else {
+      focarComEnter(tipoEl, e);
+    }
   });
   tipoEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter") focarComEnter(dataCriacaoEl, e);
@@ -1274,7 +1396,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
     notaIdEl.value = data.id;
     notaNumeroEl.value = data.id;
     clienteEl.value = data.cliente_nome || "";
-    materialEl.value = data.material || "";
+    neDefinirMateriais(data.material || "");
     tipoEl.value = data.tipo || "";
     bloquearDataCriacao(data.data_criacao || dataCriacaoEl.value);
     dataEntregaEl.value = data.data_entrega || "";
@@ -1312,6 +1434,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
   // PRÉ-VISUALIZAÇÃO
   // ---------------------------------------------------------------
     async function montarNotaParaPreview() {
+    neJuntarMaterialPendente();
     const scaleInfo = editor.getScaleInfo();
     let idPreview = notaIdEl.value || null;
 
@@ -1374,7 +1497,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
   function limparApenasCamposFormulario() {
     clienteEl.value = "";
     toggleClearNotaCliente();
-    materialEl.value = "";
+    neDefinirMateriais("");
     tipoEl.value = "";
     dataEntregaEl.value = "";
     observacoesEl.value = "";
@@ -1467,7 +1590,7 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
   notaIdEl.value = "";
   notaNumeroEl.value = "";
   clienteEl.value = "";
-  materialEl.value = "";
+  neDefinirMateriais("");
   tipoEl.value = "";
   bloquearDataCriacao(new Date().toISOString().slice(0, 10));
   dataEntregaEl.min = new Date().toISOString().slice(0, 10);
@@ -1495,6 +1618,8 @@ document.getElementById("neUndo").addEventListener("click", () => { neDesativarM
     e.preventDefault();
 
     if (btnGuardarNota.disabled) return;
+
+    neJuntarMaterialPendente();
 
         if (!clienteEl.value.trim() || !dataCriacaoEl.value) {
       showMessage("Preenche os campos obrigatórios (cliente e data de criação).", "danger");

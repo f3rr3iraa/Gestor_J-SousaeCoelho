@@ -105,10 +105,28 @@ function neFormatRodText(txt) {
   const mm = neParseMeasure(txt);
   return isNaN(mm) ? String(txt).trim() : neFormatMeasure(mm);
 }
+// Espessura do rodamão: sem unidade, um número a partir de 1 conta como CM
+// ("2" = 0,02 m = 2 cm). Com unidade ("2cm", "20mm", "0.02m") ou abaixo de 1
+// ("0.02") segue a regra normal das medidas.
+function neParseEspessura(txt) {
+  const s = String(txt ?? "").trim().toLowerCase().replace(",", ".");
+  if (!s) return NaN;
+  if (/[a-z]\s*$/.test(s)) return neParseMeasure(s);
+  const num = parseFloat(s);
+  if (isNaN(num)) return NaN;
+  return num >= 1 ? num * 10 : num * 1000;
+}
+window.neParseEspessura = neParseEspessura;
+
 function neComputeRodLabel(s) {
-  return [s.rodComp, s.rodLarg, s.rodEsp]
-    .filter((v) => v !== undefined && v !== null && String(v).trim() !== "")
-    .map(neFormatRodText)
+  const partes = [
+    [s.rodComp, neFormatRodText],
+    [s.rodLarg, neFormatRodText],
+    [s.rodEsp, (t) => { const mm = neParseEspessura(t); return isNaN(mm) ? String(t).trim() : neFormatMeasure(mm); }],
+  ];
+  return partes
+    .filter(([v]) => v !== undefined && v !== null && String(v).trim() !== "")
+    .map(([v, fn]) => fn(v))
     .join(" x ");
 }
 
@@ -428,6 +446,7 @@ function createNotaEditor(container) {
   let currentView = null;
   let fixedOrigin = null;   // { x, y } — origem real fixada, só muda quando necessário
   let fixedDen = null;      // escala automática fixada, idem
+  let lastRenderView = null; // última vista desenhada (para reescalar rodamões/materiais)
   let clipboard = [];
 
   let undoStack = [];
@@ -589,7 +608,7 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
             else if (s.type === "line") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
       else if (s.type === "brace") { consider(s.x1, s.y1); consider(s.x2, s.y2); }
       else if (s.type === "arrow90") { const p = neArrow90Points(s); consider(p.x1, p.y1); consider(p.cx, p.cy); consider(p.x2, p.y2); }
-      else if (s.type === "text") consider(s.x, s.y);
+      else if (s.type === "text" && !s.isMaterial) consider(s.x, s.y);
     });
     if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 400 , maxY: 300 };
     return { minX, minY, maxX, maxY };
@@ -607,7 +626,7 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
     // encolheu bastante (ex: apagou-se uma peça grande) — evita ficar a
     // "tremer" por pequenas variações, mas garante que a escala desce
     // sozinha quando já não faz sentido continuar tão grande.
-    const NE_SHRINK_MARGIN = 0.7;
+    const NE_SHRINK_MARGIN = 0.999; // o zoom volta a ajustar assim que cabe uma escala mais pequena
     function podeEncolherEscala(fixedDenAtual, bbox, drawAreaW, drawAreaH) {
       const ideal = neIdealDenFor(bbox, drawAreaW, drawAreaH);
       return ideal <= fixedDenAtual * NE_SHRINK_MARGIN;
@@ -698,8 +717,58 @@ gridPattern.appendChild(neCreateSvgEl("path", { d: "M 5 0 L 0 0 0 5", fill: "non
   // ---------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------
+  // Rodamões e materiais têm tamanho FIXO no papel. Quando a escala muda,
+  // as posições (em mm reais) têm de acompanhar, senão uns passam por cima
+  // dos outros. Rodamões: afastamentos reescalados a partir do início do
+  // grupo (continuam alinhados pela quantidade). Materiais: ficam no mesmo
+  // sítio da folha.
+  function neReescalarForaDeEscala(vOld, vNew) {
+    let mudou = false;
+    const r = vNew.den / vOld.den;
+    if (Math.abs(r - 1) > 1e-9) {
+      const rods = shapes.filter((s) => s.type === "rect" && s.isRodamao && !s._novo);
+      if (rods.length) {
+        const off = (s) => neRodamaoLabelWidthEstimate(s.quantidade, s.label) + 3;
+        let ancX = Infinity, ancY = Infinity;
+        rods.forEach((s) => { ancX = Math.min(ancX, s.x - off(s) * vOld.den); ancY = Math.min(ancY, s.y); });
+        rods.forEach((s) => {
+          const startOld = s.x - off(s) * vOld.den;
+          const startNew = ancX + (startOld - ancX) * r;
+          s.x = startNew + off(s) * vNew.den;
+          s.y = ancY + (s.y - ancY) * r;
+        });
+        mudou = true;
+      }
+    }
+    shapes.forEach((s) => {
+      if (s.type === "text" && s.isMaterial) {
+        s.x = vNew.minX + ((s.x - vOld.minX) / vOld.den) * vNew.den;
+        s.y = vNew.minY + ((s.y - vOld.minY) / vOld.den) * vNew.den;
+        mudou = true;
+      }
+    });
+    return mudou;
+  }
+
   function render() {
-    currentView = drag ? drag.viewSnapshot : computeView();
+    let novaView = drag ? drag.viewSnapshot : computeView();
+    if (!drag && lastRenderView) {
+      // cada passo converte as posições da vista anterior para a nova;
+      // como mexer nelas pode mudar a vista automática, repete até estabilizar
+      for (let it = 0; it < 6; it++) {
+        const mudouVista = novaView.den > 0 && lastRenderView.den > 0 &&
+          (Math.abs(novaView.den - lastRenderView.den) > 1e-9 ||
+           Math.abs(novaView.minX - lastRenderView.minX) > 1e-9 ||
+           Math.abs(novaView.minY - lastRenderView.minY) > 1e-9);
+        if (!mudouVista) break;
+        const mexeu = neReescalarForaDeEscala(lastRenderView, novaView);
+        lastRenderView = novaView;
+        if (!mexeu) break;
+        novaView = computeView();
+      }
+    }
+    lastRenderView = novaView;
+    currentView = novaView;
     const view = currentView;
 
     // o retângulo do rodamão tem sempre 4x2 quadrados no papel, seja qual for a escala
@@ -1064,18 +1133,11 @@ if (s.edges && s.edges[0] && s.edges[0].me) drawPolishOnCircle(cx, cy, r, "me");
     const qtdText = String(quantidade ?? 1);
     const restText = label ? ` - ${label}` : "";
 
-    let restWidth = 0;
-    if (restText) {
-      const measureEl = neCreateSvgEl("text", { x: 0, y: 0, "font-size": fontSize, visibility: "hidden" });
-      measureEl.textContent = restText;
-      svg.appendChild(measureEl);
-      restWidth = measureEl.getBBox().width;
-      svg.removeChild(measureEl);
-    }
-
     const circleR = Math.max(2.2, fontSize * 0.5 + 0.5 * qtdText.length + 0.6);
     const gap = 1.2;
-    const totalWidth = circleR * 2 + (restText ? gap + restWidth : 0);
+    // mesma conta do PDF e do alinhamento: o círculo da quantidade fica
+    // sempre no mesmo sítio para o mesmo "início" do rodamão
+    const totalWidth = neRodamaoLabelWidthEstimate(quantidade, label);
     const startX = anchorX - totalWidth;
     const circleCx = startX + circleR;
 
@@ -1506,11 +1568,22 @@ function drawLineStyleLabels(view) {
   // Usa a bbox real (neShapeBBox) para QUALQUER tipo de peça — assim os
   // guias de alinhamento funcionam com retângulo, círculo, polígono,
   // frisos, texto, seta, linha, chaveta e seta 90º, todos por igual.
+  // bbox usada para alinhar/posicionar: no Rodamão o INÍCIO é o começo do
+  // bloco (círculo + texto), que fica à esquerda — e não o retângulo.
+  function neAlignBBox(s) {
+    const bb = neShapeBBox(s);
+    if (bb && s.type === "rect" && s.isRodamao) {
+      const den = currentView ? currentView.den : computeView().den;
+      bb.minX -= (neRodamaoLabelWidthEstimate(s.quantidade, s.label) + 3) * den;
+    }
+    return bb;
+  }
+
   function collectSnapTargets(excludeIds) {
     const xs = [], ys = [];
     shapes.forEach((s) => {
       if (excludeIds.has(s.id)) return;
-      const bb = neShapeBBox(s);
+      const bb = neAlignBBox(s);
       if (!bb) return;
       xs.push(bb.minX, (bb.minX + bb.maxX) / 2, bb.maxX);
       ys.push(bb.minY, (bb.minY + bb.maxY) / 2, bb.maxY);
@@ -1528,7 +1601,7 @@ function drawLineStyleLabels(view) {
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     items.forEach((item) => {
-      const bb = neShapeBBox(item.orig);
+      const bb = neAlignBBox(item.orig);
       if (!bb) return;
       minX = Math.min(minX, bb.minX); minY = Math.min(minY, bb.minY);
       maxX = Math.max(maxX, bb.maxX); maxY = Math.max(maxY, bb.maxY);
@@ -2279,6 +2352,8 @@ function undo() {
   try { shapes = JSON.parse(prev); } catch (err) { return; }
   polyDraft = null; lineDraft = null; arrowDraft = null;
   drag = null;
+  lastRenderView = null;
+  syncMateriaisShapes();
   selectOnly(null);
 }
 
@@ -2593,16 +2668,16 @@ function undo() {
 
   // Empurra a peça recém-criada para baixo até não ficar em cima de
   // nenhuma peça já existente na folha.
-  function placeShapeFree(shape) {
+  function placeShapeFree(shape, gapMm) {
     if (!shapes.length) return shape;
-    const gap = 15; // mm reais de folga entre peças
-    const bb0 = neShapeBBox(shape);
+    const gap = (typeof gapMm === "number" && gapMm > 0) ? gapMm : 15; // mm reais de folga entre peças
+    const bb0 = neAlignBBox(shape);
     if (!bb0) return shape;
     let dy = 0;
     for (let guard = 0; guard < 300; guard++) {
       const minY = bb0.minY + dy, maxY = bb0.maxY + dy;
       const overlap = shapes.some((s) => {
-        const ob = neShapeBBox(s);
+        const ob = neAlignBBox(s);
         if (!ob) return false;
         return bb0.minX < ob.maxX + gap && bb0.maxX > ob.minX - gap &&
                minY < ob.maxY + gap && maxY > ob.minY - gap;
@@ -2906,8 +2981,24 @@ function undo() {
       ...(isPeitoril ? { isPeitoril: true } : {}),
     };
     shape.label = neComputeRodLabel(shape);
-    placeShapeFree(shape);
+    // o INÍCIO do rodamão (círculo + texto) alinha com o início das outras peças
+    let inicioX = Infinity;
+    shapes.forEach((sh) => { const bb = neAlignBBox(sh); if (bb) inicioX = Math.min(inicioX, bb.minX); });
+    if (isFinite(inicioX)) shape.x = inicioX + (neRodamaoLabelWidthEstimate(shape.quantidade, shape.label) + 3) * den;
+    placeShapeFree(shape, Math.max(60, 6 * den)); // rodamão fica mais afastado das outras peças
     shapes.push(shape);
+    // a escala muda quando o rodamão entra na folha (e os outros rodamões
+    // reescalam-se): reajusta o x para o início do bloco (a quantidade) ficar
+    // mesmo no início das outras peças
+    if (isFinite(inicioX)) {
+      const lw = neRodamaoLabelWidthEstimate(shape.quantidade, shape.label) + 3;
+      shape._novo = true; // ainda não conta para a reescala dos outros
+      for (let rodada = 0; rodada < 3; rodada++) {
+        for (let i = 0; i < 6; i++) shape.x = inicioX + lw * computeView().den;
+        render();
+      }
+      delete shape._novo;
+    }
     selectOnly(shape.id);
     return shape;
   }
@@ -2999,10 +3090,15 @@ function undo() {
   function deleteSelected() {
     if (!selectedIds.size) return;
     pushUndo();   
+    const materiaisApagados = shapes.filter((s) => s.isMaterial && selectedIds.has(s.id)).map((s) => s.materialNome);
     shapes = shapes.filter((s) => !selectedIds.has(s.id));
+    if (materiaisApagados.length) {
+      materiaisAtuais = materiaisAtuais.filter((m) => !materiaisApagados.includes(m));
+      if (typeof onMateriaisChangeCb === "function") onMateriaisChangeCb([...materiaisAtuais]);
+    }
     selectOnly(null);
   }
-    function clearAll() {   pushUndo();   shapes = []; polyDraft = null; fixedOrigin = null; fixedDen = null; selectOnly(null); }
+    function clearAll() {   pushUndo();   shapes = []; polyDraft = null; fixedOrigin = null; fixedDen = null; lastRenderView = null; syncMateriaisShapes(); selectOnly(null); }
 
     function applyFlipRotateToShape(s, kind, pivot) {
   const deg = kind === "rotateRight" ? 90 : kind === "rotateLeft" ? -90 : 0;
@@ -3244,6 +3340,7 @@ function setDimInside(mode) {
     function setShapes(newShapes) {
     fixedOrigin = null;
     fixedDen = null;
+    lastRenderView = null;
     shapes = Array.isArray(newShapes) ? JSON.parse(JSON.stringify(newShapes)) : [];
     shapes.forEach((s) => {
       if (!s.type) s.type = "rect";
@@ -3289,6 +3386,7 @@ if (!s.hDimMode) s.hDimMode = s.dimsInside ? "left-in" : "auto";
         delete s.x1; delete s.y1; delete s.x2; delete s.y2;
       }
     });
+    syncMateriaisShapes();
     selectOnly(null);
   }
 
@@ -3309,6 +3407,40 @@ if (!s.hDimMode) s.hDimMode = s.dimsInside ? "left-in" : "auto";
   function getTool() { return tool; }
   function setScale(den) { scaleDen = den || null; render(); }
   function getScaleInfo() { return { den: currentView ? currentView.den : computeView().den, auto: !scaleDen }; }
+
+  // ---------------------------------------------------------------
+  // MATERIAIS: cada material adicionado cria um texto (só o nome) na folha,
+  // que se pode arrastar como qualquer outro texto. Fica gravado com o
+  // desenho (isMaterial + materialNome) e vai também para o PDF.
+  // ---------------------------------------------------------------
+  const NE_MATERIAL_FONT = 6; // mm no papel (o texto normal tem 4)
+  let materiaisAtuais = [];
+  let onMateriaisChangeCb = null;
+
+  function syncMateriaisShapes() {
+    shapes = shapes.filter((s) => !(s.isMaterial && !materiaisAtuais.includes(s.materialNome)));
+    materiaisAtuais.forEach((nome) => {
+      if (shapes.some((s) => s.isMaterial && s.materialNome === nome)) return;
+      // canto superior direito da folha (os seguintes ficam por baixo)
+      const view = currentView || computeView();
+      const fs = NE_MATERIAL_FONT;
+      const indice = shapes.filter((sh) => sh.isMaterial).length;
+      const larguraPapel = nome.length * fs * 0.6;
+      const x = d2rX(NE_PAGE_W - NE_MARGIN_R - larguraPapel, view);
+      const y = d2rY(NE_MARGIN_T + fs + indice * fs * 1.5, view);
+      shapes.push({
+        id: neUid(), type: "text", x, y, content: nome,
+        fontSize: NE_MATERIAL_FONT, rotation: 0, isMaterial: true, materialNome: nome,
+      });
+    });
+  }
+
+  function setMateriais(lista) {
+    materiaisAtuais = (Array.isArray(lista) ? lista : []).map((m) => String(m || "").trim()).filter(Boolean);
+    syncMateriaisShapes();
+    render();
+  }
+  function onMateriaisChange(cb) { onMateriaisChangeCb = cb; }
   function setShowGrid(v) { showGrid = !!v; render(); }
   function getShowGrid() { return showGrid; }
 
@@ -3324,7 +3456,7 @@ if (!s.hDimMode) s.hDimMode = s.dimsInside ? "left-in" : "auto";
     deleteSelected, clearAll, updateSelected,
     bringForward, sendBackward, bringToFront, sendToBack,
     getShapes, setShapes, getSelected, getSelectedShapes, select,
-    onSelectionChange, getSvgElement,
+    onSelectionChange, getSvgElement, setMateriais, onMateriaisChange,
         setTool, getTool, setScale, getScaleInfo, setShowGrid, getShowGrid, fitToPage, selectAll,
     copySelected, pasteClipboard,
     rotateOrFlipSelected, undo,
