@@ -1760,7 +1760,7 @@ document.getElementById("viewAutorPrint").textContent = NE_AUTOR;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${tipoNome}</td>
+          <td>${tipoNome.trim().toLowerCase() === "texto" ? "" : tipoNome}</td>
           <td>${produtoTexto}</td>
           <td>${item.quantidade}</td>
           <td>${semMedidas ? "" : item.comprimento.toFixed(4)}</td>

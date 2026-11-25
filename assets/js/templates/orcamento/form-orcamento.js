@@ -94,7 +94,7 @@ window.initOrcamentoForm = async function () {
   let clipInterno = null;
 
   const novaLinha = () => ({
-    tipoId: null, tipoNome: "", diversos: false,
+    tipoId: null, tipoNome: "", diversos: false, txt: false,
     linear: false, m2: null, // Linear = como Diversos, mas pede Qtd + m² (m² total, editável)
     brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "",
     refPreco: null,
@@ -635,15 +635,18 @@ window.initOrcamentoForm = async function () {
     pushUndo();
     const row = rows[r];
     const eraDiv = row.diversos;
+    const eraTxt = !!row.txt;
     const nomeTipo = (t.nome || "").trim().toLowerCase();
     const isLinear = nomeTipo === "linear";
+const isTxt = nomeTipo === "texto";
     const isDiv = nomeTipo === "diversos" || isLinear; // Linear comporta-se como Diversos (artigo livre, sem comp./larg.)
     row.tipoId = t.id;
     row.tipoNome = t.nome;
     row.diversos = isDiv;
+row.txt = isTxt;
     if (!isLinear) row.m2 = null;
     row.linear = isLinear;
-    if (eraDiv !== isDiv) {
+    if (eraDiv !== isDiv || eraTxt !== isTxt) {
       // mudou entre "diversos/linear" e normal → o produto deixa de fazer sentido
       Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: "", acabamento: "", espessura: null, label: "", refPreco: null, comp: null, larg: null, m2: null });
     }
@@ -725,6 +728,12 @@ window.initOrcamentoForm = async function () {
         onSelect: (it) => aplicarDiverso(r, it.label),
         onFreeText: async (t) => { await guardarOpcaoArtigo(t, linear); aplicarDiverso(r, t); },
       });
+           return;
+    }
+
+        // TXT: escreve-se direto na célula (não abre nenhuma janela)
+    if (row.txt) {
+      editarProdutoTxt(r, seed || null);
       return;
     }
 
@@ -919,6 +928,58 @@ window.initOrcamentoForm = async function () {
     input.addEventListener("blur", () => { if (!terminado && editing && editing.input === input) terminar("blur"); });
   }
 
+    // Edição inline do Produto quando o tipo é "txt"
+  function editarProdutoTxt(r, inicial = null) {
+    const row = rows[r];
+    const td = tbody.querySelector(`td[data-r="${r}"][data-c="${C.PROD}"]`);
+    if (!td) return;
+    cur = { r, c: C.PROD };
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "cell-input";
+    input.autocomplete = "off";
+    input.style.textAlign = "left";
+    input.value = inicial !== null ? inicial : row.descricao || "";
+    td.innerHTML = "";
+    td.appendChild(input);
+    editing = { r, c: C.PROD, input };
+    input.focus();
+    if (inicial === null) input.select();
+    else input.setSelectionRange(input.value.length, input.value.length);
+
+    let terminado = false;
+    const terminar = (modo) => {
+      if (terminado) return;
+      const t = input.value.trim();
+      if (modo === "enter" && !t) {
+        toast("⚠️ Escreve o produto", "warning");
+        input.focus();
+        return;
+      }
+      terminado = true;
+      editing = null;
+      if (modo !== "cancel" && t) {
+        pushUndo();
+        Object.assign(row, {
+          brandKey: "", brandNome: "", webId: null, descricao: t, label: t,
+          acabamento: "", espessura: null, refPreco: null,
+        });
+        guardarRascunho();
+      }
+      setCur(r, C.PROD);
+      if (modo === "enter") seguirAposProduto(r); // abre Qtd / Comp. / Larg.
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) terminar("enter"); }
+      else if (e.key === "Escape") { e.preventDefault(); terminar("cancel"); }
+      e.stopPropagation();
+    });
+    input.addEventListener("blur", () => {
+      if (!terminado && editing && editing.input === input) terminar("blur");
+    });
+  }
+
   // -------------------------------------------------
   // AÇÃO DE UMA CÉLULA (Enter / duplo clique / escrever uma letra)
   // -------------------------------------------------
@@ -1070,8 +1131,15 @@ window.initOrcamentoForm = async function () {
     e.preventDefault();
   }
 
-  function colarProduto(r, texto) {
+    function colarProduto(r, texto) {
     const row = rows[r];
+    if (row.txt) {
+      pushUndo();
+      Object.assign(row, { brandKey: "", brandNome: "", webId: null, descricao: texto, label: texto, acabamento: "", espessura: null, refPreco: null });
+      guardarRascunho();
+      render();
+      return;
+    }
     const src = clipInterno && clipInterno.tipo === "prod" && clipInterno.texto === texto ? clipInterno.dados : null;
     let dados = src;
     if (!dados) {
@@ -1406,6 +1474,7 @@ window.initOrcamentoForm = async function () {
     const tipo = tipos.find((t) => String(t.id) === String(it.tipo_id));
     const tipoNome = tipo ? tipo.nome : `Tipo ${it.tipo_id}`;
     const linear = tipoNome.trim().toLowerCase() === "linear";
+const txt = tipoNome.trim().toLowerCase() === "texto";
     const diversos = tipoNome.trim().toLowerCase() === "diversos" || it.brand === "diversos" || linear;
     const brandKey = diversos ? "" : it.brand || "";
     const brandNome = brandKey ? brandNomePorKey[brandKey] || brandKey : "";
@@ -1418,7 +1487,7 @@ window.initOrcamentoForm = async function () {
       : `${brandNome} - ${it.descricao}${acabamento ? " " + acabamento : ""}${espessura !== null ? " " + espessura + "mm" : ""}`;
     return {
       ...novaLinha(),
-      tipoId: it.tipo_id, tipoNome, diversos, linear,
+      tipoId: it.tipo_id, tipoNome, diversos, linear, txt,
       m2: linear ? (Number(it.quantidade) || 0) * (Number(it.comprimento) || 0) * (Number(it.largura) || 1) || null : null,
       brandKey, brandNome, webId: prod ? prod.webId : null,
       descricao: it.descricao || "", acabamento, espessura, label,
